@@ -54,10 +54,10 @@ watch(
       aria-labelledby="restart-dialog-title"
       aria-describedby="restart-dialog-description"
     >
-      <p class="section-kicker">Start over?</p>
-      <h2 id="restart-dialog-title">重新铺一张棋盘？</h2>
+      <p class="section-kicker">重新开始</p>
+      <h2 id="restart-dialog-title">换一盘新糖果？</h2>
       <p id="restart-dialog-description">
-        这会丢弃当前练习进度，刚才完成的交换无法恢复。
+        当前进度会被清空，刚才完成的交换无法恢复。
       </p>
       <div class="dialog-card__actions">
         <button

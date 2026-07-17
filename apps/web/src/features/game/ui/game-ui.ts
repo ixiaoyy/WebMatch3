@@ -1,5 +1,12 @@
 import type { Coordinate } from "@/features/game/engine";
 
+import candyAmberUrl from "./assets/candy-amber.png";
+import candyAquaUrl from "./assets/candy-aqua.png";
+import candyCoralUrl from "./assets/candy-coral.png";
+import candyLimeUrl from "./assets/candy-lime.png";
+import candyRoseUrl from "./assets/candy-rose.png";
+import candyVioletUrl from "./assets/candy-violet.png";
+
 export type GamePhase =
   | "idle"
   | "swapping"
@@ -12,7 +19,7 @@ export type FocusDirection = "up" | "right" | "down" | "left";
 
 export interface TilePresentation {
   readonly label: string;
-  readonly glyph: string;
+  readonly assetUrl: string;
 }
 
 export interface GameHudState {
@@ -68,17 +75,17 @@ export function moveCoordinate(
 }
 
 const TILE_PRESENTATIONS: Readonly<Record<string, TilePresentation>> = {
-  coral: { label: "珊瑚圆印", glyph: "●" },
-  amber: { label: "琥珀方印", glyph: "■" },
-  lime: { label: "青柠菱印", glyph: "◆" },
-  aqua: { label: "水蓝六角印", glyph: "⬢" },
-  violet: { label: "紫罗兰星印", glyph: "✦" },
-  rose: { label: "玫红花印", glyph: "✤" },
+  coral: { label: "珊瑚红方糖", assetUrl: candyCoralUrl },
+  amber: { label: "琥珀黄水滴糖", assetUrl: candyAmberUrl },
+  lime: { label: "青柠绿叶糖", assetUrl: candyLimeUrl },
+  aqua: { label: "水蓝圆糖", assetUrl: candyAquaUrl },
+  violet: { label: "紫罗兰花糖", assetUrl: candyVioletUrl },
+  rose: { label: "玫瑰粉心形糖", assetUrl: candyRoseUrl },
 };
 
 const UNKNOWN_PRESENTATION: TilePresentation = {
-  label: "未知印记",
-  glyph: "•",
+  label: "未知糖果",
+  assetUrl: candyAquaUrl,
 };
 
 export function getTilePresentation(type: string): TilePresentation {

@@ -36,7 +36,7 @@ watch(
       aria-modal="true"
       aria-labelledby="result-dialog-title"
     >
-      <p class="section-kicker">Round complete</p>
+      <p class="section-kicker">本局结果</p>
       <h2 id="result-dialog-title">
         {{ result.outcome === "won" ? "目标达成" : "本局结束" }}
       </h2>

@@ -25,3 +25,13 @@ pnpm --dir apps/web typecheck
 pnpm --dir apps/web test
 pnpm --dir apps/web build
 ```
+
+## Completion evidence
+
+- `pnpm --dir apps/web test -- game-ui`: 8 focused tests passed.
+- `pnpm ci:web`: lint, typecheck, 27 tests, and production build passed.
+- 1440×900 browser smoke check: 656×656 board, 64 local candy images loaded,
+  no horizontal overflow, no console warnings/errors.
+- Keyboard smoke check: Enter selected one grid cell and Escape cleared the
+  selection.
+- No generated source or full-size reference image was opened during UI work.

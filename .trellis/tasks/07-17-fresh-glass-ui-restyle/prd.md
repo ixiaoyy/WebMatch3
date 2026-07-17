@@ -24,13 +24,13 @@
 
 ## Acceptance Criteria
 
-- [ ] 六类棋子均通过本地 `<img>` 素材渲染，不再出现字符 glyph。
-- [ ] 1440px、768px、390px 和 320px 布局规则均由 CSS 明确定义，棋盘正方形且
+- [x] 六类棋子均通过本地 `<img>` 素材渲染，不再出现字符 glyph。
+- [x] 1440px、768px、390px 和 320px 布局规则均由 CSS 明确定义，棋盘正方形且
   无横向溢出。
-- [ ] 交互、焦点、状态动画、弹窗和 reduced-motion 保持完整。
-- [ ] 触及文件不再引用旧视觉 token 或旧纸张/印章文案。
-- [ ] 定向 UI 测试、lint、typecheck、单元测试和 production build 通过。
-- [ ] 未重新打开或生成素材源图；未修改引擎规则和公共契约。
+- [x] 交互、焦点、状态动画、弹窗和 reduced-motion 保持完整。
+- [x] 触及文件不再引用旧视觉 token 或旧纸张/印章文案。
+- [x] 定向 UI 测试、lint、typecheck、单元测试和 production build 通过。
+- [x] 未重新打开或生成素材源图；未修改引擎规则和公共契约。
 
 ## Out of Scope
 

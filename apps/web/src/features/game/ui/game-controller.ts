@@ -35,7 +35,7 @@ export function createGameController(options: GameControllerOptions = {}) {
   const selected = shallowRef<Coordinate | null>(null);
   const focused = shallowRef<Coordinate>({ row: 0, column: 0 });
   const phase = ref<GamePhase>("idle");
-  const status = ref("选择一枚印记，再选择它旁边的一枚完成交换。");
+  const status = ref("选择一颗糖果，再选择它旁边的一颗完成交换。");
   const isBusy = ref(false);
   const matchedKeys = shallowRef<ReadonlySet<string>>(new Set());
   const invalidKeys = shallowRef<ReadonlySet<string>>(new Set());
@@ -89,7 +89,7 @@ export function createGameController(options: GameControllerOptions = {}) {
 
     if (selected.value === null) {
       selected.value = coordinate;
-      status.value = `已选择第 ${coordinate.row + 1} 行，第 ${coordinate.column + 1} 列。请选择相邻印记。`;
+      status.value = `已选择第 ${coordinate.row + 1} 行，第 ${coordinate.column + 1} 列。请选择相邻糖果。`;
       return;
     }
 
@@ -122,7 +122,7 @@ export function createGameController(options: GameControllerOptions = {}) {
       const result = executeSwap(board.value, from, to, random);
 
       if (result.kind === "invalid") {
-        status.value = "这两枚印记不能交换。";
+        status.value = "这两颗糖果不能交换。";
         return;
       }
 
@@ -175,7 +175,7 @@ export function createGameController(options: GameControllerOptions = {}) {
         );
         visualBoard.value = round.after;
         phase.value = "settling";
-        status.value = "印记下落并补充中。";
+        status.value = "糖果下落并补充中。";
         if (!(await waitForPhase(180, generation))) {
           return;
         }
@@ -225,7 +225,7 @@ export function createGameController(options: GameControllerOptions = {}) {
     isBusy.value = false;
     phase.value = "idle";
     clearAnimationMarkers();
-    status.value = "新棋盘已准备好。选择相邻印记开始。";
+    status.value = "新棋盘已准备好。选择相邻糖果开始。";
   }
 
   function requestRestart(): void {

@@ -8,7 +8,7 @@ defineEmits<{
   <aside class="instructions" aria-labelledby="instructions-title">
     <div class="instructions__heading">
       <div>
-        <p class="section-kicker">How to play</p>
+        <p class="section-kicker">玩法说明</p>
         <h2 id="instructions-title">两步就会</h2>
       </div>
       <button
@@ -23,7 +23,7 @@ defineEmits<{
     <ol class="instructions__steps">
       <li>
         <span>01</span>
-        <p><strong>选一枚印记</strong>，再点它上下左右的邻居。</p>
+        <p><strong>选一颗糖果</strong>，再点它上下左右的邻居。</p>
       </li>
       <li>
         <span>02</span>
@@ -37,6 +37,9 @@ defineEmits<{
 </template>
 <style scoped lang="scss">
 .instructions {
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+
   &__heading {
     display: flex;
     align-items: start;
@@ -45,51 +48,49 @@ defineEmits<{
 
     h2 {
       margin: 0;
-      font-family: "Bodoni 72", Didot, Georgia, serif;
-      font-size: 2rem;
-      font-weight: 500;
-      letter-spacing: -0.04em;
+      font-size: 1.08rem;
+      font-weight: 760;
+      letter-spacing: -0.015em;
     }
   }
 
   &__steps {
     display: grid;
     gap: 0;
-    margin: 20px 0 0;
+    margin: 14px 0 0;
     padding: 0;
-    border-top: 1px solid var(--rule);
+    border-top: 1px solid var(--line);
     list-style: none;
 
     li {
       display: grid;
       grid-template-columns: 34px 1fr;
       gap: 12px;
-      padding: 13px 0;
-      border-bottom: 1px solid var(--rule);
+      padding: 12px 0;
+      border-bottom: 1px solid var(--line);
     }
 
     span {
-      color: #a93229;
-      font-family: ui-monospace, "Cascadia Mono", monospace;
+      color: var(--primary-strong);
       font-size: 0.7rem;
-      font-weight: 850;
+      font-weight: 780;
     }
 
     p {
       margin: 0;
-      color: var(--ink-soft);
-      font-size: 0.86rem;
+      color: var(--text-muted);
+      font-size: 0.82rem;
       line-height: 1.55;
     }
 
     strong {
-      color: var(--ink);
+      color: var(--text);
     }
   }
 
   &__keyboard {
     margin: 14px 0 0;
-    color: var(--ink-soft);
+    color: var(--text-muted);
     font-size: 0.68rem;
     line-height: 1.55;
   }

@@ -36,8 +36,11 @@ const metrics: ReadonlyArray<{
 <template>
   <section class="game-hud" aria-labelledby="hud-title">
     <div class="game-hud__heading">
-      <p class="section-kicker">Round notes</p>
-      <h2 id="hud-title">本局记录</h2>
+      <div>
+        <p class="section-kicker">本局状态</p>
+        <h2 id="hud-title">轻松练习</h2>
+      </div>
+      <span aria-hidden="true">∞</span>
     </div>
     <dl class="game-hud__metrics">
       <div v-for="metric in metrics" :key="metric.key" class="game-hud__metric">
@@ -52,63 +55,90 @@ const metrics: ReadonlyArray<{
 </template>
 <style scoped lang="scss">
 .game-hud {
-  padding-bottom: 28px;
-  border-bottom: 1px solid var(--rule);
-
   &__heading {
     display: flex;
-    align-items: baseline;
+    align-items: center;
     justify-content: space-between;
     gap: 12px;
-    margin-bottom: 18px;
+    margin-bottom: 16px;
 
     h2 {
       margin: 0;
-      font-family: "Bodoni 72", Didot, Georgia, serif;
-      font-size: 2rem;
-      font-weight: 500;
-      letter-spacing: -0.04em;
+      font-size: 1.08rem;
+      font-weight: 760;
+      letter-spacing: -0.015em;
+    }
+
+    > span {
+      display: grid;
+      width: 38px;
+      height: 38px;
+      place-items: center;
+      border-radius: 50%;
+      color: var(--primary-strong);
+      background: rgb(102 91 233 / 10%);
+      font-size: 1.15rem;
+      font-weight: 760;
     }
   }
 
   &__metrics {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
     margin: 0;
-    border-top: 1px solid var(--ink);
-    border-left: 1px solid var(--ink);
   }
 
   &__metric {
     min-width: 0;
-    padding: 12px;
-    border-right: 1px solid var(--ink);
-    border-bottom: 1px solid var(--ink);
+    padding: 11px;
+    border-radius: 11px;
+    background: rgb(255 255 255 / 42%);
 
     dt {
-      color: var(--ink-soft);
-      font-size: 0.65rem;
-      font-weight: 750;
-      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      font-size: 0.68rem;
+      font-weight: 650;
     }
 
     dd {
-      margin: 6px 0 0;
-      font-family: "Bodoni 72", Didot, Georgia, serif;
-      font-size: clamp(1.6rem, 4vw, 2.3rem);
+      margin: 5px 0 0;
+      color: var(--text);
+      font-size: 1.45rem;
+      font-weight: 780;
       line-height: 1;
+      font-variant-numeric: tabular-nums;
     }
   }
 
   &__metric:nth-child(2) {
-    background: var(--acid);
+    background: rgb(255 217 157 / 38%);
   }
 
   &__mode-note {
-    margin: 14px 0 0;
-    color: var(--ink-soft);
-    font-size: 0.75rem;
-    line-height: 1.55;
+    margin: 13px 0 0;
+    color: var(--text-muted);
+    font-size: 0.76rem;
+    line-height: 1.6;
+    text-wrap: pretty;
+  }
+}
+
+@media (max-width: 760px) {
+  .game-hud {
+    display: grid;
+    grid-template-columns: minmax(130px, 0.7fr) minmax(0, 1.3fr);
+    gap: 12px;
+    align-items: center;
+
+    &__heading,
+    &__mode-note {
+      margin: 0;
+    }
+
+    &__mode-note {
+      grid-column: 1 / -1;
+    }
   }
 }
 </style>

@@ -148,6 +148,7 @@ watch(
   <div
     class="game-board"
     :class="`game-board--${phase}`"
+    :style="{ '--board-columns': board.columns }"
     role="grid"
     aria-label="三消棋盘，使用方向键移动，回车或空格选择"
     :aria-rowcount="board.rows"
@@ -190,15 +191,13 @@ watch(
   display: grid;
   width: 100%;
   aspect-ratio: 1;
-  padding: clamp(5px, 1.4vw, 11px);
-  gap: clamp(2px, 0.55vw, 6px);
-  border: 1px solid #080906;
-  background:
-    linear-gradient(90deg, rgb(255 255 255 / 3%) 1px, transparent 1px),
-    linear-gradient(rgb(255 255 255 / 3%) 1px, transparent 1px),
-    var(--graphite);
-  background-size: 12.5% 12.5%;
-  box-shadow: inset 0 0 0 3px rgb(255 255 255 / 4%);
+  padding: clamp(4px, 0.9vw, 8px);
+  gap: clamp(2px, 0.45vw, 5px);
+  border-radius: var(--panel-radius);
+  background: var(--board);
+  box-shadow:
+    inset 0 1px rgb(255 255 255 / 12%),
+    inset 0 -10px 24px rgb(11 18 48 / 18%);
   touch-action: manipulation;
 
   &[aria-busy="true"] {
@@ -208,7 +207,7 @@ watch(
   &__row {
     display: grid;
     min-height: 0;
-    grid-template-columns: repeat(8, minmax(0, 1fr));
+    grid-template-columns: repeat(var(--board-columns), minmax(0, 1fr));
     gap: inherit;
   }
 
@@ -217,34 +216,42 @@ watch(
     display: grid;
     min-width: 0;
     min-height: 0;
-    padding: 5%;
+    padding: 1%;
     overflow: visible;
     place-items: center;
-    border: 1px solid transparent;
-    border-radius: 18%;
-    background: rgb(255 255 255 / 035);
+    border: 0;
+    border-radius: var(--tile-radius);
+    background: var(--board-cell);
     cursor: pointer;
     isolation: isolate;
     -webkit-tap-highlight-color: transparent;
+    transition:
+      background-color 140ms ease,
+      box-shadow 140ms ease,
+      transform 140ms cubic-bezier(0.22, 1, 0.36, 1);
 
     &::after {
       position: absolute;
-      z-index: -1;
-      inset: 5%;
+      z-index: 1;
+      inset: 2px;
       border: 2px solid transparent;
-      border-radius: 22%;
+      border-radius: calc(var(--tile-radius) - 2px);
       content: "";
-      transition: border-color 100ms ease, transform 100ms ease;
+      pointer-events: none;
+      transition:
+        border-color 120ms ease,
+        box-shadow 120ms ease,
+        transform 120ms ease;
     }
 
     &:hover:not([aria-disabled="true"])::after {
-      border-color: rgb(246 241 227 / 38%);
+      border-color: rgb(255 255 255 / 44%);
     }
 
     &:focus-visible {
       z-index: 5;
-      outline-color: var(--acid);
-      outline-offset: -1px;
+      outline: 3px solid var(--focus);
+      outline-offset: -2px;
     }
 
     &[aria-disabled="true"] {
@@ -253,9 +260,15 @@ watch(
   }
 
   &__cell--selected::after {
-    border-color: var(--acid);
-    box-shadow: 0 0 0 2px var(--graphite), 0 0 0 4px var(--acid);
-    transform: rotate(-4deg) scale(0.92);
+    border-color: #fff;
+    box-shadow:
+      0 0 0 2px var(--primary),
+      inset 0 0 0 1px rgb(255 255 255 / 72%);
+    transform: scale(0.94);
+  }
+
+  &__cell--selected :deep(.game-tile) {
+    transform: translateY(-3px) scale(1.04);
   }
 
   &__cell--matched :deep(.game-tile) {
@@ -264,6 +277,12 @@ watch(
 
   &__cell--invalid :deep(.game-tile) {
     animation: tile-invalid 260ms ease-in-out;
+  }
+
+  &__cell--invalid::after {
+    border-color: #ff96a7;
+    border-style: dashed;
+    box-shadow: inset 0 0 0 2px rgb(182 61 82 / 40%);
   }
 
   &__cell--moved :deep(.game-tile) {
@@ -342,8 +361,8 @@ watch(
   .game-board__cell--matched::after,
   .game-board__cell--invalid::after,
   .game-board__cell--spawned::after {
-    border-color: var(--acid);
-    background: rgb(214 242 78 / 16%);
+    border-color: var(--focus);
+    background: rgb(255 242 168 / 16%);
   }
 }
 </style>

@@ -12,6 +12,7 @@ import {
 import { createGameController } from "./game-controller";
 import {
   getTileAriaLabel,
+  getTilePresentation,
   moveCoordinate,
 } from "./game-ui";
 
@@ -33,8 +34,14 @@ describe("game UI helpers", () => {
 
   it("describes type, position, and selection without relying on color", () => {
     expect(getTileAriaLabel("violet", { row: 1, column: 2 }, true)).toBe(
-      "紫罗兰星印，第 2 行，第 3 列，已选中",
+      "紫罗兰花糖，第 2 行，第 3 列，已选中",
     );
+  });
+
+  it("maps every tile type to a bundled candy image", () => {
+    for (const type of ["coral", "amber", "lime", "aqua", "violet", "rose"]) {
+      expect(getTilePresentation(type).assetUrl).toMatch(/candy-.*\.png$/);
+    }
   });
 });
 
