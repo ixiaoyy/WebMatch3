@@ -16,6 +16,7 @@ This directory contains guidelines for frontend development. Fill in each file w
 |-------|-------------|--------|
 | [Directory Structure](./directory-structure.md) | Module organization and file layout | Active |
 | [Toolchain Contract](./toolchain-contract.md) | Workspace commands, dependency installation, and validation | Active |
+| [Game Engine Contract](./game-engine-contract.md) | Deterministic board rules and UI-facing result contracts | Active |
 | [Component Guidelines](./component-guidelines.md) | Component patterns, props, composition | To fill |
 | [Hook Guidelines](./hook-guidelines.md) | Custom hooks, data fetching patterns | To fill |
 | [State Management](./state-management.md) | Local state, global state, server state | To fill |
@@ -28,6 +29,7 @@ This directory contains guidelines for frontend development. Fill in each file w
 
 - Read [Directory Structure](./directory-structure.md) before adding or moving frontend modules.
 - Read [Toolchain Contract](./toolchain-contract.md) before changing dependencies, package scripts, Vite, TypeScript, ESLint, Vitest, or workspace configuration.
+- Read [Game Engine Contract](./game-engine-contract.md) before changing game rules, session scoring inputs, board animation data, or game UI state transitions.
 - Read the topic-specific guide only when the task touches that topic; files marked `To fill` are templates, not project conventions.
 
 ## Quality Check
@@ -35,6 +37,7 @@ This directory contains guidelines for frontend development. Fill in each file w
 - Run `pnpm ci:web` from the repository root after frontend code or toolchain changes.
 - For dependency changes, also run `pnpm install --frozen-lockfile` after the lockfile is generated.
 - Confirm new modules respect the ownership boundaries in [Directory Structure](./directory-structure.md).
+- For game-rule changes, run the deterministic engine tests and verify every consumer imports only from the engine `index.ts`.
 - Do not treat files marked `To fill` as authoritative until the bootstrap task replaces their placeholder content with codebase evidence.
 
 ---
