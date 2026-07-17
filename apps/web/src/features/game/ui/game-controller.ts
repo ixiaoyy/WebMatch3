@@ -10,8 +10,30 @@ import {
   type RandomSource,
   type Swap,
 } from "@/features/game/engine";
+import {
+  DEFAULT_SESSION_CONFIG,
+  getDefaultProgressStorage,
+  loadLocalProgress,
+  recordCompletedGame,
+  safeAdd,
+  saveLocalProgress,
+  scoreCascadeRound,
+  selectLeaderboard,
+  validatePlayerName,
+  type GameOutcome,
+  type LeaderboardPeriod,
+  type ProgressStorage,
+  type SessionConfig,
+  type SessionPhase,
+} from "@/features/game/session";
 
-import { coordinateKey, coordinatesEqual, type GamePhase } from "./game-ui";
+import {
+  coordinateKey,
+  coordinatesEqual,
+  type GameHudState,
+  type GamePhase,
+  type GameResultState,
+} from "./game-ui";
 
 export type Wait = (duration: number) => Promise<void>;
 
@@ -19,6 +41,9 @@ export interface GameControllerOptions {
   readonly random?: RandomSource;
   readonly wait?: Wait;
   readonly reducedMotion?: boolean;
+  readonly storage?: ProgressStorage | null;
+  readonly now?: () => Date;
+  readonly sessionConfig?: Partial<SessionConfig>;
 }
 
 const waitFor: Wait = (duration) =>
@@ -28,14 +53,26 @@ export function createGameController(options: GameControllerOptions = {}) {
   const random = options.random ?? Math.random;
   const wait = options.wait ?? waitFor;
   const reducedMotion = options.reducedMotion ?? false;
+  const now = options.now ?? (() => new Date());
+  const sessionConfig: SessionConfig = Object.freeze({
+    ...DEFAULT_SESSION_CONFIG,
+    ...options.sessionConfig,
+  });
+  const storage =
+    options.storage === undefined
+      ? getDefaultProgressStorage()
+      : options.storage;
   const initial = generateBoard(DEFAULT_ENGINE_CONFIG, random).board;
+  const storedProgress = loadLocalProgress(storage, sessionConfig);
 
   const board = shallowRef<Board>(initial);
   const visualBoard = shallowRef<Board>(initial);
   const selected = shallowRef<Coordinate | null>(null);
   const focused = shallowRef<Coordinate>({ row: 0, column: 0 });
   const phase = ref<GamePhase>("idle");
-  const status = ref("选择一颗糖果，再选择它旁边的一颗完成交换。");
+  const sessionPhase = ref<SessionPhase>("awaiting-player");
+  const playerName = ref("");
+  const status = ref("请输入姓名后开始游戏。");
   const isBusy = ref(false);
   const matchedKeys = shallowRef<ReadonlySet<string>>(new Set());
   const invalidKeys = shallowRef<ReadonlySet<string>>(new Set());
@@ -45,9 +82,34 @@ export function createGameController(options: GameControllerOptions = {}) {
   const instructionsVisible = ref(true);
   const restartConfirmVisible = ref(false);
   const resolvedMoves = ref(0);
+  const score = ref(0);
+  const remainingMoves = ref(sessionConfig.initialMoves);
+  const combo = ref(0);
+  const bestCombo = ref(0);
+  const progress = shallowRef(storedProgress);
+  const leaderboardPeriod = ref<LeaderboardPeriod>("week");
+  const result = shallowRef<GameResultState | null>(null);
   let animationGeneration = 0;
 
   const hasProgress = computed(() => resolvedMoves.value > 0);
+  const canPlay = computed(
+    () => sessionPhase.value === "playing" && !isBusy.value,
+  );
+  const leaderboard = computed(() =>
+    selectLeaderboard(
+      progress.value,
+      leaderboardPeriod.value,
+      now(),
+      sessionConfig,
+    ),
+  );
+  const bestScore = computed(() => progress.value.bestScore);
+  const hudState = computed<GameHudState>(() => ({
+    score: score.value,
+    targetScore: sessionConfig.targetScore,
+    remainingMoves: remainingMoves.value,
+    combo: combo.value,
+  }));
 
   function duration(normal: number): number {
     return reducedMotion ? Math.min(16, normal) : normal;
@@ -74,7 +136,7 @@ export function createGameController(options: GameControllerOptions = {}) {
   }
 
   function cancelSelection(): void {
-    if (isBusy.value || selected.value === null) {
+    if (!canPlay.value || selected.value === null) {
       return;
     }
     selected.value = null;
@@ -82,11 +144,11 @@ export function createGameController(options: GameControllerOptions = {}) {
   }
 
   async function activate(coordinate: Coordinate): Promise<void> {
-    focused.value = coordinate;
-    if (isBusy.value) {
+    if (!canPlay.value) {
       return;
     }
 
+    focused.value = coordinate;
     if (selected.value === null) {
       selected.value = coordinate;
       status.value = `已选择第 ${coordinate.row + 1} 行，第 ${coordinate.column + 1} 列。请选择相邻糖果。`;
@@ -116,28 +178,31 @@ export function createGameController(options: GameControllerOptions = {}) {
   ): Promise<void> {
     const generation = ++animationGeneration;
     isBusy.value = true;
+    sessionPhase.value = "resolving";
     activeSwap.value = { from, to };
+    combo.value = 0;
 
     try {
-      const result = executeSwap(board.value, from, to, random);
+      const swapResult = executeSwap(board.value, from, to, random);
 
-      if (result.kind === "invalid") {
+      if (swapResult.kind === "invalid") {
         status.value = "这两颗糖果不能交换。";
         return;
       }
 
-      if (result.kind === "no-match") {
+      if (swapResult.kind === "no-match") {
         phase.value = "invalid";
         invalidKeys.value = new Set([
-          coordinateKey(result.swap.from),
-          coordinateKey(result.swap.to),
+          coordinateKey(swapResult.swap.from),
+          coordinateKey(swapResult.swap.to),
         ]);
         status.value = "没有连成三个，交换已复位。";
         await waitForPhase(260, generation);
         return;
       }
 
-      const firstRound = result.cascades[0];
+      remainingMoves.value = Math.max(0, remainingMoves.value - 1);
+      const firstRound = swapResult.cascades[0];
       if (!firstRound) {
         status.value = "棋盘没有可展示的结算轮次，请重新开始。";
         return;
@@ -150,7 +215,7 @@ export function createGameController(options: GameControllerOptions = {}) {
         return;
       }
 
-      for (const round of result.cascades) {
+      for (const round of swapResult.cascades) {
         visualBoard.value = round.before;
         matchedKeys.value = new Set(
           round.matches.coordinates.map(coordinateKey),
@@ -158,10 +223,15 @@ export function createGameController(options: GameControllerOptions = {}) {
         movedKeys.value = new Set();
         spawnedKeys.value = new Set();
         phase.value = "clearing";
+
+        const roundScore = scoreCascadeRound(round, sessionConfig);
+        score.value = safeAdd(score.value, roundScore.total);
+        combo.value = round.index;
+        bestCombo.value = Math.max(bestCombo.value, round.index);
         status.value =
-          round.index === 0
-            ? `连成 ${round.matches.coordinates.length} 枚，正在消除。`
-            : `第 ${round.index + 1} 轮连锁，正在消除。`;
+          round.index === 1
+            ? `连成 ${round.matches.coordinates.length} 枚，获得 ${roundScore.total} 分。`
+            : `第 ${round.index} 轮连锁，获得 ${roundScore.total} 分。`;
         if (!(await waitForPhase(160, generation))) {
           return;
         }
@@ -181,12 +251,12 @@ export function createGameController(options: GameControllerOptions = {}) {
         }
       }
 
-      if (result.playability.kind !== "unchanged") {
+      if (swapResult.playability.kind !== "unchanged") {
         clearAnimationMarkers();
-        visualBoard.value = result.board;
+        visualBoard.value = swapResult.board;
         phase.value = "shuffling";
         status.value =
-          result.playability.kind === "shuffled"
+          swapResult.playability.kind === "shuffled"
             ? "没有可用交换，棋盘已重新排列。"
             : "没有可用交换，棋盘已重新生成。";
         if (!(await waitForPhase(220, generation))) {
@@ -194,13 +264,20 @@ export function createGameController(options: GameControllerOptions = {}) {
         }
       }
 
-      board.value = result.board;
-      visualBoard.value = result.board;
+      board.value = swapResult.board;
+      visualBoard.value = swapResult.board;
       resolvedMoves.value += 1;
-      status.value =
-        result.cascades.length > 1
-          ? `${result.cascades.length} 轮连锁完成，继续寻找连线。`
-          : "消除完成，继续寻找连线。";
+
+      if (score.value >= sessionConfig.targetScore) {
+        finishSession("won");
+      } else if (remainingMoves.value === 0) {
+        finishSession("lost");
+      } else {
+        status.value =
+          swapResult.cascades.length > 1
+            ? `${swapResult.cascades.length} 轮连锁完成，当前 ${score.value} 分。`
+            : `消除完成，当前 ${score.value} 分。`;
+      }
     } catch {
       visualBoard.value = board.value;
       status.value = "棋盘暂时无法继续，请重新开始一局。";
@@ -209,34 +286,110 @@ export function createGameController(options: GameControllerOptions = {}) {
         clearAnimationMarkers();
         phase.value = "idle";
         isBusy.value = false;
+        if (sessionPhase.value === "resolving") {
+          sessionPhase.value = "playing";
+        }
       }
     }
   }
 
-  function resetBoard(): void {
+  function finishSession(outcome: GameOutcome): void {
+    if (
+      sessionPhase.value === "won" ||
+      sessionPhase.value === "lost"
+    ) {
+      return;
+    }
+
+    const completedAt = now().toISOString();
+    const recorded = recordCompletedGame(
+      progress.value,
+      {
+        playerName: playerName.value,
+        score: score.value,
+        bestCombo: bestCombo.value,
+        completedAt,
+        outcome,
+      },
+      sessionConfig,
+    );
+    progress.value = recorded.progress;
+    saveLocalProgress(storage, recorded.progress);
+    sessionPhase.value = outcome;
+    result.value = {
+      outcome,
+      playerName: playerName.value,
+      score: score.value,
+      targetScore: sessionConfig.targetScore,
+      remainingMoves: remainingMoves.value,
+      bestCombo: bestCombo.value,
+      bestScore: recorded.progress.bestScore,
+      isNewBest: recorded.isNewBest,
+      rank: recorded.rank,
+    };
+    status.value =
+      outcome === "won"
+        ? `${playerName.value} 达成目标，本局完成！`
+        : `${playerName.value} 的步数已用完，本局完成。`;
+  }
+
+  function resetSessionState(): void {
+    score.value = 0;
+    remainingMoves.value = sessionConfig.initialMoves;
+    combo.value = 0;
+    bestCombo.value = 0;
+    resolvedMoves.value = 0;
+    result.value = null;
+  }
+
+  function prepareBoard(): void {
     animationGeneration += 1;
     const next = generateBoard(DEFAULT_ENGINE_CONFIG, random).board;
     board.value = next;
     visualBoard.value = next;
     selected.value = null;
     focused.value = { row: 0, column: 0 };
-    resolvedMoves.value = 0;
     restartConfirmVisible.value = false;
     isBusy.value = false;
     phase.value = "idle";
     clearAnimationMarkers();
-    status.value = "新棋盘已准备好。选择相邻糖果开始。";
+    resetSessionState();
+  }
+
+  function startGame(input: string) {
+    const validation = validatePlayerName(input);
+    if (!validation.ok) {
+      return validation;
+    }
+
+    playerName.value = validation.playerName;
+    prepareBoard();
+    sessionPhase.value = "playing";
+    status.value = `${playerName.value}，选择相邻糖果开始。`;
+    return validation;
+  }
+
+  function startNextGame(): void {
+    if (playerName.value.length === 0) {
+      return;
+    }
+    prepareBoard();
+    sessionPhase.value = "playing";
+    status.value = `${playerName.value}，新棋盘已准备好。`;
+  }
+
+  function changePlayer(): void {
+    prepareBoard();
+    playerName.value = "";
+    sessionPhase.value = "awaiting-player";
+    status.value = "请输入姓名后开始游戏。";
   }
 
   function requestRestart(): void {
-    if (isBusy.value) {
+    if (!canPlay.value) {
       return;
     }
-    if (hasProgress.value) {
-      restartConfirmVisible.value = true;
-      return;
-    }
-    resetBoard();
+    restartConfirmVisible.value = true;
   }
 
   function cancelRestart(): void {
@@ -244,7 +397,7 @@ export function createGameController(options: GameControllerOptions = {}) {
   }
 
   function confirmRestart(): void {
-    resetBoard();
+    startNextGame();
   }
 
   function showInstructions(): void {
@@ -253,6 +406,10 @@ export function createGameController(options: GameControllerOptions = {}) {
 
   function dismissInstructions(): void {
     instructionsVisible.value = false;
+  }
+
+  function setLeaderboardPeriod(period: LeaderboardPeriod): void {
+    leaderboardPeriod.value = period;
   }
 
   function dispose(): void {
@@ -265,8 +422,11 @@ export function createGameController(options: GameControllerOptions = {}) {
     selected,
     focused,
     phase,
+    sessionPhase,
+    playerName,
     status,
     isBusy,
+    canPlay,
     matchedKeys,
     invalidKeys,
     movedKeys,
@@ -276,14 +436,28 @@ export function createGameController(options: GameControllerOptions = {}) {
     restartConfirmVisible,
     resolvedMoves,
     hasProgress,
+    score,
+    remainingMoves,
+    combo,
+    bestCombo,
+    bestScore,
+    hudState,
+    leaderboard,
+    leaderboardPeriod,
+    result,
+    sessionConfig,
     activate,
     setFocused,
     cancelSelection,
+    startGame,
+    startNextGame,
+    changePlayer,
     requestRestart,
     cancelRestart,
     confirmRestart,
     showInstructions,
     dismissInstructions,
+    setLeaderboardPeriod,
     dispose,
   };
 }

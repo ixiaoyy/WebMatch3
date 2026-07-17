@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/frontend/game-engine-contract.md", "reason": "Preserve engine/UI ownership and public import boundaries"}
+{"file": ".trellis/spec/frontend/game-ui-contract.md", "reason": "Apply player session, local storage, ranking, and animation contracts"}
+{"file": ".trellis/spec/frontend/visual-design-contract.md", "reason": "Keep the established Fresh Glass responsive visual system"}
+{"file": ".trellis/tasks/07-17-session-progression/research/player-start-screen-reference.md", "reason": "Translate the approved player-name entry reference"}
+{"file": ".trellis/tasks/07-17-session-progression/research/leaderboard-reference.md", "reason": "Translate the approved leaderboard reference and exclusions"}

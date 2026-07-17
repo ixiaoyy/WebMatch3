@@ -1,12 +1,13 @@
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, ref } from "vue";
+import { computed, nextTick, onBeforeUnmount, ref } from "vue";
 
 import { createGameController } from "./game-controller";
-import type { GameHudState, GameResultState } from "./game-ui";
 import GameBoard from "./components/GameBoard.vue";
 import GameHud from "./components/GameHud.vue";
 import GameInstructions from "./components/GameInstructions.vue";
+import GameLeaderboard from "./components/GameLeaderboard.vue";
 import GameResultDialog from "./components/GameResultDialog.vue";
+import PlayerStartDialog from "./components/PlayerStartDialog.vue";
 import RestartDialog from "./components/RestartDialog.vue";
 
 const reducedMotion = window.matchMedia(
@@ -14,14 +15,28 @@ const reducedMotion = window.matchMedia(
 ).matches;
 const game = createGameController({ reducedMotion });
 const restartButton = ref<HTMLButtonElement | null>(null);
-const result = ref<GameResultState | null>(null);
+const startError = ref("");
 
-const practiceHud: GameHudState = {
-  score: null,
-  targetScore: null,
-  remainingMoves: null,
-  combo: null,
-};
+const sessionLabel = computed(() => {
+  switch (game.sessionPhase.value) {
+    case "awaiting-player":
+      return "等待玩家";
+    case "playing":
+      return "可以操作";
+    case "resolving":
+      return "糖果移动中";
+    case "won":
+      return "目标达成";
+    case "lost":
+      return "本局结束";
+  }
+  return "等待玩家";
+});
+
+function startGame(playerName: string): void {
+  const validation = game.startGame(playerName);
+  startError.value = validation.ok ? "" : validation.message;
+}
 
 async function cancelRestart(): Promise<void> {
   game.cancelRestart();
@@ -35,6 +50,17 @@ async function confirmRestart(): Promise<void> {
   restartButton.value?.focus();
 }
 
+async function startNextGame(): Promise<void> {
+  game.startNextGame();
+  await nextTick();
+  restartButton.value?.focus();
+}
+
+function changePlayer(): void {
+  startError.value = "";
+  game.changePlayer();
+}
+
 onBeforeUnmount(game.dispose);
 </script>
 
@@ -46,25 +72,30 @@ onBeforeUnmount(game.dispose);
           <i></i><i></i><i></i>
         </span>
         <div>
-          <p>三消练习场</p>
+          <p>{{ game.playerName.value || "三消挑战" }}</p>
           <h1>把糖果连成一线</h1>
         </div>
       </div>
-      <div class="topbar__state" :data-phase="game.phase.value">
+      <div class="topbar__state" :data-phase="game.sessionPhase.value">
         <span aria-hidden="true"></span>
-        {{ game.isBusy.value ? "糖果移动中" : "可以操作" }}
+        {{ sessionLabel }}
       </div>
     </header>
 
     <div class="game-shell">
       <aside class="hud-panel glass-panel">
-        <GameHud :state="practiceHud" />
+        <GameHud
+          :state="game.hudState.value"
+          :points-per-tile="game.sessionConfig.pointsPerTile"
+        />
       </aside>
 
       <section class="board-panel" aria-labelledby="board-title">
         <div class="board-panel__heading">
           <div>
-            <p class="section-kicker">练习模式</p>
+            <p class="section-kicker">
+              {{ game.playerName.value || "等待玩家" }}
+            </p>
             <h2 id="board-title">糖果棋盘</h2>
           </div>
           <span class="board-panel__count">8 × 8</span>
@@ -77,6 +108,7 @@ onBeforeUnmount(game.dispose);
             :focused="game.focused.value"
             :phase="game.phase.value"
             :busy="game.isBusy.value"
+            :disabled="!game.canPlay.value && !game.isBusy.value"
             :matched-keys="game.matchedKeys.value"
             :invalid-keys="game.invalidKeys.value"
             :moved-keys="game.movedKeys.value"
@@ -97,35 +129,44 @@ onBeforeUnmount(game.dispose);
         </p>
       </section>
 
-      <aside class="tools-panel glass-panel">
-        <div class="tools-panel__actions" aria-label="游戏操作">
-          <button
-            v-if="!game.instructionsVisible.value"
-            class="button button--quiet"
-            type="button"
-            @click="game.showInstructions"
-          >
-            查看玩法
-          </button>
-          <button
-            ref="restartButton"
-            class="button button--primary"
-            type="button"
-            :disabled="game.isBusy.value"
-            @click="game.requestRestart"
-          >
-            重新开始
-          </button>
-        </div>
-        <GameInstructions
-          v-if="game.instructionsVisible.value"
-          @dismiss="game.dismissInstructions"
+      <div class="side-stack">
+        <GameLeaderboard
+          class="leaderboard-panel glass-panel"
+          :entries="game.leaderboard.value"
+          :period="game.leaderboardPeriod.value"
+          :current-player="game.playerName.value"
+          @change-period="game.setLeaderboardPeriod"
         />
-        <div v-else class="tools-panel__note">
-          <strong>小提示</strong>
-          <p>只交换相邻糖果；没有连成三个时，交换会自动复位。</p>
-        </div>
-      </aside>
+        <aside class="tools-panel glass-panel">
+          <div class="tools-panel__actions" aria-label="游戏操作">
+            <button
+              v-if="!game.instructionsVisible.value"
+              class="button button--quiet"
+              type="button"
+              @click="game.showInstructions"
+            >
+              查看玩法
+            </button>
+            <button
+              ref="restartButton"
+              class="button button--primary"
+              type="button"
+              :disabled="!game.canPlay.value"
+              @click="game.requestRestart"
+            >
+              重新开始
+            </button>
+          </div>
+          <GameInstructions
+            v-if="game.instructionsVisible.value"
+            @dismiss="game.dismissInstructions"
+          />
+          <div v-else class="tools-panel__note">
+            <strong>小提示</strong>
+            <p>只交换相邻糖果；没有连成三个时，交换会自动复位。</p>
+          </div>
+        </aside>
+      </div>
     </div>
 
     <footer class="game-footer">
@@ -138,12 +179,21 @@ onBeforeUnmount(game.dispose);
       @cancel="cancelRestart"
       @confirm="confirmRestart"
     />
-    <GameResultDialog :result="result" @new-game="game.confirmRestart" />
+    <PlayerStartDialog
+      :visible="game.sessionPhase.value === 'awaiting-player'"
+      :error="startError"
+      @start="startGame"
+    />
+    <GameResultDialog
+      :result="game.result.value"
+      @new-game="startNextGame"
+      @change-player="changePlayer"
+    />
   </main>
 </template>
 <style scoped lang="scss">
 .game-page {
-  width: min(100%, 1320px);
+  width: min(100%, 1400px);
   min-height: 100vh;
   min-height: 100dvh;
   margin: 0 auto;
@@ -244,13 +294,13 @@ onBeforeUnmount(game.dispose);
       width: 8px;
       height: 8px;
       border-radius: 50%;
-      background: #55b976;
-      box-shadow: 0 0 0 4px rgb(85 185 118 / 14%);
-    }
-
-    &:not([data-phase="idle"]) span {
       background: var(--reward);
       box-shadow: 0 0 0 4px rgb(233 149 50 / 16%);
+    }
+
+    &[data-phase="playing"] span {
+      background: #55b976;
+      box-shadow: 0 0 0 4px rgb(85 185 118 / 14%);
     }
   }
 }
@@ -259,11 +309,11 @@ onBeforeUnmount(game.dispose);
   display: grid;
   grid-template-areas: "hud board tools";
   grid-template-columns:
-    minmax(190px, 230px)
-    minmax(480px, 680px)
-    minmax(190px, 230px);
+    minmax(190px, 220px)
+    minmax(460px, 660px)
+    minmax(270px, 310px);
   gap: clamp(14px, 2.2vw, 28px);
-  align-items: center;
+  align-items: start;
   justify-content: center;
   padding: clamp(10px, 2vw, 24px) 0;
 }
@@ -275,7 +325,6 @@ onBeforeUnmount(game.dispose);
 
 .tools-panel {
   display: grid;
-  grid-area: tools;
   gap: 20px;
   padding: 18px;
 
@@ -303,6 +352,13 @@ onBeforeUnmount(game.dispose);
       line-height: 1.6;
     }
   }
+}
+
+.side-stack {
+  display: grid;
+  grid-area: tools;
+  align-content: start;
+  gap: 14px;
 }
 
 .board-panel {
@@ -397,7 +453,7 @@ onBeforeUnmount(game.dispose);
   }
 
   .hud-panel,
-  .tools-panel {
+  .side-stack {
     align-self: start;
   }
 }

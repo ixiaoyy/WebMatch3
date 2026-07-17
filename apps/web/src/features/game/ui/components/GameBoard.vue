@@ -24,6 +24,7 @@ const props = defineProps<{
   focused: Coordinate;
   phase: GamePhase;
   busy: boolean;
+  disabled: boolean;
   matchedKeys: ReadonlySet<string>;
   invalidKeys: ReadonlySet<string>;
   movedKeys: ReadonlySet<string>;
@@ -56,7 +57,7 @@ function focusCell(coordinate: Coordinate): void {
 }
 
 function handleActivate(coordinate: Coordinate): void {
-  if (props.busy) {
+  if (props.busy || props.disabled) {
     return;
   }
   emit("focusCoordinate", coordinate);
@@ -175,7 +176,7 @@ watch(
         :tabindex="coordinatesEqual(focused, { row: rowIndex, column: columnIndex }) ? 0 : -1"
         :aria-colindex="columnIndex + 1"
         :aria-selected="coordinatesEqual(selected, { row: rowIndex, column: columnIndex })"
-        :aria-disabled="busy"
+        :aria-disabled="busy || disabled"
         :aria-label="getTileAriaLabel(tile.type, { row: rowIndex, column: columnIndex }, coordinatesEqual(selected, { row: rowIndex, column: columnIndex }))"
         @click="handleActivate({ row: rowIndex, column: columnIndex })"
         @focus="emit('focusCoordinate', { row: rowIndex, column: columnIndex })"

@@ -57,7 +57,7 @@ watch(
       <p class="section-kicker">重新开始</p>
       <h2 id="restart-dialog-title">换一盘新糖果？</h2>
       <p id="restart-dialog-description">
-        当前进度会被清空，刚才完成的交换无法恢复。
+        当前棋盘和本局进度会被清空，重新开始后无法恢复。
       </p>
       <div class="dialog-card__actions">
         <button

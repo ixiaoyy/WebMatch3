@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/frontend/game-engine-contract.md", "reason": "Verify engine purity and UI boundary compliance"}
+{"file": ".trellis/spec/frontend/game-ui-contract.md", "reason": "Verify executable session, ranking, storage, and accessibility contracts"}
+{"file": ".trellis/spec/frontend/visual-design-contract.md", "reason": "Verify Fresh Glass and responsive visual compliance"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Apply frontend verification and quality rules"}

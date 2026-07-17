@@ -31,11 +31,14 @@ export interface GameHudState {
 
 export interface GameResultState {
   readonly outcome: "won" | "lost";
+  readonly playerName: string;
   readonly score: number;
   readonly targetScore: number;
   readonly remainingMoves: number;
+  readonly bestCombo: number;
   readonly bestScore: number;
   readonly isNewBest: boolean;
+  readonly rank: number | null;
 }
 
 export function coordinateKey(coordinate: Coordinate): string {

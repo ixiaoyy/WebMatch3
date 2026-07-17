@@ -3,6 +3,7 @@ import type { GameHudState } from "../game-ui";
 
 const props = defineProps<{
   state: GameHudState;
+  pointsPerTile: number;
 }>();
 
 function displayValue(
@@ -38,9 +39,9 @@ const metrics: ReadonlyArray<{
     <div class="game-hud__heading">
       <div>
         <p class="section-kicker">本局状态</p>
-        <h2 id="hud-title">轻松练习</h2>
+        <h2 id="hud-title">挑战进度</h2>
       </div>
-      <span aria-hidden="true">∞</span>
+      <span aria-hidden="true">★</span>
     </div>
     <dl class="game-hud__metrics">
       <div v-for="metric in metrics" :key="metric.key" class="game-hud__metric">
@@ -50,6 +51,9 @@ const metrics: ReadonlyArray<{
     </dl>
     <p v-if="state.score === null" class="game-hud__mode-note">
       当前为可玩练习模式，目标与计分将在局内挑战中接入。
+    </p>
+    <p v-else class="game-hud__mode-note">
+      每颗糖果 {{ pointsPerTile }} 分，长连、多组与连续消除有额外奖励。
     </p>
   </section>
 </template>

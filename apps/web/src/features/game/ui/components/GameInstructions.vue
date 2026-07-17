@@ -9,7 +9,7 @@ defineEmits<{
     <div class="instructions__heading">
       <div>
         <p class="section-kicker">玩法说明</p>
-        <h2 id="instructions-title">两步就会</h2>
+        <h2 id="instructions-title">三步上手</h2>
       </div>
       <button
         class="icon-button"
@@ -28,6 +28,10 @@ defineEmits<{
       <li>
         <span>02</span>
         <p><strong>连成三枚或更多</strong>，棋盘会自动消除和补位。</p>
+      </li>
+      <li>
+        <span>03</span>
+        <p><strong>在步数用完前达到目标分</strong>，连续消除得分更高。</p>
       </li>
     </ol>
     <p class="instructions__keyboard">
