@@ -18,6 +18,7 @@ This directory contains guidelines for frontend development. Fill in each file w
 | [Toolchain Contract](./toolchain-contract.md) | Workspace commands, dependency installation, and validation | Active |
 | [Game Engine Contract](./game-engine-contract.md) | Deterministic board rules and UI-facing result contracts | Active |
 | [Game UI Contract](./game-ui-contract.md) | Playable board state, animation order, input, and presentation boundaries | Active |
+| [Fresh Glass Candy Visual Design](./visual-design-contract.md) | Visual hierarchy, tokens, glass surfaces, candy pieces, motion, and responsive layout | Active |
 | [Component Guidelines](./component-guidelines.md) | Component patterns, props, composition | To fill |
 | [Hook Guidelines](./hook-guidelines.md) | Custom hooks, data fetching patterns | To fill |
 | [State Management](./state-management.md) | Local state, global state, server state | To fill |
@@ -32,6 +33,7 @@ This directory contains guidelines for frontend development. Fill in each file w
 - Read [Toolchain Contract](./toolchain-contract.md) before changing dependencies, package scripts, Vite, TypeScript, ESLint, Vitest, or workspace configuration.
 - Read [Game Engine Contract](./game-engine-contract.md) before changing game rules, session scoring inputs, board animation data, or game UI state transitions.
 - Read [Game UI Contract](./game-ui-contract.md) before changing playable components, input, animation phases, HUD/result contracts, or restart behavior.
+- Read [Fresh Glass Candy Visual Design](./visual-design-contract.md) before changing the game shell, visual tokens, panels, board, pieces, controls, effects, or responsive layout.
 - Read the topic-specific guide only when the task touches that topic; files marked `To fill` are templates, not project conventions.
 
 ## Quality Check
@@ -41,6 +43,7 @@ This directory contains guidelines for frontend development. Fill in each file w
 - Confirm new modules respect the ownership boundaries in [Directory Structure](./directory-structure.md).
 - For game-rule changes, run the deterministic engine tests and verify every consumer imports only from the engine `index.ts`.
 - For playable UI changes, run controller tests and browser checks from [Game UI Contract](./game-ui-contract.md).
+- For visual UI changes, verify token usage, state contrast, reduced motion, and responsive screenshots using [Fresh Glass Candy Visual Design](./visual-design-contract.md).
 - Do not treat files marked `To fill` as authoritative until the bootstrap task replaces their placeholder content with codebase evidence.
 
 ---

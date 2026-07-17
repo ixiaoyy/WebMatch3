@@ -13,6 +13,7 @@ import {
   coordinatesEqual,
   getTileAriaLabel,
   moveCoordinate,
+  resolveSwipeGesture,
   type FocusDirection,
   type GamePhase,
 } from "../game-ui";
@@ -34,11 +35,20 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   activate: [coordinate: Coordinate];
+  swap: [from: Coordinate, to: Coordinate];
   focusCoordinate: [coordinate: Coordinate];
   cancel: [];
 }>();
 
 const cellElements = new Map<string, HTMLButtonElement>();
+const swipeDistance = 18;
+let pointerGesture: {
+  readonly pointerId: number;
+  readonly coordinate: Coordinate;
+  readonly startX: number;
+  readonly startY: number;
+} | null = null;
+let suppressNextClick = false;
 
 function setCellElement(
   coordinate: Coordinate,
@@ -62,6 +72,76 @@ function handleActivate(coordinate: Coordinate): void {
   }
   emit("focusCoordinate", coordinate);
   emit("activate", coordinate);
+}
+
+function handleClick(event: MouseEvent, coordinate: Coordinate): void {
+  if (suppressNextClick) {
+    event.preventDefault();
+    suppressNextClick = false;
+    return;
+  }
+  handleActivate(coordinate);
+}
+
+function handlePointerDown(
+  event: PointerEvent,
+  coordinate: Coordinate,
+): void {
+  if (
+    props.busy ||
+    props.disabled ||
+    !event.isPrimary ||
+    event.button !== 0
+  ) {
+    return;
+  }
+
+  pointerGesture = {
+    pointerId: event.pointerId,
+    coordinate,
+    startX: event.clientX,
+    startY: event.clientY,
+  };
+  if (event.currentTarget instanceof HTMLElement) {
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+}
+
+function handlePointerUp(event: PointerEvent): void {
+  const gesture = pointerGesture;
+  if (gesture === null || gesture.pointerId !== event.pointerId) {
+    return;
+  }
+  pointerGesture = null;
+
+  const resolution = resolveSwipeGesture(
+    gesture.coordinate,
+    event.clientX - gesture.startX,
+    event.clientY - gesture.startY,
+    props.board.rows,
+    props.board.columns,
+    swipeDistance,
+  );
+  if (resolution.kind === "tap") {
+    return;
+  }
+
+  event.preventDefault();
+  suppressNextClick = true;
+  window.setTimeout(() => {
+    suppressNextClick = false;
+  }, 0);
+
+  if (resolution.kind === "swap") {
+    emit("focusCoordinate", resolution.target);
+    emit("swap", gesture.coordinate, resolution.target);
+  }
+}
+
+function handlePointerCancel(event: PointerEvent): void {
+  if (pointerGesture?.pointerId === event.pointerId) {
+    pointerGesture = null;
+  }
 }
 
 async function handleKeydown(
@@ -151,7 +231,7 @@ watch(
     :class="`game-board--${phase}`"
     :style="{ '--board-columns': board.columns }"
     role="grid"
-    aria-label="三消棋盘，使用方向键移动，回车或空格选择"
+    aria-label="三消棋盘，可轻点选择、滑动交换，或使用方向键和回车操作"
     :aria-rowcount="board.rows"
     :aria-colcount="board.columns"
     :aria-busy="busy"
@@ -178,9 +258,13 @@ watch(
         :aria-selected="coordinatesEqual(selected, { row: rowIndex, column: columnIndex })"
         :aria-disabled="busy || disabled"
         :aria-label="getTileAriaLabel(tile.type, { row: rowIndex, column: columnIndex }, coordinatesEqual(selected, { row: rowIndex, column: columnIndex }))"
-        @click="handleActivate({ row: rowIndex, column: columnIndex })"
+        @click="handleClick($event, { row: rowIndex, column: columnIndex })"
         @focus="emit('focusCoordinate', { row: rowIndex, column: columnIndex })"
         @keydown="handleKeydown($event, { row: rowIndex, column: columnIndex })"
+        @pointerdown="handlePointerDown($event, { row: rowIndex, column: columnIndex })"
+        @pointerup="handlePointerUp"
+        @pointercancel="handlePointerCancel"
+        @lostpointercapture="handlePointerCancel"
       >
         <GameTile :type="tile.type" />
       </button>
@@ -194,12 +278,16 @@ watch(
   aspect-ratio: 1;
   padding: clamp(4px, 0.9vw, 8px);
   gap: clamp(2px, 0.45vw, 5px);
-  border-radius: var(--panel-radius);
-  background: var(--board);
+  border: 1px solid rgb(255 255 255 / 12%);
+  border-radius: calc(var(--panel-radius) - 5px);
+  background:
+    linear-gradient(rgb(255 255 255 / 5%), transparent 22%),
+    var(--board);
   box-shadow:
-    inset 0 1px rgb(255 255 255 / 12%),
-    inset 0 -10px 24px rgb(11 18 48 / 18%);
-  touch-action: manipulation;
+    inset 0 1px rgb(255 255 255 / 18%),
+    inset 0 -12px 28px rgb(24 35 72 / 20%);
+  touch-action: none;
+  user-select: none;
 
   &[aria-busy="true"] {
     cursor: progress;

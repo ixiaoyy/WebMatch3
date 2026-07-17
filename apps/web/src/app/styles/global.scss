@@ -1,7 +1,9 @@
 :root {
-  color: #202a47;
-  background: #e9efff;
+  color: #25304a;
+  background: #eaf2ff;
   font-family:
+    Inter,
+    "Segoe UI Variable",
     ui-rounded,
     "SF Pro Rounded",
     "Segoe UI",
@@ -10,29 +12,29 @@
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   --background:
-    radial-gradient(circle at 16% 14%, rgb(114 187 255 / 34%), transparent 30%),
-    radial-gradient(circle at 84% 22%, rgb(192 139 255 / 27%), transparent 32%),
-    radial-gradient(circle at 55% 92%, rgb(255 178 208 / 24%), transparent 34%),
-    linear-gradient(145deg, #eaf5ff 0%, #edf0ff 44%, #f5ebff 100%);
-  --glass: rgb(255 255 255 / 64%);
-  --glass-strong: rgb(250 252 255 / 88%);
-  --glass-border: rgb(255 255 255 / 78%);
-  --board: rgb(38 50 88 / 94%);
-  --board-deep: #1c274b;
-  --board-cell: rgb(255 255 255 / 8%);
-  --primary: #665be9;
-  --primary-strong: #4f45c9;
+    radial-gradient(circle at 14% 12%, rgb(99 187 255 / 38%), transparent 31%),
+    radial-gradient(circle at 86% 18%, rgb(176 133 255 / 30%), transparent 34%),
+    radial-gradient(circle at 54% 98%, rgb(255 177 216 / 27%), transparent 36%),
+    linear-gradient(145deg, #e7f5ff 0%, #edf1ff 44%, #f5eaff 100%);
+  --glass: rgb(255 255 255 / 62%);
+  --glass-strong: rgb(250 252 255 / 90%);
+  --glass-border: rgb(255 255 255 / 76%);
+  --board: rgb(58 76 122 / 96%);
+  --board-deep: #334873;
+  --board-cell: rgb(255 255 255 / 9%);
+  --primary: #7167f0;
+  --primary-strong: #5147c9;
   --reward: #e99532;
-  --text: #202a47;
-  --text-muted: #52617d;
+  --text: #25304a;
+  --text-muted: #5b6881;
   --text-on-dark: #f7f8ff;
   --line: rgb(66 77 119 / 16%);
   --focus: #fff2a8;
   --danger: #b63d52;
-  --glass-blur: 18px;
-  --panel-radius: 16px;
-  --tile-radius: 12px;
-  --panel-shadow: 0 8px 8px rgb(49 57 102 / 12%);
+  --glass-blur: 20px;
+  --panel-radius: 24px;
+  --tile-radius: 14px;
+  --panel-shadow: 0 14px 36px rgb(49 57 102 / 13%);
   --z-modal-backdrop: 40;
   --z-modal: 50;
 }
@@ -43,11 +45,11 @@
 
 html {
   min-height: 100%;
-  background: #e9efff;
+  background: #eaf2ff;
 }
 
 body {
-  min-width: 320px;
+  min-width: 0;
   min-height: 100vh;
   min-height: 100dvh;
   margin: 0;
@@ -71,7 +73,7 @@ body::before {
   aspect-ratio: 1;
   top: -18vw;
   left: -10vw;
-  background: rgb(125 211 255 / 22%);
+  background: rgb(125 211 255 / 26%);
 }
 
 body::after {
@@ -79,7 +81,7 @@ body::after {
   aspect-ratio: 1;
   right: -8vw;
   bottom: -15vw;
-  background: rgb(182 126 255 / 18%);
+  background: rgb(182 126 255 / 21%);
 }
 
 button,

@@ -187,14 +187,21 @@ async function movePeriod(
 
 <style scoped lang="scss">
 .leaderboard {
+  display: flex;
+  min-width: 0;
   overflow: hidden;
-  padding: 16px;
+  flex-direction: column;
+  padding: 14px;
 
   &__heading {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 12px;
+
+    > div {
+      min-width: 0;
+    }
 
     h2 {
       margin: 0;
@@ -217,7 +224,7 @@ async function movePeriod(
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 3px;
-    margin-top: 13px;
+    margin-top: 10px;
     padding: 3px;
     border: 1px solid var(--line);
     border-radius: 12px;
@@ -252,19 +259,25 @@ async function movePeriod(
       }
 
       &:focus-visible {
-        outline: 3px solid var(--focus-ring);
+        outline: 3px solid var(--primary-strong);
         outline-offset: 2px;
       }
     }
   }
 
   &__content {
+    display: flex;
+    min-width: 0;
     min-height: 112px;
+    overflow: hidden;
+    flex: 1;
+    flex-direction: column;
   }
 
   &__empty {
     display: grid;
     min-height: 92px;
+    flex: 1;
     place-items: center;
     margin: 12px 0 0;
     padding: 16px;
@@ -283,7 +296,7 @@ async function movePeriod(
     grid-template-columns: repeat(3, minmax(0, 1fr));
     align-items: end;
     gap: 5px;
-    margin: 19px 0 0;
+    margin: 15px 0 0;
     padding: 0;
     list-style: none;
 
@@ -291,7 +304,7 @@ async function movePeriod(
       position: relative;
       display: grid;
       min-width: 0;
-      min-height: 116px;
+      min-height: 110px;
       align-content: start;
       justify-items: center;
       gap: 3px;
@@ -306,7 +319,7 @@ async function movePeriod(
 
     li[data-rank="1"] {
       order: 2;
-      min-height: 127px;
+      min-height: 121px;
       border-color: rgb(233 165 54 / 36%);
       background: rgb(255 245 213 / 72%);
       transform: translateY(-5px);
@@ -432,9 +445,11 @@ async function movePeriod(
       grid-template-columns: 22px 28px minmax(0, 1fr) auto;
       gap: 7px;
       align-items: center;
+      min-width: 0;
       min-height: 45px;
       margin: 0 -5px;
       padding: 6px 5px;
+      overflow: hidden;
       border-top: 1px solid var(--line);
       border-radius: 10px;
     }
@@ -487,6 +502,9 @@ async function movePeriod(
   }
 
   &__score {
+    max-width: 7.5rem;
+    justify-self: end;
+    overflow: hidden;
     text-align: right;
 
     strong {
@@ -495,8 +513,18 @@ async function movePeriod(
   }
 }
 
+@media (pointer: coarse) {
+  .leaderboard__tabs button {
+    min-height: 44px;
+  }
+}
+
 @media (max-width: 760px) {
   .leaderboard {
+    &__tabs button {
+      min-height: 44px;
+    }
+
     &__podium {
       gap: 8px;
     }

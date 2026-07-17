@@ -5,6 +5,7 @@ import {
   DEFAULT_ENGINE_CONFIG,
   executeSwap,
   generateBoard,
+  isInBounds,
   type Board,
   type Coordinate,
   type RandomSource,
@@ -79,7 +80,7 @@ export function createGameController(options: GameControllerOptions = {}) {
   const movedKeys = shallowRef<ReadonlySet<string>>(new Set());
   const spawnedKeys = shallowRef<ReadonlySet<string>>(new Set());
   const activeSwap = shallowRef<Swap | null>(null);
-  const instructionsVisible = ref(true);
+  const instructionsVisible = ref(false);
   const restartConfirmVisible = ref(false);
   const resolvedMoves = ref(0);
   const score = ref(0);
@@ -170,6 +171,21 @@ export function createGameController(options: GameControllerOptions = {}) {
     const from = selected.value;
     selected.value = null;
     await performSwap(from, coordinate);
+  }
+
+  async function swap(from: Coordinate, to: Coordinate): Promise<void> {
+    if (
+      !canPlay.value ||
+      !isInBounds(board.value, from) ||
+      !isInBounds(board.value, to) ||
+      !areAdjacent(from, to)
+    ) {
+      return;
+    }
+
+    selected.value = null;
+    focused.value = to;
+    await performSwap(from, to);
   }
 
   async function performSwap(
@@ -447,6 +463,7 @@ export function createGameController(options: GameControllerOptions = {}) {
     result,
     sessionConfig,
     activate,
+    swap,
     setFocused,
     cancelSelection,
     startGame,

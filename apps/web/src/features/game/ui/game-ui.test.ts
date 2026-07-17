@@ -15,6 +15,7 @@ import {
   getTileAriaLabel,
   getTilePresentation,
   moveCoordinate,
+  resolveSwipeGesture,
 } from "./game-ui";
 
 describe("game UI helpers", () => {
@@ -33,6 +34,33 @@ describe("game UI helpers", () => {
     });
   });
 
+  it("resolves touch movement to one adjacent coordinate", () => {
+    const origin = { row: 3, column: 3 };
+
+    expect(resolveSwipeGesture(origin, 17, 0, 8, 8, 18)).toEqual({
+      kind: "tap",
+    });
+    expect(resolveSwipeGesture(origin, 18, 0, 8, 8, 18)).toEqual({
+      kind: "swap",
+      target: { row: 3, column: 4 },
+    });
+    expect(resolveSwipeGesture(origin, -80, 12, 8, 8, 18)).toEqual({
+      kind: "swap",
+      target: { row: 3, column: 2 },
+    });
+    expect(resolveSwipeGesture(origin, 10, 42, 8, 8, 18)).toEqual({
+      kind: "swap",
+      target: { row: 4, column: 3 },
+    });
+    expect(resolveSwipeGesture(origin, -8, -24, 8, 8, 18)).toEqual({
+      kind: "swap",
+      target: { row: 2, column: 3 },
+    });
+    expect(
+      resolveSwipeGesture({ row: 0, column: 0 }, -30, 4, 8, 8, 18),
+    ).toEqual({ kind: "blocked" });
+  });
+
   it("describes type, position, and selection without relying on color", () => {
     expect(getTileAriaLabel("violet", { row: 1, column: 2 }, true)).toBe(
       "紫罗兰花糖，第 2 行，第 3 列，已选中",
@@ -47,6 +75,19 @@ describe("game UI helpers", () => {
 });
 
 describe("game controller", () => {
+  it("keeps instructions collapsed until the player requests them", () => {
+    const game = createGameController({
+      random: createSeededRandom(5),
+      storage: null,
+    });
+
+    expect(game.instructionsVisible.value).toBe(false);
+    game.showInstructions();
+    expect(game.instructionsVisible.value).toBe(true);
+    game.dismissInstructions();
+    expect(game.instructionsVisible.value).toBe(false);
+  });
+
   it("requires a valid player name before accepting board input", async () => {
     const game = createGameController({
       random: createSeededRandom(7),
@@ -145,6 +186,30 @@ describe("game controller", () => {
     expect(game.visualBoard.value).toBe(game.board.value);
     expect(game.isBusy.value).toBe(false);
     expect(game.phase.value).toBe("idle");
+  });
+
+  it("uses the swipe coordinates instead of an existing click selection", async () => {
+    const game = createGameController({
+      random: createSeededRandom(41),
+      wait: async () => undefined,
+      storage: null,
+    });
+    game.startGame("滑动玩家");
+    await game.activate({ row: 7, column: 7 });
+    expect(game.selected.value).toEqual({ row: 7, column: 7 });
+
+    const legalMove = listLegalMoves(game.board.value)[0];
+    expect(legalMove).toBeDefined();
+    if (!legalMove) {
+      return;
+    }
+
+    await game.swap(legalMove.from, legalMove.to);
+
+    expect(game.selected.value).toBeNull();
+    expect(game.focused.value).toEqual(legalMove.to);
+    expect(game.resolvedMoves.value).toBe(1);
+    expect(game.visualBoard.value).toBe(game.board.value);
   });
 
   it("confirms restart throughout an active game", async () => {

@@ -2,6 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, ref } from "vue";
 
 import { createGameController } from "./game-controller";
+import candyRoseUrl from "./assets/candy-rose.png";
 import GameBoard from "./components/GameBoard.vue";
 import GameHud from "./components/GameHud.vue";
 import GameInstructions from "./components/GameInstructions.vue";
@@ -66,10 +67,16 @@ onBeforeUnmount(game.dispose);
 
 <template>
   <main class="game-page">
-    <header class="topbar">
+    <header class="topbar glass-panel">
       <div class="topbar__title">
         <span class="topbar__mark" aria-hidden="true">
-          <i></i><i></i><i></i>
+          <img
+            :src="candyRoseUrl"
+            alt=""
+            width="512"
+            height="512"
+            draggable="false"
+          />
         </span>
         <div>
           <p>{{ game.playerName.value || "三消挑战" }}</p>
@@ -79,6 +86,10 @@ onBeforeUnmount(game.dispose);
       <div class="topbar__state" :data-phase="game.sessionPhase.value">
         <span aria-hidden="true"></span>
         {{ sessionLabel }}
+      </div>
+      <div class="topbar__meta" aria-label="棋盘规格">
+        <span>8 × 8</span>
+        <strong>本地挑战</strong>
       </div>
     </header>
 
@@ -91,15 +102,7 @@ onBeforeUnmount(game.dispose);
       </aside>
 
       <section class="board-panel" aria-labelledby="board-title">
-        <div class="board-panel__heading">
-          <div>
-            <p class="section-kicker">
-              {{ game.playerName.value || "等待玩家" }}
-            </p>
-            <h2 id="board-title">糖果棋盘</h2>
-          </div>
-          <span class="board-panel__count">8 × 8</span>
-        </div>
+        <h2 id="board-title" class="visually-hidden">糖果棋盘</h2>
 
         <div class="board-frame">
           <GameBoard
@@ -115,6 +118,7 @@ onBeforeUnmount(game.dispose);
             :spawned-keys="game.spawnedKeys.value"
             :active-swap="game.activeSwap.value"
             @activate="game.activate"
+            @swap="game.swap"
             @focus-coordinate="game.setFocused"
             @cancel="game.cancelSelection"
           />
@@ -122,57 +126,61 @@ onBeforeUnmount(game.dispose);
 
         <div class="board-panel__feedback">
           <p class="board-panel__message">{{ game.status.value }}</p>
-          <p class="board-panel__hint">选择相邻糖果完成交换</p>
+          <p class="board-panel__hint">8 × 8 · 轻点两颗或滑动一格</p>
         </div>
         <p class="visually-hidden" aria-live="polite" aria-atomic="true">
           {{ game.status.value }}
         </p>
       </section>
 
-      <div class="side-stack">
-        <GameLeaderboard
-          class="leaderboard-panel glass-panel"
-          :entries="game.leaderboard.value"
-          :period="game.leaderboardPeriod.value"
-          :current-player="game.playerName.value"
-          @change-period="game.setLeaderboardPeriod"
+      <aside class="tools-panel glass-panel" aria-labelledby="tools-title">
+        <div class="tools-panel__heading">
+          <div>
+            <p class="section-kicker">局内控制</p>
+            <h2 id="tools-title">游戏操作</h2>
+          </div>
+          <span>可随时重开</span>
+        </div>
+        <div class="tools-panel__actions" aria-label="游戏操作">
+          <button
+            v-if="!game.instructionsVisible.value"
+            class="button button--quiet"
+            type="button"
+            @click="game.showInstructions"
+          >
+            查看玩法
+          </button>
+          <button
+            ref="restartButton"
+            class="button button--primary"
+            type="button"
+            :disabled="!game.canPlay.value"
+            @click="game.requestRestart"
+          >
+            重新开始
+          </button>
+        </div>
+        <GameInstructions
+          v-if="game.instructionsVisible.value"
+          @dismiss="game.dismissInstructions"
         />
-        <aside class="tools-panel glass-panel">
-          <div class="tools-panel__actions" aria-label="游戏操作">
-            <button
-              v-if="!game.instructionsVisible.value"
-              class="button button--quiet"
-              type="button"
-              @click="game.showInstructions"
-            >
-              查看玩法
-            </button>
-            <button
-              ref="restartButton"
-              class="button button--primary"
-              type="button"
-              :disabled="!game.canPlay.value"
-              @click="game.requestRestart"
-            >
-              重新开始
-            </button>
-          </div>
-          <GameInstructions
-            v-if="game.instructionsVisible.value"
-            @dismiss="game.dismissInstructions"
-          />
-          <div v-else class="tools-panel__note">
-            <strong>小提示</strong>
-            <p>只交换相邻糖果；没有连成三个时，交换会自动复位。</p>
-          </div>
-        </aside>
-      </div>
-    </div>
+        <div v-else class="tools-panel__note">
+          <strong>滑动或轻点都可以</strong>
+          <p>交换相邻糖果；未连成三个时，棋盘会自动复位。</p>
+        </div>
+        <p class="tools-panel__input-note">
+          触摸滑动 · 鼠标 · 键盘
+        </p>
+      </aside>
 
-    <footer class="game-footer">
-      <span>支持鼠标、触控与键盘</span>
-      <span>颜色与轮廓双重识别</span>
-    </footer>
+      <GameLeaderboard
+        class="leaderboard-panel glass-panel"
+        :entries="game.leaderboard.value"
+        :period="game.leaderboardPeriod.value"
+        :current-player="game.playerName.value"
+        @change-period="game.setLeaderboardPeriod"
+      />
+    </div>
 
     <RestartDialog
       :visible="game.restartConfirmVisible.value"
@@ -193,15 +201,15 @@ onBeforeUnmount(game.dispose);
 </template>
 <style scoped lang="scss">
 .game-page {
-  width: min(100%, 1400px);
+  width: min(100%, 1460px);
   min-height: 100vh;
   min-height: 100dvh;
   margin: 0 auto;
   padding:
     max(16px, env(safe-area-inset-top))
-    max(14px, env(safe-area-inset-right))
-    max(14px, env(safe-area-inset-bottom))
-    max(14px, env(safe-area-inset-left));
+    max(18px, env(safe-area-inset-right))
+    max(16px, env(safe-area-inset-bottom))
+    max(18px, env(safe-area-inset-left));
 }
 
 .glass-panel {
@@ -213,18 +221,22 @@ onBeforeUnmount(game.dispose);
 }
 
 .topbar {
-  display: flex;
-  min-height: 64px;
+  display: grid;
+  min-height: 88px;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  padding: 8px 12px 18px;
+  gap: 24px;
+  padding: 12px 18px;
+  overflow: hidden;
+  box-shadow:
+    var(--panel-shadow),
+    inset 0 1px rgb(255 255 255 / 72%);
 
   &__title {
     display: flex;
     min-width: 0;
     align-items: center;
-    gap: 12px;
+    gap: 14px;
 
     p,
     h1 {
@@ -232,63 +244,62 @@ onBeforeUnmount(game.dispose);
     }
 
     p {
-      margin-bottom: 2px;
+      max-width: 20ch;
+      margin-bottom: 3px;
+      overflow: hidden;
       color: var(--text-muted);
-      font-size: 0.74rem;
-      font-weight: 650;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     h1 {
       overflow: hidden;
-      font-size: 1.08rem;
-      font-weight: 760;
-      letter-spacing: -0.015em;
+      font-size: clamp(1.05rem, 1.45vw, 1.3rem);
+      font-weight: 780;
+      letter-spacing: -0.02em;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
   }
 
   &__mark {
-    display: flex;
-    width: 42px;
-    height: 42px;
-    align-items: center;
-    justify-content: center;
-    gap: 2px;
+    display: grid;
+    width: 58px;
+    height: 58px;
+    overflow: hidden;
+    place-items: center;
     flex: 0 0 auto;
-    border-radius: 13px;
-    background: rgb(255 255 255 / 68%);
-    box-shadow: inset 0 0 0 1px var(--glass-border);
+    border: 1px solid rgb(255 255 255 / 84%);
+    border-radius: 17px;
+    background: rgb(255 255 255 / 54%);
+    box-shadow:
+      inset 0 0 0 1px rgb(98 104 173 / 8%),
+      0 8px 20px rgb(83 78 151 / 12%);
 
-    i {
-      width: 9px;
-      height: 9px;
-      border-radius: 50%;
-      background: #ff6b82;
-      box-shadow: inset 0 2px rgb(255 255 255 / 44%);
-    }
-
-    i:nth-child(2) {
-      background: #6ccbf0;
-      transform: translateY(-4px);
-    }
-
-    i:nth-child(3) {
-      background: #8ed55f;
+    img {
+      width: 52px;
+      height: 52px;
+      object-fit: contain;
+      user-select: none;
     }
   }
 
   &__state {
     display: flex;
-    min-height: 36px;
+    min-height: 44px;
     align-items: center;
+    justify-self: center;
     gap: 8px;
-    padding: 0 13px;
+    padding: 0 20px;
+    border: 1px solid rgb(255 255 255 / 78%);
     border-radius: 999px;
     color: var(--text-muted);
-    background: rgb(255 255 255 / 52%);
-    font-size: 0.76rem;
-    font-weight: 680;
+    background: rgb(255 255 255 / 48%);
+    box-shadow: inset 0 1px rgb(255 255 255 / 72%);
+    font-size: 0.8rem;
+    font-weight: 720;
 
     span {
       width: 8px;
@@ -303,30 +314,82 @@ onBeforeUnmount(game.dispose);
       box-shadow: 0 0 0 4px rgb(85 185 118 / 14%);
     }
   }
+
+  &__meta {
+    display: grid;
+    min-width: 0;
+    justify-self: end;
+    text-align: right;
+
+    span {
+      color: var(--text-muted);
+      font-size: 0.68rem;
+      font-variant-numeric: tabular-nums;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+    }
+
+    strong {
+      margin-top: 2px;
+      font-size: 0.86rem;
+      font-weight: 760;
+    }
+  }
 }
 
 .game-shell {
   display: grid;
-  grid-template-areas: "hud board tools";
+  grid-template-areas:
+    "hud board tools"
+    "hud board leaderboard";
   grid-template-columns:
-    minmax(190px, 220px)
-    minmax(460px, 660px)
-    minmax(270px, 310px);
-  gap: clamp(14px, 2.2vw, 28px);
+    minmax(210px, 230px)
+    minmax(520px, 700px)
+    minmax(230px, 250px);
+  grid-template-rows: auto minmax(0, 1fr);
+  column-gap: clamp(16px, 1.7vw, 22px);
+  row-gap: 14px;
   align-items: start;
   justify-content: center;
-  padding: clamp(10px, 2vw, 24px) 0;
+  padding: 18px 0 0;
 }
 
 .hud-panel {
   grid-area: hud;
-  padding: 18px;
+  min-width: 0;
+  align-self: stretch;
+  padding: 20px;
 }
 
 .tools-panel {
+  min-width: 0;
+  grid-area: tools;
   display: grid;
-  gap: 20px;
-  padding: 18px;
+  gap: 14px;
+  padding: 16px;
+
+  &__heading {
+    display: flex;
+    min-width: 0;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+
+    h2 {
+      margin: 0;
+      font-size: 1.08rem;
+      font-weight: 760;
+      letter-spacing: -0.015em;
+    }
+
+    > span {
+      flex: 0 0 auto;
+      padding-top: 3px;
+      color: var(--text-muted);
+      font-size: 0.62rem;
+      font-weight: 680;
+    }
+  }
 
   &__actions {
     display: grid;
@@ -352,13 +415,21 @@ onBeforeUnmount(game.dispose);
       line-height: 1.6;
     }
   }
+
+  &__input-note {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 0.66rem;
+    font-weight: 650;
+    line-height: 1.4;
+    text-align: center;
+  }
 }
 
-.side-stack {
-  display: grid;
-  grid-area: tools;
-  align-content: start;
-  gap: 14px;
+.leaderboard-panel {
+  min-width: 0;
+  grid-area: leaderboard;
+  align-self: stretch;
 }
 
 .board-panel {
@@ -366,36 +437,13 @@ onBeforeUnmount(game.dispose);
   min-width: 0;
   width: 100%;
 
-  &__heading {
-    display: flex;
-    align-items: flex-end;
-    justify-content: space-between;
-    gap: 16px;
-    margin-bottom: 12px;
-    padding: 0 6px;
-
-    h2 {
-      margin: 0;
-      font-size: 1.34rem;
-      font-weight: 760;
-      letter-spacing: -0.02em;
-      line-height: 1;
-    }
-  }
-
-  &__count {
-    color: var(--text-muted);
-    font-size: 0.76rem;
-    font-variant-numeric: tabular-nums;
-  }
-
   &__feedback {
     display: flex;
-    min-height: 48px;
+    min-height: 42px;
     align-items: center;
     justify-content: space-between;
     gap: 18px;
-    margin: 10px 6px 0;
+    margin: 7px 5px 0;
   }
 
   &__message,
@@ -419,22 +467,16 @@ onBeforeUnmount(game.dispose);
 
 .board-frame {
   width: 100%;
-  padding: clamp(7px, 1.1vw, 12px);
-  border-radius: calc(var(--panel-radius) + 4px);
-  background: var(--board-deep);
+  padding: clamp(6px, 0.8vw, 9px);
+  border: 1px solid rgb(255 255 255 / 68%);
+  border-radius: calc(var(--panel-radius) + 2px);
+  background:
+    linear-gradient(rgb(255 255 255 / 7%), transparent 18%),
+    var(--board-deep);
   box-shadow:
-    0 8px 8px rgb(39 45 88 / 20%),
-    inset 0 1px rgb(255 255 255 / 10%);
-}
-
-.game-footer {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 14px 12px 4px;
-  color: var(--text-muted);
-  font-size: 0.7rem;
-  font-weight: 620;
+    0 18px 34px rgb(44 52 99 / 18%),
+    inset 0 0 0 1px rgb(58 72 121 / 34%),
+    inset 0 1px rgb(255 255 255 / 28%);
 }
 
 @supports not (backdrop-filter: blur(1px)) {
@@ -443,30 +485,68 @@ onBeforeUnmount(game.dispose);
   }
 }
 
-@media (max-width: 1040px) {
+@media (max-width: 1160px) {
   .game-shell {
     grid-template-areas:
       "hud board"
-      "tools board";
+      "tools board"
+      "leaderboard leaderboard";
     grid-template-columns: minmax(180px, 220px) minmax(440px, 660px);
+    grid-template-rows: auto auto auto;
     align-items: start;
   }
 
   .hud-panel,
-  .side-stack {
+  .tools-panel {
     align-self: start;
+  }
+
+  .leaderboard-panel {
+    width: 100%;
   }
 }
 
 @media (max-width: 760px) {
+  .game-page {
+    padding-top: max(10px, env(safe-area-inset-top));
+  }
+
+  .topbar {
+    min-height: 66px;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 12px;
+    padding: 9px 12px;
+
+    &__mark {
+      width: 48px;
+      height: 48px;
+      border-radius: 15px;
+
+      img {
+        width: 44px;
+        height: 44px;
+      }
+    }
+
+    &__meta {
+      display: none;
+    }
+
+    &__state {
+      justify-self: end;
+      padding-inline: 13px;
+    }
+  }
+
   .game-shell {
     grid-template-columns: 1fr;
     grid-template-areas:
       "hud"
       "board"
-      "tools";
-    gap: 14px;
-    padding-top: 6px;
+      "tools"
+      "leaderboard";
+    gap: 12px;
+    padding-top: 12px;
   }
 
   .hud-panel,
@@ -484,9 +564,9 @@ onBeforeUnmount(game.dispose);
     }
   }
 
-  .game-footer {
-    display: grid;
-    gap: 4px;
+  .board-panel__feedback {
+    min-height: 44px;
+    margin-top: 6px;
   }
 }
 
@@ -498,17 +578,60 @@ onBeforeUnmount(game.dispose);
   }
 
   .topbar {
-    padding-inline: 4px;
+    min-height: 60px;
+    padding: 7px 9px;
+
+    &__title {
+      gap: 9px;
+
+      p {
+        max-width: 14ch;
+        font-size: 0.68rem;
+      }
+
+      h1 {
+        font-size: 0.96rem;
+      }
+    }
+
+    &__mark {
+      width: 44px;
+      height: 44px;
+      border-radius: 14px;
+
+      img {
+        width: 40px;
+        height: 40px;
+      }
+    }
 
     &__state {
-      padding: 0 10px;
-      font-size: 0.7rem;
+      min-height: 38px;
+      padding: 0 9px;
+      font-size: 0.68rem;
+
+      span {
+        width: 7px;
+        height: 7px;
+      }
     }
   }
 
   .board-panel__feedback {
-    display: grid;
-    gap: 3px;
+    min-height: 44px;
+    margin-inline: 3px;
+  }
+
+  .board-panel__message {
+    font-size: 0.8rem;
+  }
+
+  .board-panel__hint {
+    display: none;
+  }
+
+  .board-frame {
+    padding: 5px;
   }
 }
 

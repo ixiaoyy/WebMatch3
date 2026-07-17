@@ -17,6 +17,11 @@ export type GamePhase =
 
 export type FocusDirection = "up" | "right" | "down" | "left";
 
+export type SwipeResolution =
+  | { readonly kind: "tap" }
+  | { readonly kind: "blocked" }
+  | { readonly kind: "swap"; readonly target: Coordinate };
+
 export interface TilePresentation {
   readonly label: string;
   readonly assetUrl: string;
@@ -75,6 +80,35 @@ export function moveCoordinate(
       Math.max(0, coordinate.column + delta.column),
     ),
   };
+}
+
+export function resolveSwipeGesture(
+  coordinate: Coordinate,
+  deltaX: number,
+  deltaY: number,
+  rows: number,
+  columns: number,
+  minimumDistance: number,
+): SwipeResolution {
+  const horizontalDistance = Math.abs(deltaX);
+  const verticalDistance = Math.abs(deltaY);
+  if (Math.max(horizontalDistance, verticalDistance) < minimumDistance) {
+    return { kind: "tap" };
+  }
+
+  const direction: FocusDirection =
+    horizontalDistance >= verticalDistance
+      ? deltaX >= 0
+        ? "right"
+        : "left"
+      : deltaY >= 0
+        ? "down"
+        : "up";
+  const target = moveCoordinate(coordinate, direction, rows, columns);
+
+  return coordinatesEqual(coordinate, target)
+    ? { kind: "blocked" }
+    : { kind: "swap", target };
 }
 
 const TILE_PRESENTATIONS: Readonly<Record<string, TilePresentation>> = {

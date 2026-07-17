@@ -12,18 +12,18 @@ defineEmits<{
         <h2 id="instructions-title">三步上手</h2>
       </div>
       <button
-        class="icon-button"
+        class="button button--quiet instructions__dismiss"
         type="button"
-        aria-label="关闭玩法说明"
+        aria-label="收起玩法说明"
         @click="$emit('dismiss')"
       >
-        ×
+        收起
       </button>
     </div>
     <ol class="instructions__steps">
       <li>
         <span>01</span>
-        <p><strong>选一颗糖果</strong>，再点它上下左右的邻居。</p>
+        <p><strong>轻点或滑动</strong>，与上下左右的相邻糖果交换。</p>
       </li>
       <li>
         <span>02</span>
@@ -41,14 +41,14 @@ defineEmits<{
 </template>
 <style scoped lang="scss">
 .instructions {
-  padding-top: 18px;
+  padding-top: 14px;
   border-top: 1px solid var(--line);
 
   &__heading {
     display: flex;
     align-items: start;
     justify-content: space-between;
-    gap: 16px;
+    gap: 10px;
 
     h2 {
       margin: 0;
@@ -58,19 +58,25 @@ defineEmits<{
     }
   }
 
+  &__dismiss {
+    min-width: 58px;
+    padding-inline: 13px;
+    font-size: 0.74rem;
+  }
+
   &__steps {
     display: grid;
     gap: 0;
-    margin: 14px 0 0;
+    margin: 10px 0 0;
     padding: 0;
     border-top: 1px solid var(--line);
     list-style: none;
 
     li {
       display: grid;
-      grid-template-columns: 34px 1fr;
-      gap: 12px;
-      padding: 12px 0;
+      grid-template-columns: 28px minmax(0, 1fr);
+      gap: 8px;
+      padding: 8px 0;
       border-bottom: 1px solid var(--line);
     }
 
@@ -84,7 +90,7 @@ defineEmits<{
       margin: 0;
       color: var(--text-muted);
       font-size: 0.82rem;
-      line-height: 1.55;
+      line-height: 1.45;
     }
 
     strong {
@@ -93,10 +99,10 @@ defineEmits<{
   }
 
   &__keyboard {
-    margin: 14px 0 0;
+    margin: 10px 0 0;
     color: var(--text-muted);
     font-size: 0.68rem;
-    line-height: 1.55;
+    line-height: 1.45;
   }
 }
 </style>
