@@ -1,0 +1,17 @@
+{
+  "name": "web-match3",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.1.1",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "dev:web": "pnpm --dir apps/web dev",
+    "build:web": "pnpm --dir apps/web build",
+    "typecheck:web": "pnpm --dir apps/web typecheck",
+    "lint:web": "pnpm --dir apps/web lint",
+    "test:web": "pnpm --dir apps/web test",
+    "ci:web": "pnpm lint:web && pnpm typecheck:web && pnpm test:web && pnpm build:web"
+  }
+}
