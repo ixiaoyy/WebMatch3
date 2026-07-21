@@ -6,6 +6,7 @@ import jellyLimeUrl from "./assets/ambient/jelly-lime.webp";
 import jellyRoseUrl from "./assets/ambient/jelly-rose.webp";
 
 export type FocusDirection = "up" | "right" | "down" | "left";
+export type PlantStage = "growing" | "flowering" | "fruiting" | "mature";
 
 export interface JellyPresentation {
   readonly label: string;
@@ -24,12 +25,19 @@ export function getJellyPresentation(kind: JellyKind): JellyPresentation {
 }
 
 export function getGrowthPercent(clearCount: number): number {
-  const milestones = [0, 1, 3, 6, 10, 18, 30, 50, 80] as const;
+  const milestones = [0, 100, 300, 600, 1_000, 1_800, 3_000, 5_000, 8_000] as const;
   let stage = 0;
   for (let index = 0; index < milestones.length; index += 1) {
     if (clearCount >= milestones[index]) stage = index;
   }
   const base = [0, 18, 30, 42, 55, 67, 78, 90, 100][stage];
-  if (clearCount <= 80) return base;
-  return Math.min(104, base + Math.floor((clearCount - 80) / 20));
+  if (clearCount <= 8_000) return base;
+  return Math.min(104, base + Math.floor((clearCount - 8_000) / 2_000));
+}
+
+export function getPlantStage(clearCount: number, ageDays: number): PlantStage {
+  if (clearCount >= 8_000 && ageDays >= 30) return "mature";
+  if (clearCount >= 3_000 && ageDays >= 10) return "fruiting";
+  if (clearCount >= 1_000 && ageDays >= 3) return "flowering";
+  return "growing";
 }

@@ -37,7 +37,10 @@ const TEMPLATES: readonly PieceTemplate[] = Object.freeze([
 ]);
 
 const HIT_WIDTH = 0.2;
-const HIT_HEIGHT = 0.18;
+// The rendered jelly target is about 86px tall inside the 300px pile surface.
+// Keep the canonical hit geometry aligned with that visual footprint so a
+// vertically covered jelly cannot remain selectable through its lower half.
+const HIT_HEIGHT = 0.29;
 const BLOCKED_OVERLAP_RATIO = 0.28;
 
 function jitterPoint(point: Point, random: RandomSource, amount: number): Point {

@@ -7,6 +7,7 @@ import {
   type AmbientGameState,
   type JellyKind,
   type RandomSource,
+  type TrayPiece,
 } from "../engine";
 import {
   AMBIENT_SNAPSHOT_VERSION,
@@ -27,6 +28,7 @@ export interface AmbientControllerOptions {
   readonly storage?: StorageLike | null;
   readonly timers?: TimerApi;
   readonly onClear?: () => void;
+  readonly now?: () => number;
 }
 
 const browserTimers: TimerApi = {
@@ -49,17 +51,25 @@ export function createAmbientController(
     ? resolveBrowserStorage()
     : options.storage;
   const timers = options.timers ?? browserTimers;
-  const initial = loadAmbientSnapshot(storage, random);
+  const now = options.now ?? Date.now;
+  const currentTime = ref(now());
+  const initial = loadAmbientSnapshot(storage, random, currentTime.value);
   const game = shallowRef<AmbientGameState>(initial.game);
   const soundEnabled = ref(initial.preferences.soundEnabled);
   const status = ref("果冻散在桌面上。移近一点，它们会聚拢。");
   const feedback = ref<"idle" | "clear" | "recovery">("idle");
+  const trayPreview = shallowRef<readonly TrayPiece[] | null>(null);
+  const clearingPieceIds = shallowRef<readonly string[]>([]);
   const isAway = ref(false);
   let recoveryHandle: unknown = null;
   let feedbackHandle: unknown = null;
   let generation = 0;
 
   const selectablePieces = computed(() => getSelectablePieces(game.value.pieces));
+  const plantAgeDays = computed(() => Math.max(
+    0,
+    Math.floor((currentTime.value - initial.plant.plantedAt) / 86_400_000),
+  ));
   const canSelect = computed(
     () => !isAway.value && feedback.value !== "recovery",
   );
@@ -69,6 +79,7 @@ export function createAmbientController(
       version: AMBIENT_SNAPSHOT_VERSION,
       game: game.value,
       preferences: { soundEnabled: soundEnabled.value },
+      plant: initial.plant,
     };
   }
 
@@ -90,12 +101,20 @@ export function createAmbientController(
     }
   }
 
+  function clearTrayFeedback(): void {
+    trayPreview.value = null;
+    clearingPieceIds.value = [];
+  }
+
   function settleFeedback(kind: "clear" | "recovery", delay: number): void {
     clearFeedbackTimer();
     const token = generation;
     feedback.value = kind;
     feedbackHandle = timers.schedule(() => {
-      if (token === generation && !isAway.value) feedback.value = "idle";
+      if (token === generation && !isAway.value) {
+        feedback.value = "idle";
+        if (kind === "clear") clearTrayFeedback();
+      }
       feedbackHandle = null;
     }, delay);
   }
@@ -122,6 +141,12 @@ export function createAmbientController(
 
   function activate(pieceId: string): void {
     if (!canSelect.value) return;
+    currentTime.value = now();
+    if (feedback.value === "clear") {
+      clearFeedbackTimer();
+      clearTrayFeedback();
+      feedback.value = "idle";
+    }
     const result = selectPiece(game.value, pieceId, random);
     if (result.kind === "missing") return;
     if (result.kind === "blocked") {
@@ -129,14 +154,17 @@ export function createAmbientController(
       return;
     }
 
-    game.value = result.state;
     if (result.kind === "cleared") {
+      trayPreview.value = [...game.value.tray, result.selected];
+      clearingPieceIds.value = result.cleared.map((piece) => piece.id);
+      game.value = result.state;
       status.value = `三颗${KIND_NAMES[result.selected.kind]}融在一起，植物长高了一点。`;
       persist();
       options.onClear?.();
       settleFeedback("clear", 460);
       return;
     }
+    game.value = result.state;
     if (result.kind === "recovery-needed") {
       persist();
       scheduleRecovery();
@@ -156,11 +184,13 @@ export function createAmbientController(
   function setAway(away: boolean): void {
     if (isAway.value === away) return;
     isAway.value = away;
+    currentTime.value = now();
     generation += 1;
     clearFeedbackTimer();
     clearRecoveryTimer();
     if (away) {
       feedback.value = "idle";
+      clearTrayFeedback();
       persist();
       return;
     }
@@ -172,6 +202,7 @@ export function createAmbientController(
     generation += 1;
     clearFeedbackTimer();
     clearRecoveryTimer();
+    clearTrayFeedback();
     persist();
   }
 
@@ -180,8 +211,11 @@ export function createAmbientController(
     soundEnabled,
     status,
     feedback,
+    trayPreview,
+    clearingPieceIds,
     isAway,
     selectablePieces,
+    plantAgeDays,
     canSelect,
     activate,
     setSoundEnabled,

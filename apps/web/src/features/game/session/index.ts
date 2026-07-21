@@ -7,6 +7,7 @@ export {
   resolveBrowserStorage,
   saveAmbientSnapshot,
   type AmbientPreferences,
+  type AmbientPlantProgress,
   type AmbientSnapshotV1,
   type StorageLike,
 } from "./ambient-storage";

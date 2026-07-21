@@ -10,6 +10,7 @@ import {
   recoverFullTray,
   selectPiece,
   type AmbientGameState,
+  type PilePiece,
   type TrayPiece,
 } from "./ambient";
 
@@ -43,6 +44,27 @@ describe("ambient jelly engine", () => {
       pieces: state.pieces.filter((piece) => piece.id !== blockerId),
     };
     expect(getBlockerIds(withoutBlocker.pieces, blocked.id)).not.toContain(blockerId);
+  });
+
+  it("matches blocker geometry to the rendered jelly height", () => {
+    const lower: PilePiece = {
+      id: "lower",
+      kind: "aqua",
+      pile: { x: 0.5, y: 0.5 },
+      spread: { x: 0.2, y: 0.2 },
+      rotation: 0,
+      scale: 1,
+      layer: 0,
+    };
+    const upper: PilePiece = {
+      ...lower,
+      id: "upper",
+      kind: "rose",
+      pile: { x: 0.5, y: 0.635 },
+      layer: 1,
+    };
+
+    expect(getBlockerIds([lower, upper], lower.id)).toEqual([upper.id]);
   });
 
   it("does not mutate the state for a missing selection", () => {

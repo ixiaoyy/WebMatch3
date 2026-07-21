@@ -54,6 +54,40 @@ describe("ambient controller", () => {
     controller.dispose();
   });
 
+  it("keeps the cleared trio visible until the bubble feedback settles", () => {
+    const { callbacks, timers } = controlledTimers();
+    const controller = createAmbientController({
+      random: createSeededRandom(51),
+      storage: null,
+      timers,
+    });
+    const selectable = getSelectablePieces(controller.game.value.pieces);
+    const matchingPiece = selectable.find(
+      (piece) => selectable.filter((candidate) => candidate.kind === piece.kind).length >= 3,
+    );
+    expect(matchingPiece).toBeDefined();
+    if (!matchingPiece) return;
+    const triple = selectable
+      .filter((piece) => piece.kind === matchingPiece.kind)
+      .slice(0, 3);
+
+    for (const piece of triple) controller.activate(piece.id);
+
+    expect(controller.trayPreview.value?.map((piece) => piece.id)).toEqual(
+      triple.map((piece) => piece.id),
+    );
+    expect(controller.clearingPieceIds.value).toEqual(
+      triple.map((piece) => piece.id),
+    );
+
+    callbacks.shift()?.();
+
+    expect(controller.trayPreview.value).toBeNull();
+    expect(controller.clearingPieceIds.value).toEqual([]);
+    expect(controller.feedback.value).toBe("idle");
+    controller.dispose();
+  });
+
   it("cancels and restarts full-tray recovery around away state", () => {
     const { callbacks, timers } = controlledTimers();
     const controller = createAmbientController({

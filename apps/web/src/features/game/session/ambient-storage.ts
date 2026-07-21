@@ -16,10 +16,15 @@ export interface AmbientPreferences {
   readonly soundEnabled: boolean;
 }
 
+export interface AmbientPlantProgress {
+  readonly plantedAt: number;
+}
+
 export interface AmbientSnapshotV1 {
   readonly version: 1;
   readonly game: AmbientGameState;
   readonly preferences: AmbientPreferences;
+  readonly plant: AmbientPlantProgress;
 }
 
 export interface StorageLike {
@@ -122,41 +127,55 @@ function parseGame(value: unknown): AmbientGameState | null {
   };
 }
 
-export function parseAmbientSnapshot(value: unknown): AmbientSnapshotV1 | null {
+export function parseAmbientSnapshot(
+  value: unknown,
+  now = Date.now(),
+): AmbientSnapshotV1 | null {
   if (!isRecord(value) || value.version !== AMBIENT_SNAPSHOT_VERSION) return null;
   if (!isRecord(value.preferences) || typeof value.preferences.soundEnabled !== "boolean") {
     return null;
   }
   const game = parseGame(value.game);
   if (!game) return null;
+  let plantedAt = now;
+  if (value.plant !== undefined) {
+    if (!isRecord(value.plant) || !isSafeCounter(value.plant.plantedAt, 0)) {
+      return null;
+    }
+    plantedAt = value.plant.plantedAt;
+  }
   return {
     version: AMBIENT_SNAPSHOT_VERSION,
     game,
     preferences: { soundEnabled: value.preferences.soundEnabled },
+    plant: { plantedAt },
   };
 }
 
 export function createFreshSnapshot(
   random: RandomSource = Math.random,
+  now = Date.now(),
 ): AmbientSnapshotV1 {
   return {
     version: AMBIENT_SNAPSHOT_VERSION,
     game: createInitialState(random),
     preferences: { soundEnabled: false },
+    plant: { plantedAt: now },
   };
 }
 
 export function loadAmbientSnapshot(
   storage: StorageLike | null,
   random: RandomSource = Math.random,
+  now = Date.now(),
 ): AmbientSnapshotV1 {
-  if (!storage) return createFreshSnapshot(random);
+  if (!storage) return createFreshSnapshot(random, now);
   try {
     const raw = storage.getItem(AMBIENT_STORAGE_KEY);
-    if (!raw) return createFreshSnapshot(random);
-    return parseAmbientSnapshot(JSON.parse(raw)) ?? createFreshSnapshot(random);
+    if (!raw) return createFreshSnapshot(random, now);
+    return parseAmbientSnapshot(JSON.parse(raw), now) ?? createFreshSnapshot(random, now);
   } catch {
-    return createFreshSnapshot(random);
+    return createFreshSnapshot(random, now);
   }
 }
 

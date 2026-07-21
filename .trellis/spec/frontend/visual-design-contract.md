@@ -18,7 +18,7 @@ pile/tray composition, quiet controls, reward motion, or responsive layout.
 ```text
 ui/assets/ambient/wallpaper.webp
 ui/assets/ambient/jelly-{aqua,amber,lime,rose}.webp
-ui/assets/ambient/plant-{pot,foliage}.webp
+ui/assets/ambient/plant-{pot,foliage,flowering,fruiting,mature}.webp
 public/favicon.{ico,png variants}
 ```
 
@@ -41,8 +41,18 @@ wallpaper containing interactive objects.
   shallow pile. Motion changes position only and does not alter blockers.
 - Blocked pieces use reduced saturation/brightness plus a quiet `覆` cue;
   selectable and focused pieces keep recognizable silhouettes.
-- Plant begins as an empty ceramic pot. Generated foliage reveals upward at
-  clear milestones `0,1,3,6,10,18,30,50,80`, with no numeric label.
+- Plant begins as an empty ceramic pot. Generated foliage reveals slowly at
+  clear milestones `0,100,300,600,1000,1800,3000,5000,8000`, with no numeric
+  label. Stage changes use both clear count and elapsed plant age: flowering
+  requires `1000 clears + 3 days`, fruiting `3000 + 10 days`, and mature ripe
+  fruit `8000 + 30 days`.
+- Flowering, fruiting, and mature are separate transparent bitmap assets with
+  consistent framing. Do not substitute emoji or code-drawn dots for the
+  blossoms and fruit.
+- A tray clear keeps the exact three cleared silhouettes visible for about
+  460ms while small bubbles rise and the silhouettes dissolve. This is the
+  primary clear feedback; it stays short and becomes a static highlighted
+  preview under reduced motion.
 - The seven-slot tray is the only persistent glass grouping. Quiet controls
   stay low-opacity until hover/focus and preserve practical targets.
 - At `<=620px`, the vignette moves lower-center and stays gathered. No viewport
@@ -58,6 +68,7 @@ wallpaper containing interactive objects.
 | Controls compete with scene | reduce opacity/weight, retain focus visibility |
 | 320px viewport | gathered pile, readable tray, 44px targets, no overflow |
 | Reduced motion | instant/near-instant projection and feedback, no lost state |
+| Clear reaches a plant stage before its day gate | remain in the previous stage |
 | `backdrop-filter` unsupported | translucent fallback remains readable |
 | Away state | pause animation and remove transition travel |
 
@@ -77,8 +88,9 @@ wallpaper containing interactive objects.
    image; inspect light direction, negative space, horizon, material, and
    lower-right hierarchy;
 2. capture `320x568`, `390x844`, `768x1024`, and `1440x900`;
-3. inspect spread, gathered, focus, blocked, clear, first-growth, mature-growth,
-   full-tray recovery, away, and reduced-motion states;
+3. inspect spread, gathered, 30-second idle scatter, focus, blocked, bubble
+   clear, growing, flowering, fruiting, mature, full-tray recovery, away, and
+   reduced-motion states;
 4. validate tab title `果冻`, favicon legibility, console cleanliness, and no
    horizontal overflow;
 5. run UI tests and `pnpm ci:web` after visual fixes.

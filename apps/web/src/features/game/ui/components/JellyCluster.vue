@@ -17,11 +17,14 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   activate: [pieceId: string];
+  activity: [];
   engagement: [engaged: boolean];
 }>();
 
 const cluster = ref<HTMLElement | null>(null);
 const focusedId = ref<string | null>(null);
+const pointerInside = ref(false);
+const focusInside = ref(false);
 const selectable = computed(() => getSelectablePieces(props.pieces));
 
 watch(
@@ -78,8 +81,24 @@ function navigate(pieceId: string, event: KeyboardEvent): void {
 
 function onFocusOut(event: FocusEvent): void {
   if (!cluster.value?.contains(event.relatedTarget as Node | null)) {
-    emit("engagement", false);
+    focusInside.value = false;
+    emit("engagement", pointerInside.value);
   }
+}
+
+function onPointerEnter(): void {
+  pointerInside.value = true;
+  emit("engagement", true);
+}
+
+function onPointerLeave(): void {
+  pointerInside.value = false;
+  emit("engagement", focusInside.value);
+}
+
+function onFocusIn(): void {
+  focusInside.value = true;
+  emit("engagement", true);
 }
 </script>
 
@@ -89,10 +108,13 @@ function onFocusOut(event: FocusEvent): void {
     class="jelly-cluster"
     :data-engaged="engaged"
     aria-label="桌面上的果冻"
-    @pointerenter="emit('engagement', true)"
-    @pointerleave="emit('engagement', false)"
-    @focusin="emit('engagement', true)"
+    @pointerenter="onPointerEnter"
+    @pointerleave="onPointerLeave"
+    @pointermove="emit('activity')"
+    @pointerdown.capture="emit('activity')"
+    @focusin="onFocusIn"
     @focusout="onFocusOut"
+    @keydown="emit('activity')"
   >
     <JellyPiece
       v-for="piece in pieces"
@@ -119,7 +141,6 @@ function onFocusOut(event: FocusEvent): void {
   border-radius: 38% 44% 28% 36%;
   outline: none;
 
-  &:hover :deep(.jelly-piece),
   &[data-engaged="true"] :deep(.jelly-piece) {
     --active-x: var(--pile-x);
     --active-y: var(--pile-y);

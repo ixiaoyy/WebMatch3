@@ -50,6 +50,10 @@ interface AmbientGameState {
   selectable same-kind pieces.
 - `spread` is a presentation projection. Occlusion always uses `pile`
   geometry, so pointer leave cannot change rules.
+- The normalized blocker rectangle must track the rendered jelly footprint
+  (currently `0.20 × 0.29` of the gathered surface at scale `1`). A visually
+  covered lower half must not remain selectable because engine height is
+  shorter than the native button.
 - A piece is blocked only by meaningful overlap from a strictly higher layer.
   Same-layer overlap never blocks.
 - Public transitions never mutate their input. Missing and blocked selection
@@ -90,6 +94,8 @@ interface AmbientGameState {
 1. unique IDs, 18 pieces, four legal kinds, irregular dual projections, and
    layers limited to `0..2`;
 2. meaningful higher-layer blocking and immediate reveal;
+   include a vertically offset overlap that only passes when canonical height
+   matches the rendered target;
 3. missing/blocked result identity and complete input immutability;
 4. ordered tray movement, automatic triples, replacement count, and one clear;
 5. quick-match invariant after initial generation and clearing;

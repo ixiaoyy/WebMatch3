@@ -37,6 +37,26 @@ describe("ambient snapshot storage", () => {
     expect(loadAmbientSnapshot(storage, createSeededRandom(12))).toEqual(snapshot);
   });
 
+  it("migrates an existing version-one snapshot without losing game progress", () => {
+    const storage = createMemoryStorage();
+    const fresh = createFreshSnapshot(createSeededRandom(13), 1_000);
+    const legacy = {
+      version: fresh.version,
+      game: { ...fresh.game, clearCount: 432 },
+      preferences: fresh.preferences,
+    };
+    storage.values.set(AMBIENT_STORAGE_KEY, JSON.stringify(legacy));
+
+    const restored = loadAmbientSnapshot(
+      storage,
+      createSeededRandom(14),
+      86_401_000,
+    );
+
+    expect(restored.game.clearCount).toBe(432);
+    expect(restored.plant.plantedAt).toBe(86_401_000);
+  });
+
   it.each([
     "not-json",
     JSON.stringify({ version: 2 }),
@@ -80,6 +100,12 @@ describe("ambient snapshot storage", () => {
       game: { ...valid.game, clearCount: -1 },
     };
     expect(parseAmbientSnapshot(invalidCounter)).toBeNull();
+
+    const invalidPlantProgress = {
+      ...valid,
+      plant: { plantedAt: -1 },
+    };
+    expect(parseAmbientSnapshot(invalidPlantProgress)).toBeNull();
 
     const overfullTray = {
       ...valid,

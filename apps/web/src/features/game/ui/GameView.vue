@@ -15,6 +15,9 @@ const anchor = ref<HTMLElement | null>(null);
 const engaged = ref(false);
 const pipOpen = ref(false);
 const activePipWindow = ref<Window | null>(null);
+const IDLE_SCATTER_DELAY = 30_000;
+let idleScatterHandle: ReturnType<typeof setTimeout> | null = null;
+let lastInteractionAt = 0;
 const clearSound = createClearSound();
 const game = createAmbientController({
   onClear: () => {
@@ -28,6 +31,7 @@ function onPipFocus(): void {
 
 function onPipBlur(): void {
   game.setAway(true);
+  setEngagement(false);
   clearSound.stop();
 }
 
@@ -49,7 +53,47 @@ function updateMainAttention(): void {
   if (pipOpen.value) return;
   const away = document.hidden || !document.hasFocus();
   game.setAway(away);
-  if (away) clearSound.stop();
+  if (away) {
+    setEngagement(false);
+    clearSound.stop();
+  }
+}
+
+function clearIdleScatterTimer(): void {
+  if (idleScatterHandle !== null) {
+    globalThis.clearTimeout(idleScatterHandle);
+    idleScatterHandle = null;
+  }
+}
+
+function checkIdleScatter(): void {
+  idleScatterHandle = null;
+  const remaining = IDLE_SCATTER_DELAY - (Date.now() - lastInteractionAt);
+  if (remaining > 0) {
+    idleScatterHandle = globalThis.setTimeout(checkIdleScatter, remaining);
+    return;
+  }
+  engaged.value = false;
+}
+
+function markInteraction(): void {
+  engaged.value = true;
+  lastInteractionAt = Date.now();
+  if (idleScatterHandle === null) {
+    idleScatterHandle = globalThis.setTimeout(
+      checkIdleScatter,
+      IDLE_SCATTER_DELAY,
+    );
+  }
+}
+
+function setEngagement(nextEngaged: boolean): void {
+  if (nextEngaged) {
+    markInteraction();
+    return;
+  }
+  engaged.value = false;
+  clearIdleScatterTimer();
 }
 
 function toggleSound(): void {
@@ -81,6 +125,7 @@ onBeforeUnmount(() => {
   window.removeEventListener("blur", updateMainAttention);
   activePipWindow.value?.removeEventListener("focus", onPipFocus);
   activePipWindow.value?.removeEventListener("blur", onPipBlur);
+  clearIdleScatterTimer();
   pip.close();
   clearSound.dispose();
   game.dispose();
@@ -111,6 +156,7 @@ onBeforeUnmount(() => {
 
         <GrowingPlant
           :clear-count="game.game.value.clearCount"
+          :age-days="game.plantAgeDays.value"
           :celebrating="game.feedback.value === 'clear'"
         />
 
@@ -119,12 +165,14 @@ onBeforeUnmount(() => {
           :engaged="engaged"
           :disabled="!game.canSelect.value"
           @activate="game.activate"
-          @engagement="engaged = $event"
+          @activity="markInteraction"
+          @engagement="setEngagement"
         />
 
         <JellyTray
-          :pieces="game.game.value.tray"
+          :pieces="game.trayPreview.value ?? game.game.value.tray"
           :feedback="game.feedback.value"
+          :clearing-piece-ids="game.clearingPieceIds.value"
         />
 
         <p class="visually-hidden" aria-live="polite" aria-atomic="true">
