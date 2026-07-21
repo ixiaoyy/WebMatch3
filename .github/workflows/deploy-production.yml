@@ -25,8 +25,6 @@ jobs:
       DEPLOY_PORT: ${{ vars.DEPLOY_PORT }}
       DEPLOY_USER: ${{ vars.DEPLOY_USER }}
       PRODUCTION_URL: ${{ vars.PRODUCTION_URL }}
-      SSH_KEY_PATH: ${{ runner.temp }}/webmatch3-ssh/id_ed25519
-      KNOWN_HOSTS_PATH: ${{ runner.temp }}/webmatch3-ssh/known_hosts
 
     steps:
       - name: Check out source
@@ -68,10 +66,15 @@ jobs:
           : "${DEPLOY_SSH_KEY:?Missing production secret DEPLOY_SSH_KEY}"
           : "${DEPLOY_KNOWN_HOSTS:?Missing production secret DEPLOY_KNOWN_HOSTS}"
 
-          install -m 700 -d "$(dirname "$SSH_KEY_PATH")"
-          printf '%s\n' "$DEPLOY_SSH_KEY" > "$SSH_KEY_PATH"
-          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > "$KNOWN_HOSTS_PATH"
-          chmod 600 "$SSH_KEY_PATH" "$KNOWN_HOSTS_PATH"
+          ssh_dir="$RUNNER_TEMP/webmatch3-ssh"
+          ssh_key_path="$ssh_dir/id_ed25519"
+          known_hosts_path="$ssh_dir/known_hosts"
+          install -m 700 -d "$ssh_dir"
+          printf '%s\n' "$DEPLOY_SSH_KEY" > "$ssh_key_path"
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > "$known_hosts_path"
+          chmod 600 "$ssh_key_path" "$known_hosts_path"
+          printf 'SSH_KEY_PATH=%s\n' "$ssh_key_path" >> "$GITHUB_ENV"
+          printf 'KNOWN_HOSTS_PATH=%s\n' "$known_hosts_path" >> "$GITHUB_ENV"
 
       - name: Upload and activate release
         run: |
