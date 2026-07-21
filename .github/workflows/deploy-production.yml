@@ -1,0 +1,124 @@
+name: Deploy production
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: webmatch3-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Build and deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+
+    env:
+      DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+      DEPLOY_PORT: ${{ vars.DEPLOY_PORT }}
+      DEPLOY_USER: ${{ vars.DEPLOY_USER }}
+      PRODUCTION_URL: ${{ vars.PRODUCTION_URL }}
+      SSH_KEY_PATH: ${{ runner.temp }}/webmatch3-ssh/id_ed25519
+      KNOWN_HOSTS_PATH: ${{ runner.temp }}/webmatch3-ssh/known_hosts
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@008330803749db0355799c700092d9a85fd074e9 # v6.0.9
+        with:
+          version: 11.1.1
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify and build
+        run: pnpm ci:web
+
+      - name: Package immutable release
+        run: |
+          printf '%s\n' "$GITHUB_SHA" > apps/web/dist/release.txt
+          tar -C apps/web/dist -czf "webmatch3-${GITHUB_SHA}.tar.gz" .
+
+      - name: Configure deployment credentials
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          : "${DEPLOY_HOST:?Missing production variable DEPLOY_HOST}"
+          : "${DEPLOY_PORT:?Missing production variable DEPLOY_PORT}"
+          : "${DEPLOY_USER:?Missing production variable DEPLOY_USER}"
+          : "${PRODUCTION_URL:?Missing production variable PRODUCTION_URL}"
+          : "${DEPLOY_SSH_KEY:?Missing production secret DEPLOY_SSH_KEY}"
+          : "${DEPLOY_KNOWN_HOSTS:?Missing production secret DEPLOY_KNOWN_HOSTS}"
+
+          install -m 700 -d "$(dirname "$SSH_KEY_PATH")"
+          printf '%s\n' "$DEPLOY_SSH_KEY" > "$SSH_KEY_PATH"
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > "$KNOWN_HOSTS_PATH"
+          chmod 600 "$SSH_KEY_PATH" "$KNOWN_HOSTS_PATH"
+
+      - name: Upload and activate release
+        run: |
+          remote_archive="/opt/webmatch3/incoming/webmatch3-${GITHUB_SHA}.tar.gz"
+          ssh_options=(
+            -i "$SSH_KEY_PATH"
+            -p "$DEPLOY_PORT"
+            -o BatchMode=yes
+            -o IdentitiesOnly=yes
+            -o StrictHostKeyChecking=yes
+            -o "UserKnownHostsFile=$KNOWN_HOSTS_PATH"
+          )
+
+          ssh "${ssh_options[@]}" "$DEPLOY_USER@$DEPLOY_HOST" \
+            "install -d -m 755 /opt/webmatch3/incoming"
+          scp -i "$SSH_KEY_PATH" -P "$DEPLOY_PORT" \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
+            -o "UserKnownHostsFile=$KNOWN_HOSTS_PATH" \
+            "webmatch3-${GITHUB_SHA}.tar.gz" \
+            "$DEPLOY_USER@$DEPLOY_HOST:$remote_archive"
+          ssh "${ssh_options[@]}" "$DEPLOY_USER@$DEPLOY_HOST" \
+            "bash -s -- '$GITHUB_SHA' '$remote_archive'" \
+            < .github/scripts/deploy-webmatch3.sh
+
+      - name: Verify public release
+        run: |
+          for attempt in {1..20}; do
+            deployed_sha="$({ curl -fsS --connect-timeout 5 --max-time 10 \
+              "${PRODUCTION_URL%/}/release.txt?sha=${GITHUB_SHA}" || true; } | tr -d '\r\n')"
+            if [[ "$deployed_sha" == "$GITHUB_SHA" ]]; then
+              printf 'Production is serving %s\n' "$GITHUB_SHA"
+              exit 0
+            fi
+            sleep 3
+          done
+
+          printf 'Production did not expose release %s in time.\n' "$GITHUB_SHA" >&2
+          exit 1
+
+      - name: Write deployment summary
+        if: always()
+        run: |
+          {
+            printf '### WebMatch3 production deployment\n\n'
+            printf -- '- Commit: `%s`\n' "$GITHUB_SHA"
+            printf -- '- URL: %s\n' "$PRODUCTION_URL"
+            printf -- '- Result: `%s`\n' "${{ job.status }}"
+          } >> "$GITHUB_STEP_SUMMARY"
