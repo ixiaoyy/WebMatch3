@@ -42,7 +42,8 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
   returns to its authored spread without mutating pile, tray, or plant state.
   Pointer movement, pointer down, or keyboard activity gathers it again.
 - Native piece buttons provide 44px-or-larger targets. Blocked pieces are
-  disabled and have a non-color visual cue plus an accessible covering label.
+  disabled and have a text-free, non-color overlap cue plus an accessible
+  covering label.
   Arrow keys choose the nearest selectable piece in gathered coordinates.
 - Stable state persists after selection, clear, recovery, preference change,
   and attention loss using `web-match3:ambient-state`. The obsolete

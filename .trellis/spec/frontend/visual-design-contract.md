@@ -40,7 +40,8 @@ wallpaper containing interactive objects.
   and a contact shadow while remaining distinct as orb, drop, leaf, and heart.
 - Idle pieces use irregular spread coordinates; engaged pieces use a compact
   shallow pile. Motion changes position only and does not alter blockers.
-- Blocked pieces use reduced saturation/brightness plus a quiet `覆` cue;
+- Blocked pieces use reduced saturation/brightness plus a quiet pair of
+  overlapping outlines. The visible cue contains no word or character;
   selectable and focused pieces keep recognizable silhouettes.
 - Plant begins as an empty ceramic pot. Generated foliage reveals slowly at
   clear milestones `0,100,300,600,1000,1800,3000,5000,8000`, with no numeric

@@ -55,9 +55,7 @@ const label = computed(() =>
       height="512"
       draggable="false"
     />
-    <span v-if="blocked" class="jelly-piece__blocked" aria-hidden="true">
-      覆
-    </span>
+    <span v-if="blocked" class="jelly-piece__blocked" aria-hidden="true" />
   </button>
 </template>
 
@@ -126,9 +124,29 @@ const label = computed(() =>
     color: #46516b;
     background: rgb(245 247 253 / 86%);
     box-shadow: 0 2px 7px rgb(41 52 77 / 12%);
-    font-size: 9px;
-    font-weight: 720;
-    line-height: 1;
+
+    &::before,
+    &::after {
+      position: absolute;
+      width: 7px;
+      height: 9px;
+      border: 1.5px solid #59647d;
+      border-radius: 50%;
+      content: "";
+    }
+
+    &::before {
+      top: 3px;
+      left: 4px;
+      transform: rotate(-28deg);
+    }
+
+    &::after {
+      right: 4px;
+      bottom: 3px;
+      border-color: #7d87a0;
+      transform: rotate(28deg);
+    }
   }
 }
 
