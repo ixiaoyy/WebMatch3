@@ -1,0 +1,5 @@
+{"file":".trellis/spec/frontend/index.md","reason":"Frontend pre-development and quality gates."}
+{"file":".trellis/spec/frontend/directory-structure.md","reason":"Game UI component and asset ownership."}
+{"file":".trellis/spec/frontend/game-ui-contract.md","reason":"Responsive, reduced-motion, accessibility, and PiP UI boundaries."}
+{"file":".trellis/spec/frontend/visual-design-contract.md","reason":"Ambient scene, generated bitmap, composition, and asset validation rules."}
+{"file":".trellis/tasks/07-21-cat-companion-fish-feeding/research/cat-reference.png","reason":"Primary orange felt cat identity and material reference."}

@@ -1,0 +1,4 @@
+{"file":".trellis/spec/frontend/index.md","reason":"Frontend quality gate and required package check."}
+{"file":".trellis/spec/frontend/game-ui-contract.md","reason":"Validate responsive, reduced-motion, accessibility, and PiP behavior."}
+{"file":".trellis/spec/frontend/visual-design-contract.md","reason":"Validate visual reference fidelity, alpha quality, layout, and screenshots."}
+{"file":".trellis/tasks/07-21-cat-companion-fish-feeding/research/cat-reference.png","reason":"Compare the final felt cat identity and material against the source reference."}
