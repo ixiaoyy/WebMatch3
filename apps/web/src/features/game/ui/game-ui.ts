@@ -1,9 +1,18 @@
-import type { JellyKind } from "../engine";
+import type { FishKind } from "../engine";
 
-import jellyAmberUrl from "./assets/ambient/jelly-amber.webp";
-import jellyAquaUrl from "./assets/ambient/jelly-aqua.webp";
-import jellyLimeUrl from "./assets/ambient/jelly-lime.webp";
-import jellyRoseUrl from "./assets/ambient/jelly-rose.webp";
+import catEatingUrl from "./assets/cat/cat-eating.png";
+import catFullUrl from "./assets/cat/cat-full.png";
+import catIdleUrl from "./assets/cat/cat-idle.png";
+import catLyingUrl from "./assets/cat/cat-lying.png";
+import catSleepingUrl from "./assets/cat/cat-sleeping.png";
+import fishAngelfishUrl from "./assets/fish/fish-angelfish.png";
+import fishBettaUrl from "./assets/fish/fish-betta.png";
+import fishClownfishUrl from "./assets/fish/fish-clownfish.png";
+import fishGoldfishUrl from "./assets/fish/fish-goldfish.png";
+import fishKoiUrl from "./assets/fish/fish-koi.png";
+import fishPufferUrl from "./assets/fish/fish-puffer.png";
+import fishSardineUrl from "./assets/fish/fish-sardine.png";
+import fishWhaleUrl from "./assets/fish/fish-whale.png";
 import plantStageBudUrl from "./assets/ambient/plant-stage-bud.webp";
 import plantStageLilyOfTheValleyUrl from "./assets/ambient/plant-stage-lily-of-the-valley.webp";
 import plantStagePeonyUrl from "./assets/ambient/plant-stage-peony.webp";
@@ -11,8 +20,9 @@ import plantStagePomegranateUrl from "./assets/ambient/plant-stage-pomegranate.w
 
 export type FocusDirection = "up" | "right" | "down" | "left";
 export type PlantStage = "growing" | "flowering" | "fruiting" | "mature";
+export type CatPose = "idle" | "eating" | "full" | "lying" | "sleeping";
 
-export interface JellyPresentation {
+export interface FishPresentation {
   readonly label: string;
   readonly assetUrl: string;
 }
@@ -22,11 +32,20 @@ export interface PlantStagePresentation {
   readonly assetUrl: string;
 }
 
-const PRESENTATIONS: Readonly<Record<JellyKind, JellyPresentation>> = {
-  aqua: { label: "水蓝圆形果冻", assetUrl: jellyAquaUrl },
-  amber: { label: "琥珀水滴果冻", assetUrl: jellyAmberUrl },
-  lime: { label: "青柠叶片果冻", assetUrl: jellyLimeUrl },
-  rose: { label: "玫瑰心形果冻", assetUrl: jellyRoseUrl },
+export interface CatPresentation {
+  readonly label: string;
+  readonly assetUrl: string;
+}
+
+const PRESENTATIONS: Readonly<Record<FishKind, FishPresentation>> = {
+  whale: { label: "蓝色毛毡鲸鱼", assetUrl: fishWhaleUrl },
+  koi: { label: "白红毛毡锦鲤", assetUrl: fishKoiUrl },
+  sardine: { label: "蓝色斑点毛毡沙丁鱼", assetUrl: fishSardineUrl },
+  pufferfish: { label: "赭黄色圆鼓毛毡河豚", assetUrl: fishPufferUrl },
+  goldfish: { label: "橙白毛毡金鱼", assetUrl: fishGoldfishUrl },
+  clownfish: { label: "橙白条纹毛毡小丑鱼", assetUrl: fishClownfishUrl },
+  angelfish: { label: "黄黑长鳍毛毡神仙鱼", assetUrl: fishAngelfishUrl },
+  betta: { label: "蓝紫长鳍毛毡斗鱼", assetUrl: fishBettaUrl },
 };
 
 const PLANT_STAGE_PRESENTATIONS: Readonly<Record<PlantStage, PlantStagePresentation>> = {
@@ -36,12 +55,24 @@ const PLANT_STAGE_PRESENTATIONS: Readonly<Record<PlantStage, PlantStagePresentat
   mature: { label: "Mature plant", assetUrl: plantStagePeonyUrl },
 };
 
-export function getJellyPresentation(kind: JellyKind): JellyPresentation {
+const CAT_PRESENTATIONS: Readonly<Record<CatPose, CatPresentation>> = {
+  idle: { label: "橘色毛毡猫安静地站着", assetUrl: catIdleUrl },
+  eating: { label: "橘色毛毡猫开心地吃东西", assetUrl: catEatingUrl },
+  full: { label: "橘色毛毡猫吃饱了，双爪捧着肚子", assetUrl: catFullUrl },
+  lying: { label: "橘色毛毡猫清醒地趴着休息", assetUrl: catLyingUrl },
+  sleeping: { label: "橘色毛毡猫正趴着睡觉", assetUrl: catSleepingUrl },
+};
+
+export function getFishPresentation(kind: FishKind): FishPresentation {
   return PRESENTATIONS[kind];
 }
 
 export function getPlantStagePresentation(stage: PlantStage): PlantStagePresentation {
   return PLANT_STAGE_PRESENTATIONS[stage];
+}
+
+export function getCatPresentation(pose: CatPose): CatPresentation {
+  return CAT_PRESENTATIONS[pose];
 }
 
 export function getGrowthPercent(clearCount: number): number {

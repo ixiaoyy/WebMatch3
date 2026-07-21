@@ -1,8 +1,8 @@
-# Rain-Washed Ambient Jelly Visual Contract
+# Rain-Washed Ambient Fish Visual Contract
 
 ## Reference Design
 
-![Ambient Jelly reference](./assets/ambient-jelly-reference.png)
+![Felt fish reference](../../tasks/07-21-cat-companion-fish-feeding/research/fish-reference.png)
 
 Use the reference for material, cool daylight, wall/table horizon, left
 foliage shadow, negative space, and lower-right weight. Browser chrome and
@@ -10,14 +10,14 @@ reference labels are not product UI.
 
 ## 1. Scope / Trigger
 
-Apply this contract when changing wallpaper, global tokens, jelly/plant assets,
+Apply this contract when changing wallpaper, global tokens, fish/plant assets,
 pile/tray composition, quiet controls, reward motion, or responsive layout.
 
 ## 2. Signatures / Asset Slots
 
 ```text
 ui/assets/ambient/wallpaper.webp
-ui/assets/ambient/jelly-{aqua,amber,lime,rose}.webp
+ui/assets/fish/fish-{whale,koi,sardine,puffer,goldfish,clownfish,angelfish,betta}.png
 ui/assets/ambient/plant-{pot,foliage,flowering,fruiting,mature}.webp
 ui/assets/ambient/plant-stage-{bud,lily-of-the-valley,pomegranate,peony}.webp
 public/favicon.{ico,png variants}
@@ -36,8 +36,8 @@ wallpaper containing interactive objects.
   shadow, empty left/center field, and no UI, plant, or jellies.
 - At `1440x900`, the vignette anchors lower-right. There is no board, card,
   top bar, logo, level title, grid, or conventional HUD.
-- Four jellies share translucent resin, upper-left highlight, internal depth,
-  and a contact shadow while remaining distinct as orb, drop, leaf, and heart.
+- Eight fish share tactile felt, stitched seams, bead eyes, rounded volume, and
+  lavender-compatible lighting while remaining distinct by species silhouette.
 - Idle pieces use irregular spread coordinates; engaged pieces use a compact
   shallow pile. Motion changes position only and does not alter blockers.
 - Blocked pieces use reduced saturation/brightness plus a quiet pair of
@@ -66,6 +66,10 @@ wallpaper containing interactive objects.
   number, label, modal, or separate result screen.
 - The seven-slot tray is the only persistent glass grouping. Quiet controls
   stay low-opacity until hover/focus and preserve practical targets.
+- The felt cat stays visible as a desktop companion. Search travel may move it
+  beside one fish without covering that fish's target; its current bounds are
+  also the pointer/touch feed drop region. Only one compact, translucent speech
+  bubble is shown, and it never captures input or becomes a persistent HUD.
 - At `<=620px`, the vignette moves lower-center and stays gathered. No viewport
   may gain horizontal overflow.
 
@@ -74,7 +78,7 @@ wallpaper containing interactive objects.
 | Condition | Required outcome |
 |---|---|
 | Asset has opaque key-color background/fringe | reject or reprocess before import |
-| Four silhouettes collapse at 32–48px | reject the set or adjust subject scale |
+| Fish silhouettes collapse at 32–48px | reject the set or adjust subject scale |
 | Idle scene resembles rows/cells | replace authored positions; hiding borders is insufficient |
 | Controls compete with scene | reduce opacity/weight, retain focus visibility |
 | 320px viewport | gathered pile, readable tray, 44px targets, no overflow |
@@ -88,7 +92,7 @@ wallpaper containing interactive objects.
 
 - Good: most pixels are quiet lavender empty space; the tactile vignette owns
   the lower-right without looking like a floating game panel.
-- Base: pot plus gathered jellies and tray remain usable before any growth.
+- Base: pot plus gathered fish and tray remain usable before any growth.
 - Good: contact shadows ground objects without introducing a board surface.
 - Bad: every object receives glow, continuous bobbing, or saturated particles.
 - Bad: the tray expands into a dashboard or the pile becomes a rectangular
@@ -103,7 +107,7 @@ wallpaper containing interactive objects.
 3. inspect spread, gathered, 30-second idle scatter, focus, blocked, bubble
    clear, growing, flowering, fruiting, mature, full-tray recovery, away, and
    reduced-motion states;
-4. validate tab title `果冻`, favicon legibility, console cleanliness, and no
+4. validate tab title `小鱼`, whale favicon legibility, console cleanliness, and no
    horizontal overflow;
 5. run UI tests and `pnpm ci:web` after visual fixes.
 
@@ -121,12 +125,12 @@ This recreates a board and fakes the primary bitmap material in CSS.
 ### Correct
 
 ```scss
-.jelly-piece {
+.fish-piece {
   left: calc(var(--active-x) * 100%);
   top: calc(var(--active-y) * 100%);
 }
 
-.jelly-cluster:hover .jelly-piece {
+.fish-field:hover .fish-piece {
   --active-x: var(--pile-x);
   --active-y: var(--pile-y);
 }

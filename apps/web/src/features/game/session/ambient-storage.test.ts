@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { createSeededRandom, selectPiece } from "../engine";
+import {
+  FISH_KINDS,
+  createLevelState,
+  createSeededRandom,
+  feedPiece,
+  getSelectablePieces,
+  selectPiece,
+} from "../engine";
 import {
   AMBIENT_STORAGE_KEY,
   createFreshSnapshot,
@@ -9,6 +16,37 @@ import {
   saveAmbientSnapshot,
   type StorageLike,
 } from "./ambient-storage";
+
+const LEGACY_KIND_BY_FISH = {
+  whale: "aqua",
+  koi: "amber",
+  sardine: "lime",
+  pufferfish: "rose",
+  goldfish: "goldfish",
+  clownfish: "clownfish",
+  angelfish: "angelfish",
+  betta: "betta",
+} as const;
+
+function toLegacyGame(game: ReturnType<typeof createLevelState>) {
+  return {
+    ...game,
+    pieces: game.pieces.map((piece, index) => {
+      const { blockerIds, ...legacyPiece } = piece;
+      void blockerIds;
+      return {
+        ...legacyPiece,
+        id: `jelly-${index + 1}`,
+        kind: LEGACY_KIND_BY_FISH[piece.kind],
+      };
+    }),
+    tray: game.tray.map((piece, index) => ({
+      ...piece,
+      id: `jelly-tray-${index + 1}`,
+      kind: LEGACY_KIND_BY_FISH[piece.kind],
+    })),
+  };
+}
 
 function createMemoryStorage(): StorageLike & { values: Map<string, string> } {
   const values = new Map<string, string>();
@@ -37,13 +75,88 @@ describe("ambient snapshot storage", () => {
     expect(loadAmbientSnapshot(storage, createSeededRandom(12))).toEqual(snapshot);
   });
 
+  it("round-trips mixed feed credits and explicit settled state", () => {
+    const storage = createMemoryStorage();
+    const fresh = createFreshSnapshot(createSeededRandom(41));
+    const selectable = getSelectablePieces(fresh.game.pieces);
+    const matching = selectable.find((piece) =>
+      selectable.filter((candidate) => candidate.kind === piece.kind).length >= 3
+    );
+    expect(matching).toBeDefined();
+    if (!matching) return;
+    const triple = selectable
+      .filter((piece) => piece.kind === matching.kind)
+      .slice(0, 3);
+    const fed = feedPiece(fresh.game, triple[0].id, createSeededRandom(42));
+    const first = selectPiece(fed.state, triple[1].id, createSeededRandom(43));
+    const settled = selectPiece(first.state, triple[2].id, createSeededRandom(44));
+    expect(settled.kind).toBe("settled");
+    const snapshot = { ...fresh, game: settled.state };
+
+    expect(saveAmbientSnapshot(storage, snapshot)).toBe(true);
+    expect(loadAmbientSnapshot(storage, createSeededRandom(45))).toEqual(snapshot);
+  });
+
+  it("restores a valid guard and safely drops corrupt pet state", () => {
+    const fresh = createFreshSnapshot(createSeededRandom(46));
+    const target = getSelectablePieces(fresh.game.pieces)[0];
+    expect(target).toBeDefined();
+    if (!target) return;
+    const guarded = {
+      ...fresh,
+      pet: { guardedPieceId: target.id },
+    };
+    expect(parseAmbientSnapshot(guarded)?.pet).toEqual(guarded.pet);
+
+    const corruptPet = {
+      ...fresh,
+      pet: { guardedPieceId: 42 },
+    };
+    const parsed = parseAmbientSnapshot(corruptPet);
+    expect(parsed?.game).toEqual(fresh.game);
+    expect(parsed?.pet.guardedPieceId).toBeNull();
+  });
+
+  it("migrates four-kind and eight-kind version-two snapshots to canonical fish", () => {
+    const fresh = createFreshSnapshot(createSeededRandom(50), 5_000);
+    for (const [level, clearCount, seed, expectedKinds] of [
+      [2, 4, 51, FISH_KINDS.slice(0, 4)],
+      [6, 12, 52, FISH_KINDS],
+    ] as const) {
+      const storage = createMemoryStorage();
+      const canonicalGame = createLevelState(
+        level,
+        clearCount,
+        1,
+        createSeededRandom(seed),
+      );
+      const legacyGame = toLegacyGame(canonicalGame);
+      storage.values.set(AMBIENT_STORAGE_KEY, JSON.stringify({
+        ...fresh,
+        version: 2,
+        game: legacyGame,
+      }));
+
+      const restored = loadAmbientSnapshot(storage, createSeededRandom(seed + 100));
+      expect(restored.version).toBe(3);
+      expect(restored.game.level).toBe(level);
+      expect(restored.game.clearCount).toBe(clearCount);
+      expect(new Set(restored.game.pieces.map((piece) => piece.kind))).toEqual(
+        new Set(expectedKinds),
+      );
+      expect(restored.game.pieces.map((piece) => piece.id)).toEqual(
+        legacyGame.pieces.map((piece) => piece.id),
+      );
+    }
+  });
+
   it("migrates an existing version-one snapshot without losing game progress", () => {
     const storage = createMemoryStorage();
     const fresh = createFreshSnapshot(createSeededRandom(13), 1_000);
     const legacy = {
       version: 1,
       game: {
-        pieces: fresh.game.pieces,
+        pieces: toLegacyGame(fresh.game).pieces.slice(0, 18),
         tray: fresh.game.tray,
         clearCount: 432,
         nextPieceId: fresh.game.nextPieceId,
@@ -58,7 +171,7 @@ describe("ambient snapshot storage", () => {
       86_401_000,
     );
 
-    expect(restored.version).toBe(2);
+    expect(restored.version).toBe(3);
     expect(restored.game.level).toBe(1);
     expect(restored.game.clearCount).toBe(432);
     expect(restored.plant.plantedAt).toBe(86_401_000);
@@ -66,6 +179,7 @@ describe("ambient snapshot storage", () => {
 
   it.each([
     "not-json",
+    JSON.stringify({ version: 4 }),
     JSON.stringify({ version: 3 }),
     JSON.stringify({ version: 2, game: {}, preferences: { soundEnabled: false } }),
   ])("falls back for malformed or incompatible data", (raw) => {
@@ -73,8 +187,8 @@ describe("ambient snapshot storage", () => {
     storage.values.set(AMBIENT_STORAGE_KEY, raw);
     const snapshot = loadAmbientSnapshot(storage, createSeededRandom(20));
 
-    expect(snapshot.version).toBe(2);
-    expect(snapshot.game.pieces).toHaveLength(18);
+    expect(snapshot.version).toBe(3);
+    expect(snapshot.game.pieces).toHaveLength(36);
     expect(snapshot.preferences.soundEnabled).toBe(false);
   });
 
@@ -101,6 +215,19 @@ describe("ambient snapshot storage", () => {
       },
     };
     expect(parseAmbientSnapshot(invalidGeometry)).toBeNull();
+
+    const invalidBlockers = {
+      ...valid,
+      game: {
+        ...valid.game,
+        pieces: valid.game.pieces.map((piece, index) =>
+          index === 0
+            ? { ...piece, blockerIds: [piece.id, piece.id] }
+            : piece,
+        ),
+      },
+    };
+    expect(parseAmbientSnapshot(invalidBlockers)).toBeNull();
 
     const invalidCounter = {
       ...valid,
@@ -137,7 +264,7 @@ describe("ambient snapshot storage", () => {
         ...valid.game,
         tray: Array.from({ length: 8 }, (_, index) => ({
           id: `tray-${index}`,
-          kind: "aqua" as const,
+          kind: "whale" as const,
         })),
       },
     };
@@ -155,7 +282,7 @@ describe("ambient snapshot storage", () => {
     };
     const snapshot = loadAmbientSnapshot(storage, createSeededRandom(40));
 
-    expect(snapshot.game.pieces).toHaveLength(18);
+    expect(snapshot.game.pieces).toHaveLength(36);
     expect(saveAmbientSnapshot(storage, snapshot)).toBe(false);
   });
 });

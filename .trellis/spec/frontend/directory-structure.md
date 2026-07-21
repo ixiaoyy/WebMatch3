@@ -7,7 +7,7 @@
 ## Overview
 
 All browser runtime code lives in `apps/web`. The application uses a small
-feature-oriented structure: top-level assembly belongs to `app`, Ambient Jelly
+feature-oriented structure: top-level assembly belongs to `app`, Ambient Fish
 behavior belongs to `features/game`, and genuinely reusable code belongs to
 `shared`.
 

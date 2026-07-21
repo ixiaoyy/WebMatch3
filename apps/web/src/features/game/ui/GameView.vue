@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 
 import { createAmbientController } from "./ambient-controller";
 import wallpaperUrl from "./assets/ambient/wallpaper.webp";
-import JellyCluster from "./components/JellyCluster.vue";
-import JellyTray from "./components/JellyTray.vue";
+import CatCompanion from "./components/CatCompanion.vue";
+import FishField from "./components/FishField.vue";
+import FishTray from "./components/FishTray.vue";
 import GrowingPlant from "./components/GrowingPlant.vue";
 import QuietControls from "./components/QuietControls.vue";
 import { createDocumentPipController } from "./document-pip";
@@ -12,18 +13,77 @@ import { createClearSound } from "./sound";
 
 const surface = ref<HTMLElement | null>(null);
 const anchor = ref<HTMLElement | null>(null);
-const engaged = ref(false);
+const catDropTarget = ref<HTMLElement | null>(null);
+const draggingPieceId = ref<string | null>(null);
+const catDropHover = ref(false);
+const revealedPieceIds = ref<ReadonlySet<string>>(new Set());
 const pipOpen = ref(false);
 const activePipWindow = ref<Window | null>(null);
-const IDLE_SCATTER_DELAY = 30_000;
-let idleScatterHandle: ReturnType<typeof setTimeout> | null = null;
-let lastInteractionAt = 0;
 const clearSound = createClearSound();
 const game = createAmbientController({
   onClear: () => {
     if (game.soundEnabled.value) clearSound.play();
   },
+  isSearchCandidate: (pieceId) => !revealedPieceIds.value.has(pieceId),
 });
+const catGuardStyle = computed(() => {
+  const target = game.guardedPiece.value;
+  if (!target) return {};
+  return {
+    "--cat-guard-left": `${target.pile.x * 100}%`,
+    "--cat-guard-bottom": `${(1 - target.pile.y) * 100}%`,
+  };
+});
+const catAwayFromHome = computed(() =>
+  game.catTravelPhase.value === "travelling" ||
+  game.catTravelPhase.value === "guarding",
+);
+
+function isInsideCat(clientX: number, clientY: number): boolean {
+  const bounds = catDropTarget.value?.getBoundingClientRect();
+  return Boolean(
+    bounds &&
+    clientX >= bounds.left &&
+    clientX <= bounds.right &&
+    clientY >= bounds.top &&
+    clientY <= bounds.bottom,
+  );
+}
+
+function onFishDragStart(pieceId: string): void {
+  draggingPieceId.value = pieceId;
+  catDropHover.value = false;
+  game.status.value = "把小鱼拖到小猫身上即可喂食。";
+}
+
+function onFishDragMove(
+  pieceId: string,
+  clientX: number,
+  clientY: number,
+): void {
+  if (draggingPieceId.value !== pieceId) return;
+  catDropHover.value = isInsideCat(clientX, clientY);
+}
+
+function onFishDragEnd(
+  pieceId: string,
+  clientX: number,
+  clientY: number,
+): void {
+  const accepted = draggingPieceId.value === pieceId &&
+    isInsideCat(clientX, clientY);
+  draggingPieceId.value = null;
+  catDropHover.value = false;
+  if (accepted) {
+    game.feedToCat(pieceId);
+  } else {
+    game.status.value = "没有放到小猫身上，小鱼回到了原位。";
+  }
+}
+
+function onRevealedChange(pieceIds: readonly string[]): void {
+  revealedPieceIds.value = new Set(pieceIds);
+}
 
 function onPipFocus(): void {
   game.setAway(false);
@@ -31,7 +91,6 @@ function onPipFocus(): void {
 
 function onPipBlur(): void {
   game.setAway(true);
-  setEngagement(false);
   clearSound.stop();
 }
 
@@ -54,46 +113,8 @@ function updateMainAttention(): void {
   const away = document.hidden || !document.hasFocus();
   game.setAway(away);
   if (away) {
-    setEngagement(false);
     clearSound.stop();
   }
-}
-
-function clearIdleScatterTimer(): void {
-  if (idleScatterHandle !== null) {
-    globalThis.clearTimeout(idleScatterHandle);
-    idleScatterHandle = null;
-  }
-}
-
-function checkIdleScatter(): void {
-  idleScatterHandle = null;
-  const remaining = IDLE_SCATTER_DELAY - (Date.now() - lastInteractionAt);
-  if (remaining > 0) {
-    idleScatterHandle = globalThis.setTimeout(checkIdleScatter, remaining);
-    return;
-  }
-  engaged.value = false;
-}
-
-function markInteraction(): void {
-  engaged.value = true;
-  lastInteractionAt = Date.now();
-  if (idleScatterHandle === null) {
-    idleScatterHandle = globalThis.setTimeout(
-      checkIdleScatter,
-      IDLE_SCATTER_DELAY,
-    );
-  }
-}
-
-function setEngagement(nextEngaged: boolean): void {
-  if (nextEngaged) {
-    markInteraction();
-    return;
-  }
-  engaged.value = false;
-  clearIdleScatterTimer();
 }
 
 function toggleSound(): void {
@@ -109,7 +130,7 @@ async function togglePip(): Promise<void> {
   }
   if (!surface.value || !anchor.value) return;
   const opened = await pip.open(surface.value, anchor.value);
-  if (!opened) game.status.value = "小窗没有打开，果冻还在这里。";
+  if (!opened) game.status.value = "小窗没有打开，小鱼还在这里。";
 }
 
 onMounted(() => {
@@ -117,6 +138,7 @@ onMounted(() => {
   window.addEventListener("focus", updateMainAttention);
   window.addEventListener("blur", updateMainAttention);
   updateMainAttention();
+  game.startReactions();
 });
 
 onBeforeUnmount(() => {
@@ -125,7 +147,6 @@ onBeforeUnmount(() => {
   window.removeEventListener("blur", updateMainAttention);
   activePipWindow.value?.removeEventListener("focus", onPipFocus);
   activePipWindow.value?.removeEventListener("blur", onPipBlur);
-  clearIdleScatterTimer();
   pip.close();
   clearSound.dispose();
   game.dispose();
@@ -144,7 +165,7 @@ onBeforeUnmount(() => {
         class="ambient-surface"
         :class="{ 'ambient-surface--in-pip': pipOpen }"
         :style="{ '--wallpaper-url': `url(${wallpaperUrl})` }"
-        aria-label="果冻桌面"
+        aria-label="毛毡小鱼桌面"
       >
         <QuietControls
           :sound-enabled="game.soundEnabled.value"
@@ -160,18 +181,38 @@ onBeforeUnmount(() => {
           :celebrating="game.feedback.value === 'clear'"
         />
 
-        <JellyCluster
+        <div
+          ref="catDropTarget"
+          class="cat-companion-slot"
+          :data-away-from-home="catAwayFromHome"
+          :style="catGuardStyle"
+        >
+          <CatCompanion
+            :pose="game.catPose.value"
+            :reaction="game.catReaction.value"
+            :travel-phase="game.catTravelPhase.value"
+            :full="game.game.value.fed.length >= 3 || game.catIsResting.value"
+            :drop-hover="catDropHover"
+            @activate="game.requestCatSearch"
+          />
+        </div>
+
+        <FishField
           :key="game.game.value.level"
           :pieces="game.game.value.pieces"
-          :engaged="engaged"
+          :feedable="game.catCanEat.value"
           :disabled="!game.canSelect.value"
           :transitioning="game.feedback.value === 'level'"
+          :away="game.isAway.value"
           @activate="game.activate"
-          @activity="markInteraction"
-          @engagement="setEngagement"
+          @feed="game.feedToCat"
+          @revealed-change="onRevealedChange"
+          @drag-start="onFishDragStart"
+          @drag-move="onFishDragMove"
+          @drag-end="onFishDragEnd"
         />
 
-        <JellyTray
+        <FishTray
           :pieces="game.trayPreview.value ?? game.game.value.tray"
           :feedback="game.feedback.value"
           :clearing-piece-ids="game.clearingPieceIds.value"
@@ -227,9 +268,37 @@ onBeforeUnmount(() => {
   transition-duration: 0.01ms !important;
 }
 
+.cat-companion-slot {
+  position: absolute;
+  z-index: 7;
+  left: clamp(22px, 5vw, 84px);
+  bottom: clamp(72px, 10vh, 118px);
+  transition:
+    left 520ms var(--ease-out),
+    bottom 520ms var(--ease-out),
+    transform 520ms var(--ease-out);
+
+  &[data-away-from-home="true"] {
+    left: var(--cat-guard-left);
+    bottom: var(--cat-guard-bottom);
+    transform: translate(-92%, 45%);
+  }
+}
+
 @media (max-width: 620px) {
   .ambient-page {
     background-position: 43% center;
+  }
+
+  .cat-companion-slot {
+    left: 10px;
+    bottom: 62px;
+
+    &[data-away-from-home="true"] {
+      left: var(--cat-guard-left);
+      bottom: var(--cat-guard-bottom);
+      transform: translate(-82%, 48%);
+    }
   }
 
 }
@@ -237,6 +306,12 @@ onBeforeUnmount(() => {
 @media (max-height: 620px) and (orientation: landscape) {
   .ambient-surface {
     min-height: 620px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cat-companion-slot {
+    transition: none;
   }
 }
 </style>

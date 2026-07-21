@@ -6,13 +6,16 @@ export {
   getLevelConfig,
   getSelectablePieces,
   hasQuickMatch,
+  MAX_PIECE_COUNT,
   type LevelConfig,
 } from "./pile";
-export { recoverFullTray, selectPiece } from "./transitions";
+export { feedPiece, recoverFullTray, selectPiece } from "./transitions";
 export {
-  JELLY_KINDS,
+  FISH_KINDS,
   type AmbientGameState,
-  type JellyKind,
+  type FedFish,
+  type FishKind,
+  type FeedResult,
   type PilePiece,
   type Point,
   type RandomSource,

@@ -1,4 +1,4 @@
-# Ambient Jelly design QA
+# Ambient Fish design QA
 
 ## Evidence
 
@@ -16,8 +16,8 @@
 - Reference relationship is preserved: cool lavender daylight, a pale
   wall/table horizon, broad left foliage shadow, large empty left/center field,
   and a dimensional lower-right vignette.
-- Aqua orb, amber drop, lime leaf, and rose heart remain distinct at the same
-  runtime scale and share one translucent resin material family.
+- The previous four-piece resin set has been replaced by eight species-specific
+  felt fish with distinct silhouettes and descriptive accessible names.
 - Desktop idle state is an irregular desktop spread. Keyboard focus gathers
   the same native buttons into the canonical shallow pile; pointer hover has a
   CSS `:hover` path plus the pointer-entry state path. Narrow and coarse-pointer
@@ -28,9 +28,10 @@
   controls remain secondary and focus-visible.
 - `320x568` has `scrollWidth === 320`; all captured viewports fit without
   horizontal scrolling. Mobile uses the practical gathered layout.
-- Document title is `果冻`. The accepted lime silhouette supplies the favicon.
-- In-app browser console review found no warnings or errors.
+- Document title is `小鱼`. The blue felt whale supplies the favicon source.
+- Final fish-field browser and console verification is deferred until all
+  planned development tasks are implemented.
 
 ## Result
 
-final result: passed
+final result: pending consolidated verification

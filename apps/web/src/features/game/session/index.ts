@@ -8,6 +8,6 @@ export {
   saveAmbientSnapshot,
   type AmbientPreferences,
   type AmbientPlantProgress,
-  type AmbientSnapshotV2,
+  type AmbientSnapshotV3,
   type StorageLike,
 } from "./ambient-storage";

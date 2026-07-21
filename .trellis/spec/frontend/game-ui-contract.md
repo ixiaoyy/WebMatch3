@@ -1,4 +1,4 @@
-# Ambient Jelly UI and Local Session Contract
+# Ambient Fish UI and Local Session Contract
 
 ## 1. Scope / Trigger
 
@@ -19,15 +19,15 @@ interface AmbientControllerOptions {
 
 createAmbientController(options?: AmbientControllerOptions): AmbientController
 
-interface AmbientSnapshotV2 {
-  readonly version: 2;
+interface AmbientSnapshotV3 {
+  readonly version: 3;
   readonly game: AmbientGameState;
   readonly preferences: { readonly soundEnabled: boolean };
   readonly plant: { readonly plantedAt: number };
 }
 
-loadAmbientSnapshot(storage: StorageLike | null, random?: RandomSource): AmbientSnapshotV2
-saveAmbientSnapshot(storage: StorageLike | null, snapshot: AmbientSnapshotV2): boolean
+loadAmbientSnapshot(storage: StorageLike | null, random?: RandomSource): AmbientSnapshotV3
+saveAmbientSnapshot(storage: StorageLike | null, snapshot: AmbientSnapshotV3): boolean
 createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => void): DocumentPipController
 ```
 
@@ -45,6 +45,26 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
   disabled and have a text-free, non-color overlap cue plus an accessible
   covering label.
   Arrow keys choose the nearest selectable piece in gathered coordinates.
+- The cat is a native button whose pointer, touch, Enter, and Space activation
+  requests search help only; it never toggles feeding or chooses a personality
+  reaction. Awake search travels to one eligible target and guards it until
+  that exact fish is selected, fed, or invalidated.
+- Pointer and touch feeding use one Pointer Events drag path from a selectable
+  fish to the cat's current bounds. Canonical state changes only on a valid
+  drop; failed/rejected drops restore the fish. Keyboard users focus a fish and
+  press `F` for the same feed transition, while Enter/Space still selects it
+  into the tray.
+- The current pile records at most three fed fish. Counts one and two show the
+  eating pose; count three plays full, lying, then sleeping. Away state pauses
+  that pose timer without resetting capacity, and the next generated pile
+  resets both capacity and stable pose.
+- A feed-credit settlement may animate the one or two removed tray fish but
+  uses `settle` feedback, never invokes the clear callback, never celebrates
+  the plant, and never changes `clearCount`.
+- Cat bubbles are short, pointer-transparent, single-instance status text.
+  Explicit reactions replace the current bubble; low-frequency automatic idle
+  reactions never select, reveal, or approach fish. Reaction and travel timers
+  pause while away without replaying missed automatic reactions.
 - Stable state persists after selection, clear, recovery, preference change,
   and attention loss using `web-match3:ambient-state`. The obsolete
   `web-match3:progress` key is not read or deleted.
@@ -52,14 +72,19 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
   tray as an ephemeral 620ms preview. The exact three pieces first travel into
   one shared tray position, then bubble and dissolve together before the tray
   compacts. That preview never enters storage.
-- Version-one endless-pile snapshots migrate to version two by preserving
+- Version-one endless-pile snapshots migrate to version three by preserving
   `clearCount`, plant age, and preferences while replacing the old pile/tray
-  with a fresh solvable level-one cluster. Invalid legacy data falls back to a
-  fresh snapshot.
-- Snapshot validation begins from `unknown`: version two, positive level,
-  dynamic inventory bounded by that level's config, total and per-kind counts
-  divisible by three, tray length `0..7`, unique IDs, legal kinds, bounded
-  geometry/layers, safe counters, and boolean sound preference.
+  with a fresh solvable level-one field. Version-two snapshots map their four
+  legacy color keys to whale, koi, sardine, and pufferfish while preserving
+  IDs, level, tray, geometry, counters, preferences, and plant state.
+- Snapshot validation begins from `unknown`: version three, positive level,
+  dynamic active inventory (`pieces + tray + unsettled fed`) bounded by that
+  level's config and divisible by three per kind, tray length `0..7`, feed
+  length `0..3`, explicit settled booleans, globally unique IDs, legal kinds,
+  bounded geometry/layers, safe counters, and boolean sound preference.
+- Canonical kinds come from the engine's ordered eight-species registry. Only
+  the version-two migration boundary may contain legacy kind literals; saved
+  output is always version three with canonical species keys.
 - A final clear persists the atomically created next level and locks input for
   the short level-arrival feedback. No numeric level label is rendered.
 - Storage absence, malformed data, security errors, or quota failures fall
@@ -79,11 +104,18 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
 | Pointer leaves and no focus remains | scatter visually; canonical state unchanged |
 | Fine-pointer activity stops for 30 seconds | scatter projection only; next activity gathers and continues |
 | Keyboard focus enters pile | gather, expose one roving tab stop, skip blockers |
+| Fish is dropped on the cat or focused fish receives `F` below capacity | remove it from the pile, persist feed count, update cat pose |
+| Fish drag ends outside the cat or feed is rejected | restore visual position; canonical pile/tray unchanged |
+| Awake cat is activated with an eligible target | look, travel, guard that target, show one brief bubble |
+| Guarded target is selected or fed | return cat home and clear the guard |
+| Feed credit completes one/two tray fish | animate only that short group, consume credits once, no plant clear |
+| Cat already has three feeds | keep feed mode off and announce that the cat is full |
 | Coarse pointer or width `<=620px` | gathered projection without hover dependency |
 | Seven unmatched tray entries | lock briefly, foreground timer, return two, resume |
 | Window/document becomes away | persist, cancel timers, stop sound, pause motion |
 | Stored JSON/schema is invalid | fresh solvable level-one snapshot, sound off |
-| Valid version-one endless snapshot | preserve long-term progress and start a solvable level-one cluster |
+| Valid version-two snapshot uses four or eight legacy keys | map kinds, preserve opaque IDs and progress, return version three |
+| Valid version-one endless snapshot | preserve long-term progress and start a solvable version-three level-one field |
 | Final triple clears | persist next harder level, gather/disappear preview, then unlock input |
 | Legacy version-one snapshot lacks `plant` | preserve game/preferences and seed `plantedAt` at load |
 | Storage access/write throws | continue in memory; write returns `false` |
@@ -107,13 +139,17 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
    assert the clear preview contains the exact cleared IDs and settles to the
    canonical tray;
 2. away cancellation/restart of the 700ms recovery timer;
-3. snapshot round-trip, version-one migration, malformed JSON/schema, duplicate
-   IDs, invalid geometry/inventory, tray/level/counter/plant bounds,
-   inaccessible storage, and quota failure;
+3. version-three snapshot round-trip, four-kind and eight-kind version-two
+   migration, opaque legacy IDs, version-one migration, malformed JSON/schema,
+   duplicate IDs, invalid
+   geometry/inventory, tray/level/counter/plant bounds, inaccessible storage,
+   and quota failure;
 4. browser checks at `320x568`, `390x844`, `768x1024`, and `1440x900` for no
    horizontal overflow, pointer/focus gather, scatter, keyboard selection,
    blocked state, tray clear, plant growth, persistence, and no console errors;
 5. reduced-motion and supported/unsupported/rejected PiP paths.
+6. mixed-species feeding, short-group settlement without a clear callback,
+   persisted feed credits, and full-to-lying-to-sleeping pose timing.
 
 Run focused tests first, then one `pnpm ci:web`.
 

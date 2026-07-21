@@ -1,4 +1,4 @@
-# Ambient Jelly Product Context
+# Ambient Fish Product Context
 
 ## Register
 
@@ -6,23 +6,23 @@ product
 
 ## Users
 
-Ambient Jelly serves people who want a five-second, interruption-friendly
+Ambient Fish serves people who want a five-second, interruption-friendly
 moment in a pinned browser tab. They should be able to touch a few satisfying
 objects, see a small environmental reward, and return to work without a start
-gate or a penalty for leaving a cluster unfinished.
+gate or a penalty for leaving a field unfinished.
 
 ## Product Purpose
 
-Provide a calm browser-native desktop corner built around freeform jelly
+Provide a calm browser-native desktop corner built around freeform felt-fish
 selection. Progress persists locally and is expressed through a growing plant,
 not scores, numeric levels, missions, timers, or failure screens. Each finite
-jelly cluster can be cleared completely; the next cluster becomes gradually
-denser and more layered. The website never
+fish field can be cleared completely; the next field becomes gradually denser
+and more layered. The website never
 claims to remain visible above other applications; Document Picture-in-Picture
 is an optional browser-owned enhancement when available.
 
 `WebMatch3` remains an internal repository name. The public tab title is
-`果冻`, with no large in-page logo treatment.
+`小鱼`, with no large in-page logo treatment.
 
 ## Brand Personality
 
@@ -35,17 +35,17 @@ in a work browser, but materially rich when the player touches it.
 1. **The desktop is the frame.** Preserve generous negative space and anchor
    the playable vignette near the lower-right rather than enclosing it in a
    board or card.
-2. **Gather on attention.** Jellies rest loosely across the surface, gather into
+2. **Gather on attention.** Fish rest loosely across the surface, gather into
    a shallow playable pile on pointer or keyboard engagement, and scatter when
    attention leaves.
-3. **Five seconds is enough.** Every new cluster opens with a quick visible
+3. **Five seconds is enough.** Every new field opens with a quick visible
    match and a constructed complete solution, with no start gate.
 4. **Resume without ceremony.** Save stable state after meaningful actions and
    restore it directly, with no welcome-back or offline-reward flow.
 5. **Growth instead of pressure.** Clears visibly evolve the plant; tray
    saturation recovers softly and never becomes game over.
-6. **Finish, then deepen.** Clears permanently reduce the current cluster.
-   Emptying it opens a larger or more layered solvable cluster without showing
+6. **Finish, then deepen.** Clears permanently reduce the current field.
+   Emptying it opens a larger or more layered solvable field without showing
    a numeric level HUD.
 7. **Rules stay testable.** Occlusion, selection, clearing, recovery, and
    generation remain pure and independent from Vue and browser services.
@@ -64,7 +64,7 @@ in a work browser, but materially rich when the player touches it.
 ## Accessibility & Inclusion
 
 - Support pointer, touch, and full keyboard play with visible focus.
-- Use both silhouette and accessible names to identify the four jelly kinds.
+- Use species, silhouette, and accessible names to identify all eight fish kinds.
 - Keep blocked state perceivable without color and expose it semantically.
 - Maintain at least 44 px effective targets and fit 320 px without horizontal
   scrolling.

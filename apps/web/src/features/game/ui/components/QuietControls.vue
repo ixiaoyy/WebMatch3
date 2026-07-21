@@ -25,7 +25,7 @@ const emit = defineEmits<{
   right: max(18px, env(safe-area-inset-right));
   display: flex;
   gap: 6px;
-  opacity: 0.5;
+  opacity: 0.32;
   transition: opacity 160ms ease;
 
   &:hover,

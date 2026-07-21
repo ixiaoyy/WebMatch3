@@ -16,9 +16,9 @@ This directory contains guidelines for frontend development. Fill in each file w
 |-------|-------------|--------|
 | [Directory Structure](./directory-structure.md) | Module organization and file layout | Active |
 | [Toolchain Contract](./toolchain-contract.md) | Workspace commands, dependency installation, and validation | Active |
-| [Ambient Jelly Engine Contract](./game-engine-contract.md) | Solvable finite levels, blockers, tray clears, progression, and recovery | Active |
-| [Ambient Jelly UI Contract](./game-ui-contract.md) | Persistence, attention, input, sound, and Picture-in-Picture boundaries | Active |
-| [Rain-Washed Ambient Jelly Visual Design](./visual-design-contract.md) | Wallpaper, generated assets, gather/scatter layout, growth, and responsive composition | Active |
+| [Ambient Fish Engine Contract](./game-engine-contract.md) | Solvable finite levels, blockers, tray clears, progression, and recovery | Active |
+| [Ambient Fish UI Contract](./game-ui-contract.md) | Persistence, attention, input, sound, and Picture-in-Picture boundaries | Active |
+| [Rain-Washed Ambient Fish Visual Design](./visual-design-contract.md) | Wallpaper, generated assets, gather/scatter layout, growth, and responsive composition | Active |
 | [Production Deployment](./deployment-contract.md) | GitHub Actions, immutable releases, container health checks, and rollback | Active |
 | [Component Guidelines](./component-guidelines.md) | Component patterns, props, composition | To fill |
 | [Hook Guidelines](./hook-guidelines.md) | Custom hooks, data fetching patterns | To fill |
@@ -32,9 +32,9 @@ This directory contains guidelines for frontend development. Fill in each file w
 
 - Read [Directory Structure](./directory-structure.md) before adding or moving frontend modules.
 - Read [Toolchain Contract](./toolchain-contract.md) before changing dependencies, package scripts, Vite, TypeScript, ESLint, Vitest, or workspace configuration.
-- Read [Ambient Jelly Engine Contract](./game-engine-contract.md) before changing level generation, blockers, tray clears, progression, recovery, or UI-facing transitions.
-- Read [Ambient Jelly UI Contract](./game-ui-contract.md) before changing persistence, attention, input, audio, controller timing, or Picture-in-Picture.
-- Read [Rain-Washed Ambient Jelly Visual Design](./visual-design-contract.md) before changing wallpaper, visual tokens, generated assets, gather/scatter layout, plant growth, controls, or responsive composition.
+- Read [Ambient Fish Engine Contract](./game-engine-contract.md) before changing level generation, blockers, tray clears, progression, recovery, or UI-facing transitions.
+- Read [Ambient Fish UI Contract](./game-ui-contract.md) before changing persistence, attention, input, audio, controller timing, or Picture-in-Picture.
+- Read [Rain-Washed Ambient Fish Visual Design](./visual-design-contract.md) before changing wallpaper, visual tokens, generated assets, gather/scatter layout, plant growth, controls, or responsive composition.
 - Read [Production Deployment](./deployment-contract.md) before changing GitHub Actions, release packaging, SSH upload, container activation, or rollback.
 - Read the topic-specific guide only when the task touches that topic; files marked `To fill` are templates, not project conventions.
 
@@ -45,7 +45,7 @@ This directory contains guidelines for frontend development. Fill in each file w
 - Confirm new modules respect the ownership boundaries in [Directory Structure](./directory-structure.md).
 - For game-rule changes, run the deterministic ambient engine tests and verify feature consumers import only from the engine public barrel.
 - For playable UI changes, run controller tests and browser checks from [Game UI Contract](./game-ui-contract.md).
-- For visual UI changes, verify the reference comparison, state contrast, reduced motion, and responsive screenshots using [Rain-Washed Ambient Jelly Visual Design](./visual-design-contract.md).
+- For visual UI changes, verify the reference comparison, state contrast, reduced motion, and responsive screenshots using [Rain-Washed Ambient Fish Visual Design](./visual-design-contract.md).
 - For deployment changes, validate workflow YAML and shell syntax, then verify one real production run and its public release marker.
 - Do not treat files marked `To fill` as authoritative until the bootstrap task replaces their placeholder content with codebase evidence.
 

@@ -88,6 +88,132 @@ describe("ambient controller", () => {
     controller.dispose();
   });
 
+  it("feeds different fish and plays the full-to-sleeping pose sequence", () => {
+    const onClear = vi.fn();
+    const { callbacks, timers } = controlledTimers();
+    const controller = createAmbientController({
+      random: createSeededRandom(52),
+      storage: null,
+      timers,
+      onClear,
+    });
+    const base = controller.game.value;
+    const kinds = ["whale", "koi", "sardine"] as const;
+    const targets = kinds.map((kind, index) => ({
+      ...base.pieces.find((piece) => piece.kind === kind)!,
+      id: `feed-${index}`,
+      kind,
+      pile: { x: 0.15 + index * 0.25, y: 0.2 },
+      layer: 0 as const,
+    }));
+    controller.game.value = {
+      ...base,
+      pieces: [
+        ...targets,
+        { ...base.pieces[0], id: "keep", pile: { x: 0.9, y: 0.9 }, layer: 0 },
+      ],
+    };
+    expect(targets).toHaveLength(3);
+
+    for (const target of targets) controller.feedToCat(target.id);
+
+    expect(controller.game.value.fed.map((piece) => piece.kind)).toEqual(
+      targets.map((piece) => piece.kind),
+    );
+    expect(controller.game.value.clearCount).toBe(0);
+    expect(controller.catPose.value).toBe("full");
+    expect(onClear).not.toHaveBeenCalled();
+    callbacks.shift()?.();
+    expect(controller.catPose.value).toBe("lying");
+    callbacks.shift()?.();
+    callbacks.shift()?.();
+    expect(controller.catPose.value).toBe("sleeping");
+    controller.dispose();
+  });
+
+  it("settles a short tray group without emitting a plant clear", () => {
+    const onClear = vi.fn();
+    const controller = createAmbientController({
+      random: createSeededRandom(53),
+      storage: null,
+      onClear,
+    });
+    const selectable = getSelectablePieces(controller.game.value.pieces);
+    const matching = selectable.find((piece) =>
+      selectable.filter((candidate) => candidate.kind === piece.kind).length >= 3
+    );
+    expect(matching).toBeDefined();
+    if (!matching) return;
+    const triple = selectable
+      .filter((piece) => piece.kind === matching.kind)
+      .slice(0, 3);
+
+    controller.feedToCat(triple[0].id);
+    controller.activate(triple[1].id);
+    controller.activate(triple[2].id);
+
+    expect(controller.game.value.tray).toHaveLength(0);
+    expect(controller.game.value.fed[0]?.settled).toBe(true);
+    expect(controller.game.value.clearCount).toBe(0);
+    expect(controller.feedback.value).toBe("settle");
+    expect(onClear).not.toHaveBeenCalled();
+    controller.dispose();
+  });
+
+  it("searches, guards the target, and returns home when it is selected", () => {
+    const { callbacks, timers } = controlledTimers();
+    let currentTime = 1_000;
+    const controller = createAmbientController({
+      random: createSeededRandom(54),
+      storage: null,
+      timers,
+      now: () => currentTime,
+    });
+
+    controller.requestCatSearch();
+    const targetId = controller.guardedPiece.value?.id;
+    expect(targetId).toBeDefined();
+    expect(controller.catTravelPhase.value).toBe("looking");
+
+    callbacks.shift()?.();
+    callbacks.shift()?.();
+    expect(controller.catTravelPhase.value).toBe("travelling");
+    callbacks.shift()?.();
+    expect(controller.catTravelPhase.value).toBe("guarding");
+
+    if (!targetId) return;
+    controller.activate(targetId);
+    expect(controller.catTravelPhase.value).toBe("home");
+    expect(controller.guardedPiece.value).toBeNull();
+
+    currentTime += 100;
+    controller.requestCatSearch();
+    expect(controller.catTravelPhase.value).toBe("home");
+    controller.dispose();
+  });
+
+  it("restarts automatic reactions with a fresh delay after away state", () => {
+    const { callbacks, timers } = controlledTimers();
+    const controller = createAmbientController({
+      random: createSeededRandom(56),
+      reactionRandom: () => 0,
+      storage: null,
+      timers,
+    });
+
+    controller.startReactions();
+    expect(callbacks).toHaveLength(1);
+    controller.setAway(true);
+    expect(callbacks).toHaveLength(0);
+    controller.setAway(false);
+    expect(callbacks).toHaveLength(1);
+
+    callbacks.shift()?.();
+    expect(controller.catReaction.value?.text).toBe("喵～");
+    expect(callbacks).toHaveLength(2);
+    controller.dispose();
+  });
+
   it("opens a harder level only after the current pile is completely cleared", () => {
     const { callbacks, timers } = controlledTimers();
     const controller = createAmbientController({
@@ -117,7 +243,7 @@ describe("ambient controller", () => {
     }
 
     expect(controller.game.value.level).toBe(2);
-    expect(controller.game.value.pieces).toHaveLength(21);
+    expect(controller.game.value.pieces).toHaveLength(42);
     expect(controller.feedback.value).toBe("level");
     expect(controller.canSelect.value).toBe(false);
     callbacks.shift()?.();
@@ -133,7 +259,15 @@ describe("ambient controller", () => {
       storage: null,
       timers,
     });
-    const kinds = ["aqua", "amber", "lime", "rose", "aqua", "amber", "lime"] as const;
+    const kinds = [
+      "whale",
+      "koi",
+      "sardine",
+      "pufferfish",
+      "whale",
+      "koi",
+      "sardine",
+    ] as const;
     controller.game.value = {
       ...controller.game.value,
       pieces: controller.game.value.pieces.slice(7),
