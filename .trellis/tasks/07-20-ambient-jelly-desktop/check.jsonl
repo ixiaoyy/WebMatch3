@@ -1,0 +1,8 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": "apps/web/src/features/game/engine/ambient-game.test.ts", "reason": "Pure engine verification"}
+{"file": "apps/web/src/features/game/session/ambient-storage.test.ts", "reason": "Snapshot validation and failure handling"}
+{"file": "apps/web/src/features/game/ui/ambient-controller.test.ts", "reason": "Controller persistence, clear, and away recovery"}
+{"file": "design-qa.md", "reason": "Reference and responsive visual QA"}
+{"file": ".trellis/spec/frontend/game-engine-contract.md", "reason": "Updated executable engine contract"}
+{"file": ".trellis/spec/frontend/game-ui-contract.md", "reason": "Updated UI and persistence contract"}
+{"file": ".trellis/spec/frontend/visual-design-contract.md", "reason": "Updated visual and asset contract"}

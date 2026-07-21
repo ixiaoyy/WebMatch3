@@ -1,0 +1,30 @@
+{
+  "id": "fresh-glass-candy-visual-redesign",
+  "name": "fresh-glass-candy-visual-redesign",
+  "title": "Fresh Glass Candy 视觉重做",
+  "description": "",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": "web",
+  "priority": "P2",
+  "creator": "webmatch3",
+  "assignee": "webmatch3",
+  "createdAt": "2026-07-17",
+  "completedAt": "2026-07-21",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "07-17-fresh-glass-candy-assets",
+    "07-17-fresh-glass-ui-restyle",
+    "07-17-fresh-glass-visual-qa"
+  ],
+  "parent": "07-17-web-match3-mvp",
+  "relatedFiles": [],
+  "notes": "Completed by commits ff501e1, 22cfc11, and cb8d4bd; root design-qa.md records final result: passed and pnpm ci:web passing.",
+  "meta": {}
+}

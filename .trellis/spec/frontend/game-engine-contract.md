@@ -1,138 +1,119 @@
-# Game Engine Contract
+# Ambient Jelly Engine Contract
 
 ## 1. Scope / Trigger
 
-Apply this contract when changing:
-
-- Match-3 board generation, matching, swapping, settlement, or shuffling;
-- game-session logic that consumes valid/invalid swap outcomes;
-- UI animation code that consumes cascade movement records;
-- scoring code that consumes match groups or cascade rounds.
-
-The engine lives in `apps/web/src/features/game/engine` and must remain
-independent from Vue, the DOM, timers, storage, and implicit randomness.
+Apply this contract when changing freeform pile generation, gathered-geometry
+occlusion, tray selection, automatic triples, replenishment, full-tray
+recovery, or any consumer of those transitions. The engine lives in
+`apps/web/src/features/game/engine` and stays independent from Vue, DOM APIs,
+timers, storage, sound, and Picture-in-Picture.
 
 ## 2. Signatures
 
 Consumers import only from `@/features/game/engine`:
 
 ```ts
-generateBoard(config: Partial<EngineConfig>, random: RandomSource): GeneratedBoard
-findMatches(board: Board): MatchResult
-listLegalMoves(board: Board): readonly LegalMove[]
-settleBoard(board: Board, random: RandomSource, config?: Partial<EngineConfig>): SettlementResult
-ensurePlayableBoard(board: Board, config: Partial<EngineConfig>, random: RandomSource): PlayabilityResult
-executeSwap(board: Board, from: Coordinate, to: Coordinate, random: RandomSource, config?: Partial<EngineConfig>): SwapResult
+createInitialState(random?: RandomSource): AmbientGameState
+getBlockerIds(pieces: readonly PilePiece[], pieceId: string): readonly string[]
+getSelectablePieces(pieces: readonly PilePiece[]): readonly PilePiece[]
+hasQuickMatch(pieces: readonly PilePiece[]): boolean
+selectPiece(state: AmbientGameState, pieceId: string, random?: RandomSource): SelectionResult
+recoverFullTray(state: AmbientGameState, random?: RandomSource): RecoveryResult
+createSeededRandom(seed: number): RandomSource
 ```
-
-Do not import internal files such as `settle.ts` or `matches.ts` from feature
-components or session code.
 
 ## 3. Contracts
 
-### Stable board
-
-- `Board.cells` is rectangular and fully populated.
-- Tile IDs are non-empty and unique within a board.
-- Public operations do not mutate input boards, row arrays, or tile objects.
-- Matches keep directional `groups` and a row-major deduplicated
-  `coordinates` list.
-
-### Randomness and limits
-
-- Generation, settlement, and shuffling require an explicit `RandomSource`.
-- A random value must be finite and inside `[0, 1)`.
-- Tests use `createSeededRandom` or a fixed sequence, never `Math.random()`.
-- Generation and shuffle attempt limits may be `0` to force their fallback
-  path; maximum cascade depth must be positive.
-
-### Results
-
 ```ts
-type SwapResult =
-  | { kind: "invalid"; reason: "out-of-bounds" | "same-cell" | "not-adjacent"; board: Board }
-  | { kind: "no-match"; board: Board; swap: Swap }
-  | { kind: "resolved"; board: Board; swap: Swap; cascades: readonly CascadeRound[]; playability: PlayabilityResult };
+type JellyKind = "aqua" | "amber" | "lime" | "rose";
+
+interface PilePiece {
+  readonly id: string;
+  readonly kind: JellyKind;
+  readonly pile: { readonly x: number; readonly y: number };
+  readonly spread: { readonly x: number; readonly y: number };
+  readonly rotation: number;
+  readonly scale: number;
+  readonly layer: 0 | 1 | 2;
+}
+
+interface AmbientGameState {
+  readonly pieces: readonly PilePiece[];
+  readonly tray: readonly TrayPiece[];
+  readonly clearCount: number;
+  readonly nextPieceId: number;
+}
 ```
 
-- `invalid` and `no-match` return the original board. Session code must not
-  decrement a move for either result.
-- `resolved.cascades` is ordered and contains removal, movement, spawn, and
-  after-board snapshots for each round.
-- Spawn origins use negative rows so UI animation can start above the board.
-- `shuffled` preserves all IDs and the type multiset.
-- `rebuilt` uses IDs that do not overlap the previous board.
+- Initial state contains 18 unique pieces, four shape-capable kinds, irregular
+  authored coordinates, and shallow layers. It exposes at least three
+  selectable same-kind pieces.
+- `spread` is a presentation projection. Occlusion always uses `pile`
+  geometry, so pointer leave cannot change rules.
+- A piece is blocked only by meaningful overlap from a strictly higher layer.
+  Same-layer overlap never blocks.
+- Public transitions never mutate their input. Missing and blocked selection
+  return the original state object.
+- Three tray entries of the selected kind clear immediately, increment
+  `clearCount` once, and add three top-layer replacement pieces while
+  preserving the 18-object total across pile and tray.
+- A seven-item unmatched tray requests controller recovery. Recovery returns
+  exactly two entries to the pile, preserves progress, and exposes a selectable
+  piece that can complete a preserved pair.
+- Tests inject seeded randomness. Production may use `Math.random` only at the
+  public default boundary.
 
 ## 4. Validation & Error Matrix
 
-| Condition | Outcome |
+| Condition | Required outcome |
 |---|---|
-| Coordinate is outside the board | `SwapResult { kind: "invalid", reason: "out-of-bounds" }` |
-| Coordinates are identical | `reason: "same-cell"` |
-| Coordinates are diagonal or separated | `reason: "not-adjacent"` |
-| Adjacent swap creates no match | `SwapResult { kind: "no-match" }` |
-| Adjacent swap creates a match | resolve cascades, ensure playability, return `kind: "resolved"` |
-| Config dimensions/types/limits are invalid | `Match3EngineError("invalid-config")` |
-| Board matrix or tile identities are invalid | `Match3EngineError("invalid-board")` |
-| Random source returns outside `[0, 1)` | `Match3EngineError("invalid-random-value")` |
-| Deterministic generation fallback violates invariants | `Match3EngineError("generation-failed")` |
-| Matches remain after the cascade limit | `Match3EngineError("cascade-limit-exceeded")` |
-| Stable board has no legal move | bounded shuffle, then explicit rebuild fallback |
+| Missing piece ID | `SelectionResult { kind: "missing", state }` with original identity |
+| Piece has higher-layer blockers | `kind: "blocked"` plus blocker IDs; no mutation |
+| Selectable piece, tray below seven, no triple | remove from pile, append to tray, `kind: "moved"` |
+| Selected kind reaches three | clear exactly three, increment once, replenish three, `kind: "cleared"` |
+| Tray reaches seven without triple | stable state plus `kind: "recovery-needed"` |
+| Recovery called below seven | no-op state and empty `returned` |
+| Random value is non-finite or outside `[0, 1)` | throw `AmbientEngineError` |
 
 ## 5. Good / Base / Bad Cases
 
-- Good: session code switches exhaustively on `result.kind`, decrements a move
-  only for `resolved`, and animates each cascade in order.
-- Base: generated boards have no initial matches and at least one legal move.
-- Good: scoring uses `groups` for shapes and `coordinates` for unique removed
-  tiles, preventing intersection double-counting.
-- Bad: a component swaps `board.cells` directly or infers validity after
-  animation.
-- Bad: UI code treats `shuffled` and `rebuilt` as equivalent; rebuild changes
-  tile identities and may change the type multiset.
+- Good: the UI asks `getBlockerIds` and disables blocked native buttons.
+- Base: a fresh state exposes a quick triple and remains playable without any
+  timer, score, level, or round lifecycle.
+- Good: hover chooses `spread` or `pile` coordinates without regenerating state.
+- Bad: a component compares DOM rectangles to infer blockers.
+- Bad: replenishment appends arbitrary pieces without restoring a quick match.
+- Bad: recovery clears the tray, changes `clearCount`, or ends the game.
 
 ## 6. Tests Required
 
-Rule changes require Node-environment Vitest coverage for:
+1. unique IDs, 18 pieces, four legal kinds, irregular dual projections, and
+   layers limited to `0..2`;
+2. meaningful higher-layer blocking and immediate reveal;
+3. missing/blocked result identity and complete input immutability;
+4. ordered tray movement, automatic triples, replacement count, and one clear;
+5. quick-match invariant after initial generation and clearing;
+6. seven-slot recovery returning two while preserving progress;
+7. invalid random values and deterministic seeded repetition.
 
-1. seeded generation: no matches, unique IDs, and at least one legal move;
-2. invalid, no-match, and resolved swaps with input immutability assertions;
-3. horizontal, vertical, 4+, L/T/cross, and simultaneous group deduplication;
-4. stable fall order, spawn origins, multi-round cascades, and the cascade cap;
-5. dead-board detection, successful ID/type-preserving shuffle, and explicit
-   rebuild with non-overlapping IDs;
-6. invalid configuration and invalid random-source values.
-
-Run `pnpm ci:web` after the focused tests pass.
+Run focused `ambient-game` tests before `pnpm ci:web`.
 
 ## 7. Wrong vs Correct
 
 ### Wrong
 
 ```ts
-const next = [...board.cells];
-next[from.row][from.column] = next[to.row][to.column];
-state.moves -= 1;
+const blocked = element.getBoundingClientRect().top > coveringRect.top;
+piece.x = hover ? pileX : spreadX;
 ```
 
-This mutates nested rows, loses one tile, and decrements a move before the
-engine determines whether a match exists.
+This duplicates rules in the DOM and mutates canonical state during hover.
 
 ### Correct
 
 ```ts
-const result = executeSwap(board, from, to, random, config);
-
-switch (result.kind) {
-  case "invalid":
-  case "no-match":
-    return;
-  case "resolved":
-    state.moves -= 1;
-    await animateCascades(result.cascades);
-    board = result.board;
-}
+const blockerIds = getBlockerIds(state.pieces, piece.id);
+const projection = engaged ? piece.pile : piece.spread;
 ```
 
-The engine owns rule transitions; the consumer owns presentation and
-session-level scoring.
+The engine owns rule geometry; the UI only selects a visual projection.

@@ -1,0 +1,12 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": "PRODUCT.md", "reason": "Ambient pinned-tab product contract"}
+{"file": "apps/web/index.html", "reason": "Tab title, description, and favicon"}
+{"file": "apps/web/src/app/styles/global.scss", "reason": "Ambient document tokens and lifecycle styling"}
+{"file": "apps/web/src/features/game/engine/ambient.ts", "reason": "Public ambient engine boundary"}
+{"file": "apps/web/src/features/game/engine/pile.ts", "reason": "Dual-projection pile generation and occlusion"}
+{"file": "apps/web/src/features/game/engine/transitions.ts", "reason": "Selection, clear, replenish, and recovery"}
+{"file": "apps/web/src/features/game/session/ambient-storage.ts", "reason": "Versioned local snapshot validation"}
+{"file": "apps/web/src/features/game/ui/ambient-controller.ts", "reason": "Controller, persistence, and attention timing"}
+{"file": "apps/web/src/features/game/ui/GameView.vue", "reason": "Ambient scene and browser lifecycle"}
+{"file": "apps/web/src/features/game/ui/components/", "type": "directory", "reason": "Gather/scatter pieces, tray, plant, and controls"}
+{"file": "apps/web/src/features/game/ui/assets/ambient/", "type": "directory", "reason": "Accepted generated runtime assets"}

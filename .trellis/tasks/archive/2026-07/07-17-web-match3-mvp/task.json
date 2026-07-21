@@ -1,0 +1,33 @@
+{
+  "id": "web-match3-mvp",
+  "name": "web-match3-mvp",
+  "title": "Web 消消乐 MVP",
+  "description": "网页三消游戏首版的产品范围、架构边界、子任务地图与整体验收标准",
+  "status": "completed",
+  "dev_type": null,
+  "scope": "product,frontend",
+  "package": null,
+  "priority": "P1",
+  "creator": "webmatch3",
+  "assignee": "webmatch3",
+  "createdAt": "2026-07-17",
+  "completedAt": "2026-07-21",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "07-17-project-foundation",
+    "07-17-match3-core-engine",
+    "07-17-playable-game-ui",
+    "07-17-session-progression",
+    "07-17-quality-release-readiness",
+    "07-17-fresh-glass-candy-visual-redesign"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "Classic swap-grid MVP work was completed through cb8d4bd, then superseded on 2026-07-20 by the full-product replacement task 07-20-ambient-jelly-desktop.",
+  "meta": {}
+}

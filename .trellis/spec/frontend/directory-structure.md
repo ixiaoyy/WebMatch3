@@ -7,7 +7,7 @@
 ## Overview
 
 All browser runtime code lives in `apps/web`. The application uses a small
-feature-oriented structure: top-level assembly belongs to `app`, Match-3
+feature-oriented structure: top-level assembly belongs to `app`, Ambient Jelly
 behavior belongs to `features/game`, and genuinely reusable code belongs to
 `shared`.
 
@@ -30,6 +30,9 @@ apps/web/
     │       └── global.scss
     ├── features/
     │   └── game/
+    │       ├── engine/   # pure pile, blockers, tray, clear, recovery
+    │       ├── session/  # versioned local snapshot validation
+    │       └── ui/       # Vue, attention, sound, PiP, generated assets
     └── shared/
 ```
 
@@ -38,7 +41,7 @@ apps/web/
 ## Module Organization
 
 - `src/app`: application entry points, global styles, and top-level assembly.
-- `src/features/game`: board rules, game-session state, and game-specific UI.
+- `src/features/game`: ambient pile rules, local state, and game-specific UI.
   Pure rules must remain independent from Vue, the DOM, and animation timing.
 - `src/shared`: types, utilities, and UI primitives that have real consumers
   outside one game submodule.
