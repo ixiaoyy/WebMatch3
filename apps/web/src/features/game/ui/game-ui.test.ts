@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { getGrowthPercent, getPlantStage } from "./game-ui";
+import { getGrowthPercent, getPlantStage, getPlantStagePresentation } from "./game-ui";
 
 describe("ambient plant presentation", () => {
   it("requires both slower clear milestones and minimum plant age", () => {
@@ -18,5 +18,18 @@ describe("ambient plant presentation", () => {
     expect(getGrowthPercent(100)).toBe(18);
     expect(getGrowthPercent(1_000)).toBe(55);
     expect(getGrowthPercent(8_000)).toBe(100);
+  });
+
+  it("maps every stage to a distinct non-numeric flower presentation", () => {
+    const stages = ["growing", "flowering", "fruiting", "mature"] as const;
+    const presentations = stages.map(getPlantStagePresentation);
+
+    expect(new Set(presentations.map(({ assetUrl }) => assetUrl)).size).toBe(4);
+    expect(presentations.map(({ label }) => label)).toEqual([
+      "Growing plant",
+      "Flowering plant",
+      "Fruiting plant",
+      "Mature plant",
+    ]);
   });
 });

@@ -49,3 +49,23 @@ removed only from the matching keyed assets. The accepted runtime files are:
 The wallpaper source is 1586 × 992 (16:10), intentionally close to the source
 reference ratio. Runtime QA confirmed four distinct silhouettes at one scale,
 clean transparent margins, and no remaining chroma patch behind the lime leaf.
+
+## Plant stage flower marks
+
+The non-numeric stage display uses four isolated botanical cutouts generated
+in the same rain-washed, cool-daylight style:
+
+| Stage | Subject | Runtime file | Display scale |
+| --- | --- | --- | --- |
+| Growing | closed sage-and-lavender bud | `plant-stage-bud.webp` | 48% |
+| Flowering | three-bell lily-of-the-valley sprig | `plant-stage-lily-of-the-valley.webp` | 66% |
+| Fruiting | orange-red pomegranate blossom | `plant-stage-pomegranate.webp` | 82% |
+| Mature | full blush-pink peony | `plant-stage-peony.webp` | 100% |
+
+Each source prompt requested one centered square botanical subject, premium
+hand-painted realism, soft rain-washed daylight, a readable silhouette, and no
+ground, cast shadow, glow, frame, badge, text, number, watermark, or insects.
+The first three sources used a flat `#ff00ff` key. The peony was regenerated
+against `#0000ff` because its pink petals were too close to magenta for a clean
+matte. Sources were keyed with a soft alpha edge, resized losslessly to
+512 × 512 transparent WebP, and checked together on the scene's pale surface.

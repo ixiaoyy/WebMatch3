@@ -19,6 +19,7 @@ pile/tray composition, quiet controls, reward motion, or responsive layout.
 ui/assets/ambient/wallpaper.webp
 ui/assets/ambient/jelly-{aqua,amber,lime,rose}.webp
 ui/assets/ambient/plant-{pot,foliage,flowering,fruiting,mature}.webp
+ui/assets/ambient/plant-stage-{bud,lily-of-the-valley,pomegranate,peony}.webp
 public/favicon.{ico,png variants}
 ```
 
@@ -49,6 +50,11 @@ wallpaper containing interactive objects.
 - Flowering, fruiting, and mature are separate transparent bitmap assets with
   consistent framing. Do not substitute emoji or code-drawn dots for the
   blossoms and fruit.
+- The current plant stage is echoed by one free-floating flower mark beside
+  the pot: closed bud for growing, lily of the valley for flowering,
+  pomegranate blossom for fruiting, and peony for mature. The mark grows in
+  size at every stage and contains no visible word, digit, frame, or badge.
+  It may transition once when the stage changes, but it does not bob at idle.
 - A tray clear keeps the exact three cleared silhouettes visible for about
   460ms while small bubbles rise and the silhouettes dissolve. This is the
   primary clear feedback; it stays short and becomes a static highlighted
@@ -69,6 +75,7 @@ wallpaper containing interactive objects.
 | 320px viewport | gathered pile, readable tray, 44px targets, no overflow |
 | Reduced motion | instant/near-instant projection and feedback, no lost state |
 | Clear reaches a plant stage before its day gate | remain in the previous stage |
+| Stage mark is shown | exactly one flower, correct species and increasing size, no visible copy |
 | `backdrop-filter` unsupported | translucent fallback remains readable |
 | Away state | pause animation and remove transition travel |
 

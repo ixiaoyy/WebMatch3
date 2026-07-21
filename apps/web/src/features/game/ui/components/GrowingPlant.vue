@@ -6,7 +6,12 @@ import floweringUrl from "../assets/ambient/plant-flowering.webp";
 import fruitingUrl from "../assets/ambient/plant-fruiting.webp";
 import matureUrl from "../assets/ambient/plant-mature.webp";
 import potUrl from "../assets/ambient/plant-pot.webp";
-import { getGrowthPercent, getPlantStage, type PlantStage } from "../game-ui";
+import {
+  getGrowthPercent,
+  getPlantStage,
+  getPlantStagePresentation,
+  type PlantStage,
+} from "../game-ui";
 
 const props = defineProps<{
   clearCount: number;
@@ -16,17 +21,12 @@ const props = defineProps<{
 const growth = computed(() => getGrowthPercent(props.clearCount));
 const plantScale = computed(() => 0.82 + growth.value * 0.0018);
 const stage = computed(() => getPlantStage(props.clearCount, props.ageDays));
+const stagePresentation = computed(() => getPlantStagePresentation(stage.value));
 const stageAssets: Readonly<Record<PlantStage, string>> = {
   growing: foliageUrl,
   flowering: floweringUrl,
   fruiting: fruitingUrl,
   mature: matureUrl,
-};
-const stageLabels: Readonly<Record<PlantStage, string>> = {
-  growing: "正在慢慢长大的小植物",
-  flowering: "已经开出淡紫色花朵的植物",
-  fruiting: "已经结出青绿色果实的植物",
-  mature: "结着成熟果实的植物",
 };
 </script>
 
@@ -39,7 +39,7 @@ const stageLabels: Readonly<Record<PlantStage, string>> = {
     }"
     :data-stage="stage"
     :style="{ '--growth': `${growth}%`, '--plant-scale': plantScale }"
-    :aria-label="stageLabels[stage]"
+    :aria-label="stagePresentation.label"
   >
     <img
       :key="stage"
@@ -50,6 +50,18 @@ const stageLabels: Readonly<Record<PlantStage, string>> = {
       height="512"
     />
     <img class="growing-plant__pot" :src="potUrl" alt="" width="512" height="512" />
+    <span class="growing-plant__stage-mark" aria-hidden="true">
+      <Transition name="stage-flower" mode="out-in">
+        <img
+          :key="stage"
+          class="growing-plant__stage-flower"
+          :src="stagePresentation.assetUrl"
+          alt=""
+          width="512"
+          height="512"
+        />
+      </Transition>
+    </span>
   </figure>
 </template>
 
@@ -98,6 +110,42 @@ const stageLabels: Readonly<Record<PlantStage, string>> = {
     width: 94%;
   }
 
+  &__stage-mark {
+    position: absolute;
+    z-index: 3;
+    top: 18px;
+    left: -10px;
+    width: clamp(54px, 5.2vw, 68px);
+    aspect-ratio: 1;
+    filter: drop-shadow(0 4px 5px rgb(59 70 88 / 20%));
+  }
+
+  &__stage-flower {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    display: block;
+    width: 48%;
+    height: auto;
+    margin: auto;
+    object-fit: contain;
+    transform-origin: 50% 82%;
+    user-select: none;
+  }
+
+  &[data-stage="flowering"] &__stage-flower {
+    width: 66%;
+  }
+
+  &[data-stage="fruiting"] &__stage-flower {
+    width: 82%;
+  }
+
+  &[data-stage="mature"] &__stage-flower {
+    width: 100%;
+  }
+
   &--empty &__foliage {
     opacity: 0;
   }
@@ -105,6 +153,23 @@ const stageLabels: Readonly<Record<PlantStage, string>> = {
   &--celebrating {
     animation: plant-reward 460ms var(--ease-out);
   }
+}
+
+.stage-flower-enter-active,
+.stage-flower-leave-active {
+  transition:
+    opacity 220ms ease,
+    transform 280ms var(--ease-out);
+}
+
+.stage-flower-enter-from {
+  opacity: 0;
+  transform: translateY(4px) scale(0.84);
+}
+
+.stage-flower-leave-to {
+  opacity: 0;
+  transform: translateY(-2px) scale(0.94);
 }
 
 @keyframes plant-reward {
@@ -118,6 +183,19 @@ const stageLabels: Readonly<Record<PlantStage, string>> = {
     width: 118px;
     height: 184px;
     opacity: 0.92;
+
+    &__stage-mark {
+      top: 14px;
+      left: -4px;
+      width: 54px;
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stage-flower-enter-active,
+  .stage-flower-leave-active {
+    transition: none;
   }
 }
 </style>

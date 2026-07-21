@@ -4,11 +4,20 @@ import jellyAmberUrl from "./assets/ambient/jelly-amber.webp";
 import jellyAquaUrl from "./assets/ambient/jelly-aqua.webp";
 import jellyLimeUrl from "./assets/ambient/jelly-lime.webp";
 import jellyRoseUrl from "./assets/ambient/jelly-rose.webp";
+import plantStageBudUrl from "./assets/ambient/plant-stage-bud.webp";
+import plantStageLilyOfTheValleyUrl from "./assets/ambient/plant-stage-lily-of-the-valley.webp";
+import plantStagePeonyUrl from "./assets/ambient/plant-stage-peony.webp";
+import plantStagePomegranateUrl from "./assets/ambient/plant-stage-pomegranate.webp";
 
 export type FocusDirection = "up" | "right" | "down" | "left";
 export type PlantStage = "growing" | "flowering" | "fruiting" | "mature";
 
 export interface JellyPresentation {
+  readonly label: string;
+  readonly assetUrl: string;
+}
+
+export interface PlantStagePresentation {
   readonly label: string;
   readonly assetUrl: string;
 }
@@ -20,8 +29,19 @@ const PRESENTATIONS: Readonly<Record<JellyKind, JellyPresentation>> = {
   rose: { label: "玫瑰心形果冻", assetUrl: jellyRoseUrl },
 };
 
+const PLANT_STAGE_PRESENTATIONS: Readonly<Record<PlantStage, PlantStagePresentation>> = {
+  growing: { label: "Growing plant", assetUrl: plantStageBudUrl },
+  flowering: { label: "Flowering plant", assetUrl: plantStageLilyOfTheValleyUrl },
+  fruiting: { label: "Fruiting plant", assetUrl: plantStagePomegranateUrl },
+  mature: { label: "Mature plant", assetUrl: plantStagePeonyUrl },
+};
+
 export function getJellyPresentation(kind: JellyKind): JellyPresentation {
   return PRESENTATIONS[kind];
+}
+
+export function getPlantStagePresentation(stage: PlantStage): PlantStagePresentation {
+  return PLANT_STAGE_PRESENTATIONS[stage];
 }
 
 export function getGrowthPercent(clearCount: number): number {
