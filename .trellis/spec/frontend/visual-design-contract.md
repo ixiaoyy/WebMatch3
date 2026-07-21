@@ -57,9 +57,13 @@ wallpaper containing interactive objects.
   size at every stage and contains no visible word, digit, frame, or badge.
   It may transition once when the stage changes, but it does not bob at idle.
 - A tray clear keeps the exact three cleared silhouettes visible for about
-  460ms while small bubbles rise and the silhouettes dissolve. This is the
-  primary clear feedback; it stays short and becomes a static highlighted
-  preview under reduced motion.
+  620ms. They first slide from their occupied slots into one shared middle
+  position, then small bubbles rise as all three dissolve together. This is
+  the primary clear feedback; it becomes a static highlighted preview under
+  reduced motion.
+- Clearing a finite cluster fades the next, slightly harder cluster into the
+  same surface. The transition communicates progression without adding a
+  number, label, modal, or separate result screen.
 - The seven-slot tray is the only persistent glass grouping. Quiet controls
   stay low-opacity until hover/focus and preserve practical targets.
 - At `<=620px`, the vignette moves lower-center and stays gathered. No viewport

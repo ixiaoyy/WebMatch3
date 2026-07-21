@@ -13,6 +13,7 @@ const props = defineProps<{
   pieces: readonly PilePiece[];
   engaged: boolean;
   disabled: boolean;
+  transitioning: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -107,6 +108,7 @@ function onFocusIn(): void {
     ref="cluster"
     class="jelly-cluster"
     :data-engaged="engaged"
+    :data-transitioning="transitioning"
     aria-label="桌面上的果冻"
     @pointerenter="onPointerEnter"
     @pointerleave="onPointerLeave"
@@ -145,6 +147,22 @@ function onFocusIn(): void {
     --active-x: var(--pile-x);
     --active-y: var(--pile-y);
   }
+
+  &[data-transitioning="true"] {
+    animation: jelly-level-arrive 620ms var(--ease-out) both;
+  }
+}
+
+@keyframes jelly-level-arrive {
+  0% {
+    opacity: 0.48;
+    filter: blur(2px) saturate(0.82);
+  }
+
+  100% {
+    opacity: 1;
+    filter: none;
+  }
 }
 
 @media (hover: none), (pointer: coarse) {
@@ -166,6 +184,12 @@ function onFocusIn(): void {
       --active-x: var(--pile-x);
       --active-y: var(--pile-y);
     }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .jelly-cluster[data-transitioning="true"] {
+    animation: none;
   }
 }
 </style>

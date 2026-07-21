@@ -88,6 +88,44 @@ describe("ambient controller", () => {
     controller.dispose();
   });
 
+  it("opens a harder level only after the current pile is completely cleared", () => {
+    const { callbacks, timers } = controlledTimers();
+    const controller = createAmbientController({
+      random: createSeededRandom(55),
+      storage: null,
+      timers,
+    });
+
+    while (controller.game.value.level === 1) {
+      const selectable = getSelectablePieces(controller.game.value.pieces);
+      const highestLayer = Math.max(
+        ...controller.game.value.pieces.map((piece) => piece.layer),
+      );
+      const exposedLayer = selectable.filter((piece) => piece.layer === highestLayer);
+      const matching = exposedLayer.find(
+        (piece) => exposedLayer.filter(
+          (candidate) => candidate.kind === piece.kind,
+        ).length >= 3,
+      );
+      expect(matching).toBeDefined();
+      if (!matching) break;
+      for (const piece of exposedLayer
+        .filter((candidate) => candidate.kind === matching.kind)
+        .slice(0, 3)) {
+        controller.activate(piece.id);
+      }
+    }
+
+    expect(controller.game.value.level).toBe(2);
+    expect(controller.game.value.pieces).toHaveLength(21);
+    expect(controller.feedback.value).toBe("level");
+    expect(controller.canSelect.value).toBe(false);
+    callbacks.shift()?.();
+    expect(controller.feedback.value).toBe("idle");
+    expect(controller.canSelect.value).toBe(true);
+    controller.dispose();
+  });
+
   it("cancels and restarts full-tray recovery around away state", () => {
     const { callbacks, timers } = controlledTimers();
     const controller = createAmbientController({

@@ -1,15 +1,33 @@
 <script setup lang="ts">
+import { computed } from "vue";
+
 import type { TrayPiece } from "../../engine";
 import { getJellyPresentation } from "../game-ui";
 
 const props = defineProps<{
   pieces: readonly TrayPiece[];
-  feedback: "idle" | "clear" | "recovery";
+  feedback: "idle" | "clear" | "recovery" | "level";
   clearingPieceIds: readonly string[];
 }>();
 
 function isClearing(piece: TrayPiece | undefined): boolean {
   return piece ? props.clearingPieceIds.includes(piece.id) : false;
+}
+
+const clearingSlots = computed(() => props.pieces
+  .map((piece, index) => props.clearingPieceIds.includes(piece.id) ? index + 1 : -1)
+  .filter((index) => index > 0));
+const clearingTargetSlot = computed(() =>
+  clearingSlots.value[Math.floor(clearingSlots.value.length / 2)] ?? 1,
+);
+
+function clearStyle(index: number): Record<string, string | number> {
+  const shift = clearingTargetSlot.value - index;
+  return {
+    "--clear-shift-percent": `${shift * 89.3}%`,
+    "--clear-shift-gap": `${shift * 5}px`,
+    "--clear-z": 4 + Math.abs(shift),
+  };
 }
 </script>
 
@@ -20,6 +38,7 @@ function isClearing(piece: TrayPiece | undefined): boolean {
       :key="index"
       class="jelly-tray__slot"
       :data-clearing="isClearing(pieces[index - 1])"
+      :style="clearStyle(index)"
     >
       <img
         v-if="pieces[index - 1]"
@@ -29,17 +48,17 @@ function isClearing(piece: TrayPiece | undefined): boolean {
         height="512"
       />
       <span
-        v-if="isClearing(pieces[index - 1])"
+        v-if="isClearing(pieces[index - 1]) && index === clearingTargetSlot"
         class="jelly-tray__bubble jelly-tray__bubble--one"
         aria-hidden="true"
       />
       <span
-        v-if="isClearing(pieces[index - 1])"
+        v-if="isClearing(pieces[index - 1]) && index === clearingTargetSlot"
         class="jelly-tray__bubble jelly-tray__bubble--two"
         aria-hidden="true"
       />
       <span
-        v-if="isClearing(pieces[index - 1])"
+        v-if="isClearing(pieces[index - 1]) && index === clearingTargetSlot"
         class="jelly-tray__bubble jelly-tray__bubble--three"
         aria-hidden="true"
       />
@@ -71,7 +90,8 @@ function isClearing(piece: TrayPiece | undefined): boolean {
   backdrop-filter: blur(9px);
   transition: box-shadow 200ms ease, transform 200ms var(--ease-out);
 
-  &[data-feedback="clear"] {
+  &[data-feedback="clear"],
+  &[data-feedback="level"] {
     box-shadow:
       0 0 0 6px rgb(180 148 241 / 12%),
       0 16px 34px rgb(91 74 141 / 15%);
@@ -101,10 +121,11 @@ function isClearing(piece: TrayPiece | undefined): boolean {
     }
 
     &[data-clearing="true"] {
+      z-index: var(--clear-z);
       background: rgb(255 255 255 / 44%);
 
       img {
-        animation: jelly-tray-melt 460ms var(--ease-out) both;
+        animation: jelly-tray-gather-and-melt 600ms var(--ease-out) both;
       }
     }
   }
@@ -121,7 +142,7 @@ function isClearing(piece: TrayPiece | undefined): boolean {
       inset 2px 2px 3px rgb(255 255 255 / 48%),
       0 2px 6px rgb(96 109 158 / 12%);
     pointer-events: none;
-    animation: jelly-tray-bubble 420ms var(--ease-out) both;
+    animation: jelly-tray-bubble 300ms var(--ease-out) 260ms both;
 
     &--one {
       left: 16%;
@@ -133,7 +154,7 @@ function isClearing(piece: TrayPiece | undefined): boolean {
       bottom: 22%;
       width: 9px;
       height: 9px;
-      animation-delay: 35ms;
+      animation-delay: 295ms;
     }
 
     &--three {
@@ -141,27 +162,41 @@ function isClearing(piece: TrayPiece | undefined): boolean {
       bottom: 6%;
       width: 7px;
       height: 7px;
-      animation-delay: 70ms;
+      animation-delay: 330ms;
     }
   }
 }
 
-@keyframes jelly-tray-melt {
+@keyframes jelly-tray-gather-and-melt {
   0% {
     opacity: 1;
-    transform: scale(1);
+    transform: translateX(0) scale(1);
     filter: brightness(1);
   }
 
-  34% {
+  48% {
     opacity: 1;
-    transform: scale(1.08);
+    transform:
+      translateX(calc(var(--clear-shift-percent) + var(--clear-shift-gap)))
+      scale(1.06);
     filter: brightness(1.14) saturate(1.06);
+  }
+
+  62% {
+    opacity: 1;
+    transform:
+      translateX(calc(var(--clear-shift-percent) + var(--clear-shift-gap)))
+      translateY(-1px)
+      scale(0.96);
+    filter: brightness(1.18) saturate(0.94);
   }
 
   100% {
     opacity: 0;
-    transform: translateY(-7px) scale(0.72);
+    transform:
+      translateX(calc(var(--clear-shift-percent) + var(--clear-shift-gap)))
+      translateY(-8px)
+      scale(0.68);
     filter: brightness(1.2) saturate(0.78);
   }
 }

@@ -2,9 +2,9 @@
 
 ## 1. Scope / Trigger
 
-Apply this contract when changing freeform pile generation, gathered-geometry
-occlusion, tray selection, automatic triples, replenishment, full-tray
-recovery, or any consumer of those transitions. The engine lives in
+Apply this contract when changing finite level generation, gathered-geometry
+occlusion, tray selection, automatic triples, progressive difficulty,
+full-tray recovery, or any consumer of those transitions. The engine lives in
 `apps/web/src/features/game/engine` and stays independent from Vue, DOM APIs,
 timers, storage, sound, and Picture-in-Picture.
 
@@ -14,6 +14,8 @@ Consumers import only from `@/features/game/engine`:
 
 ```ts
 createInitialState(random?: RandomSource): AmbientGameState
+createLevelState(level: number, clearCount: number, nextPieceId: number, random?: RandomSource): AmbientGameState
+getLevelConfig(level: number): LevelConfig
 getBlockerIds(pieces: readonly PilePiece[], pieceId: string): readonly string[]
 getSelectablePieces(pieces: readonly PilePiece[]): readonly PilePiece[]
 hasQuickMatch(pieces: readonly PilePiece[]): boolean
@@ -41,13 +43,18 @@ interface AmbientGameState {
   readonly pieces: readonly PilePiece[];
   readonly tray: readonly TrayPiece[];
   readonly clearCount: number;
+  readonly level: number;
   readonly nextPieceId: number;
 }
 ```
 
-- Initial state contains 18 unique pieces, four shape-capable kinds, irregular
-  authored coordinates, and shallow layers. It exposes at least three
-  selectable same-kind pieces.
+- Level one contains 18 unique pieces, three active shape-capable kinds,
+  irregular authored coordinates, and two shallow layers. Each subsequent
+  level adds three pieces; level two introduces the fourth kind, level three
+  introduces the third layer, and the visual-density cap is 36 pieces.
+- Every level consists of same-kind triples assigned as complete groups to one
+  layer. Clearing groups from the highest remaining layer down is therefore a
+  deterministic complete solution, and a new level exposes a quick triple.
 - `spread` is a presentation projection. Occlusion always uses `pile`
   geometry, so pointer leave cannot change rules.
 - The normalized blocker rectangle must track the rendered jelly footprint
@@ -59,11 +66,14 @@ interface AmbientGameState {
 - Public transitions never mutate their input. Missing and blocked selection
   return the original state object.
 - Three tray entries of the selected kind clear immediately, increment
-  `clearCount` once, and add three top-layer replacement pieces while
-  preserving the 18-object total across pile and tray.
+  `clearCount` once, and leave the current level permanently smaller. No clear
+  replenishes the active level.
+- Clearing the final triple creates the next level atomically and marks the
+  clear result with `levelAdvanced: true`; incomplete levels never advance.
 - A seven-item unmatched tray requests controller recovery. Recovery returns
-  exactly two entries to the pile, preserves progress, and exposes a selectable
-  piece that can complete a preserved pair.
+  exactly two original entries to the pile without changing their IDs or
+  kinds, preserves progress, and exposes an existing piece that can complete a
+  preserved pair. Recovery never invents replacement inventory.
 - Tests inject seeded randomness. Production may use `Math.random` only at the
   public default boundary.
 
@@ -74,7 +84,8 @@ interface AmbientGameState {
 | Missing piece ID | `SelectionResult { kind: "missing", state }` with original identity |
 | Piece has higher-layer blockers | `kind: "blocked"` plus blocker IDs; no mutation |
 | Selectable piece, tray below seven, no triple | remove from pile, append to tray, `kind: "moved"` |
-| Selected kind reaches three | clear exactly three, increment once, replenish three, `kind: "cleared"` |
+| Selected kind reaches three before level end | clear exactly three, increment once, do not replenish, `kind: "cleared"` |
+| Selected kind clears the last three objects | create the harder next level and set `levelAdvanced: true` |
 | Tray reaches seven without triple | stable state plus `kind: "recovery-needed"` |
 | Recovery called below seven | no-op state and empty `returned` |
 | Random value is non-finite or outside `[0, 1)` | throw `AmbientEngineError` |
@@ -82,25 +93,28 @@ interface AmbientGameState {
 ## 5. Good / Base / Bad Cases
 
 - Good: the UI asks `getBlockerIds` and disables blocked native buttons.
-- Base: a fresh state exposes a quick triple and remains playable without any
-  timer, score, level, or round lifecycle.
+- Base: a fresh state exposes a quick triple and a complete removal path
+  without any timer, score, numeric level label, or fail state.
 - Good: hover chooses `spread` or `pile` coordinates without regenerating state.
 - Bad: a component compares DOM rectangles to infer blockers.
-- Bad: replenishment appends arbitrary pieces without restoring a quick match.
-- Bad: recovery clears the tray, changes `clearCount`, or ends the game.
+- Bad: a clear appends replacements and makes the current level endless.
+- Bad: recovery clears the tray, recolors a piece, changes `clearCount`, or
+  ends the game.
 
 ## 6. Tests Required
 
-1. unique IDs, 18 pieces, four legal kinds, irregular dual projections, and
+1. unique IDs, level-one 18-piece shape, irregular dual projections, and
    layers limited to `0..2`;
 2. meaningful higher-layer blocking and immediate reveal;
    include a vertically offset overlap that only passes when canonical height
    matches the rendered target;
 3. missing/blocked result identity and complete input immutability;
-4. ordered tray movement, automatic triples, replacement count, and one clear;
-5. quick-match invariant after initial generation and clearing;
-6. seven-slot recovery returning two while preserving progress;
-7. invalid random values and deterministic seeded repetition.
+4. ordered tray movement and automatic triples that reduce inventory by three;
+5. complete solver traversal across progressive levels and atomic advancement;
+6. monotonic difficulty config through the 36-piece layout cap;
+7. seven-slot recovery returning exact pieces, preserving progress, and
+   exposing the completing piece;
+8. invalid random values and deterministic seeded repetition.
 
 Run focused `ambient-game` tests before `pnpm ci:web`.
 

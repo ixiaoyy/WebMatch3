@@ -1,6 +1,8 @@
 import {
   JELLY_KINDS,
+  createLevelState,
   createInitialState,
+  getLevelConfig,
   type AmbientGameState,
   type JellyKind,
   type PilePiece,
@@ -10,7 +12,7 @@ import {
 } from "../engine";
 
 export const AMBIENT_STORAGE_KEY = "web-match3:ambient-state";
-export const AMBIENT_SNAPSHOT_VERSION = 1;
+export const AMBIENT_SNAPSHOT_VERSION = 2;
 
 export interface AmbientPreferences {
   readonly soundEnabled: boolean;
@@ -20,8 +22,8 @@ export interface AmbientPlantProgress {
   readonly plantedAt: number;
 }
 
-export interface AmbientSnapshotV1 {
-  readonly version: 1;
+export interface AmbientSnapshotV2 {
+  readonly version: 2;
   readonly game: AmbientGameState;
   readonly preferences: AmbientPreferences;
   readonly plant: AmbientPlantProgress;
@@ -98,12 +100,18 @@ function parseTrayPiece(value: unknown): TrayPiece | null {
   return { id: value.id, kind: value.kind };
 }
 
-function parseGame(value: unknown): AmbientGameState | null {
+interface ParsedGameParts {
+  readonly pieces: readonly PilePiece[];
+  readonly tray: readonly TrayPiece[];
+  readonly clearCount: number;
+  readonly nextPieceId: number;
+}
+
+function parseGameParts(value: unknown): ParsedGameParts | null {
   if (!isRecord(value) || !Array.isArray(value.pieces) || !Array.isArray(value.tray)) {
     return null;
   }
-  if (value.pieces.length > 18 || value.tray.length > 7) return null;
-  if (value.pieces.length + value.tray.length !== 18) return null;
+  if (value.pieces.length > 36 || value.tray.length > 7) return null;
 
   const pieces = value.pieces.map(parsePilePiece);
   const tray = value.tray.map(parseTrayPiece);
@@ -127,35 +135,80 @@ function parseGame(value: unknown): AmbientGameState | null {
   };
 }
 
+function parseGame(value: unknown): AmbientGameState | null {
+  if (!isRecord(value) || !isSafeCounter(value.level, 1)) return null;
+  const parts = parseGameParts(value);
+  if (!parts) return null;
+  const total = parts.pieces.length + parts.tray.length;
+  const maximum = getLevelConfig(value.level).pieceCount;
+  if (total === 0 || total > maximum || total % 3 !== 0) return null;
+
+  for (const kind of JELLY_KINDS) {
+    const remaining = [...parts.pieces, ...parts.tray].filter(
+      (piece) => piece.kind === kind,
+    ).length;
+    if (remaining % 3 !== 0) return null;
+  }
+  return { ...parts, level: value.level };
+}
+
+function parsePlant(value: unknown, now: number): AmbientPlantProgress | null {
+  if (value === undefined) return { plantedAt: now };
+  if (!isRecord(value) || !isSafeCounter(value.plantedAt, 0)) return null;
+  return { plantedAt: value.plantedAt };
+}
+
+function parsePreferences(value: unknown): AmbientPreferences | null {
+  if (!isRecord(value) || typeof value.soundEnabled !== "boolean") return null;
+  return { soundEnabled: value.soundEnabled };
+}
+
 export function parseAmbientSnapshot(
   value: unknown,
   now = Date.now(),
-): AmbientSnapshotV1 | null {
+): AmbientSnapshotV2 | null {
   if (!isRecord(value) || value.version !== AMBIENT_SNAPSHOT_VERSION) return null;
-  if (!isRecord(value.preferences) || typeof value.preferences.soundEnabled !== "boolean") {
-    return null;
-  }
+  const preferences = parsePreferences(value.preferences);
   const game = parseGame(value.game);
-  if (!game) return null;
-  let plantedAt = now;
-  if (value.plant !== undefined) {
-    if (!isRecord(value.plant) || !isSafeCounter(value.plant.plantedAt, 0)) {
-      return null;
-    }
-    plantedAt = value.plant.plantedAt;
-  }
+  const plant = parsePlant(value.plant, now);
+  if (!game || !preferences || !plant) return null;
   return {
     version: AMBIENT_SNAPSHOT_VERSION,
     game,
-    preferences: { soundEnabled: value.preferences.soundEnabled },
-    plant: { plantedAt },
+    preferences,
+    plant,
+  };
+}
+
+function migrateLegacySnapshot(
+  value: unknown,
+  random: RandomSource,
+  now: number,
+): AmbientSnapshotV2 | null {
+  if (!isRecord(value) || value.version !== 1) return null;
+  const legacyGame = parseGameParts(value.game);
+  const preferences = parsePreferences(value.preferences);
+  const plant = parsePlant(value.plant, now);
+  if (!legacyGame || !preferences || !plant) return null;
+  if (legacyGame.pieces.length + legacyGame.tray.length !== 18) return null;
+
+  return {
+    version: AMBIENT_SNAPSHOT_VERSION,
+    game: createLevelState(
+      1,
+      legacyGame.clearCount,
+      legacyGame.nextPieceId,
+      random,
+    ),
+    preferences,
+    plant,
   };
 }
 
 export function createFreshSnapshot(
   random: RandomSource = Math.random,
   now = Date.now(),
-): AmbientSnapshotV1 {
+): AmbientSnapshotV2 {
   return {
     version: AMBIENT_SNAPSHOT_VERSION,
     game: createInitialState(random),
@@ -168,12 +221,15 @@ export function loadAmbientSnapshot(
   storage: StorageLike | null,
   random: RandomSource = Math.random,
   now = Date.now(),
-): AmbientSnapshotV1 {
+): AmbientSnapshotV2 {
   if (!storage) return createFreshSnapshot(random, now);
   try {
     const raw = storage.getItem(AMBIENT_STORAGE_KEY);
     if (!raw) return createFreshSnapshot(random, now);
-    return parseAmbientSnapshot(JSON.parse(raw), now) ?? createFreshSnapshot(random, now);
+    const parsed = JSON.parse(raw) as unknown;
+    return parseAmbientSnapshot(parsed, now) ??
+      migrateLegacySnapshot(parsed, random, now) ??
+      createFreshSnapshot(random, now);
   } catch {
     return createFreshSnapshot(random, now);
   }
@@ -181,7 +237,7 @@ export function loadAmbientSnapshot(
 
 export function saveAmbientSnapshot(
   storage: StorageLike | null,
-  snapshot: AmbientSnapshotV1,
+  snapshot: AmbientSnapshotV2,
 ): boolean {
   if (!storage) return false;
   try {

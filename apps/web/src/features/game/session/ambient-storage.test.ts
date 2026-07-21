@@ -23,7 +23,7 @@ describe("ambient snapshot storage", () => {
   it("round-trips exact stable state and preferences", () => {
     const storage = createMemoryStorage();
     const fresh = createFreshSnapshot(createSeededRandom(10));
-    const target = fresh.game.pieces.find((piece) => piece.layer === 2);
+    const target = fresh.game.pieces.find((piece) => piece.layer === 1);
     expect(target).toBeDefined();
     if (!target) return;
     const selection = selectPiece(fresh.game, target.id, createSeededRandom(11));
@@ -41,8 +41,13 @@ describe("ambient snapshot storage", () => {
     const storage = createMemoryStorage();
     const fresh = createFreshSnapshot(createSeededRandom(13), 1_000);
     const legacy = {
-      version: fresh.version,
-      game: { ...fresh.game, clearCount: 432 },
+      version: 1,
+      game: {
+        pieces: fresh.game.pieces,
+        tray: fresh.game.tray,
+        clearCount: 432,
+        nextPieceId: fresh.game.nextPieceId,
+      },
       preferences: fresh.preferences,
     };
     storage.values.set(AMBIENT_STORAGE_KEY, JSON.stringify(legacy));
@@ -53,20 +58,22 @@ describe("ambient snapshot storage", () => {
       86_401_000,
     );
 
+    expect(restored.version).toBe(2);
+    expect(restored.game.level).toBe(1);
     expect(restored.game.clearCount).toBe(432);
     expect(restored.plant.plantedAt).toBe(86_401_000);
   });
 
   it.each([
     "not-json",
-    JSON.stringify({ version: 2 }),
-    JSON.stringify({ version: 1, game: {}, preferences: { soundEnabled: false } }),
+    JSON.stringify({ version: 3 }),
+    JSON.stringify({ version: 2, game: {}, preferences: { soundEnabled: false } }),
   ])("falls back for malformed or incompatible data", (raw) => {
     const storage = createMemoryStorage();
     storage.values.set(AMBIENT_STORAGE_KEY, raw);
     const snapshot = loadAmbientSnapshot(storage, createSeededRandom(20));
 
-    expect(snapshot.version).toBe(1);
+    expect(snapshot.version).toBe(2);
     expect(snapshot.game.pieces).toHaveLength(18);
     expect(snapshot.preferences.soundEnabled).toBe(false);
   });
@@ -100,6 +107,23 @@ describe("ambient snapshot storage", () => {
       game: { ...valid.game, clearCount: -1 },
     };
     expect(parseAmbientSnapshot(invalidCounter)).toBeNull();
+
+    const invalidLevel = {
+      ...valid,
+      game: { ...valid.game, level: 0 },
+    };
+    expect(parseAmbientSnapshot(invalidLevel)).toBeNull();
+
+    const invalidInventory = {
+      ...valid,
+      game: {
+        ...valid.game,
+        pieces: valid.game.pieces.map((piece, index) =>
+          index === 0 ? { ...piece, kind: "rose" as const } : piece,
+        ),
+      },
+    };
+    expect(parseAmbientSnapshot(invalidInventory)).toBeNull();
 
     const invalidPlantProgress = {
       ...valid,

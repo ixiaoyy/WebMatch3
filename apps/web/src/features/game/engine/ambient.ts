@@ -1,9 +1,12 @@
 export { AmbientEngineError, createSeededRandom } from "./ambient-random";
 export {
+  createLevelState,
   createInitialState,
   getBlockerIds,
+  getLevelConfig,
   getSelectablePieces,
   hasQuickMatch,
+  type LevelConfig,
 } from "./pile";
 export { recoverFullTray, selectPiece } from "./transitions";
 export {

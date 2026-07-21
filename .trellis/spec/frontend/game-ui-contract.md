@@ -19,15 +19,15 @@ interface AmbientControllerOptions {
 
 createAmbientController(options?: AmbientControllerOptions): AmbientController
 
-interface AmbientSnapshotV1 {
-  readonly version: 1;
+interface AmbientSnapshotV2 {
+  readonly version: 2;
   readonly game: AmbientGameState;
   readonly preferences: { readonly soundEnabled: boolean };
   readonly plant: { readonly plantedAt: number };
 }
 
-loadAmbientSnapshot(storage: StorageLike | null, random?: RandomSource): AmbientSnapshotV1
-saveAmbientSnapshot(storage: StorageLike | null, snapshot: AmbientSnapshotV1): boolean
+loadAmbientSnapshot(storage: StorageLike | null, random?: RandomSource): AmbientSnapshotV2
+saveAmbientSnapshot(storage: StorageLike | null, snapshot: AmbientSnapshotV2): boolean
 createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => void): DocumentPipController
 ```
 
@@ -49,14 +49,19 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
   and attention loss using `web-match3:ambient-state`. The obsolete
   `web-match3:progress` key is not read or deleted.
 - A clear persists canonical state immediately but may expose the pre-clear
-  tray as an ephemeral 460ms preview so the exact three pieces can bubble and
-  melt before the tray compacts. That preview never enters storage.
-- Version-one snapshots created before `plant.plantedAt` existed migrate by
-  preserving game/preferences and seeding `plantedAt` with the current load
-  time. A present but invalid plant timestamp invalidates the snapshot.
-- Snapshot validation begins from `unknown`: exactly 18 objects across pile and
-  tray, tray length `0..7`, unique IDs, legal kinds, bounded geometry/layers,
-  safe counters, version `1`, and boolean sound preference.
+  tray as an ephemeral 620ms preview. The exact three pieces first travel into
+  one shared tray position, then bubble and dissolve together before the tray
+  compacts. That preview never enters storage.
+- Version-one endless-pile snapshots migrate to version two by preserving
+  `clearCount`, plant age, and preferences while replacing the old pile/tray
+  with a fresh solvable level-one cluster. Invalid legacy data falls back to a
+  fresh snapshot.
+- Snapshot validation begins from `unknown`: version two, positive level,
+  dynamic inventory bounded by that level's config, total and per-kind counts
+  divisible by three, tray length `0..7`, unique IDs, legal kinds, bounded
+  geometry/layers, safe counters, and boolean sound preference.
+- A final clear persists the atomically created next level and locks input for
+  the short level-arrival feedback. No numeric level label is rendered.
 - Storage absence, malformed data, security errors, or quota failures fall
   back to in-memory play and never block rendering.
 - Full-tray recovery waits about 700ms of foreground attention. Away/unmount
@@ -77,7 +82,9 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
 | Coarse pointer or width `<=620px` | gathered projection without hover dependency |
 | Seven unmatched tray entries | lock briefly, foreground timer, return two, resume |
 | Window/document becomes away | persist, cancel timers, stop sound, pause motion |
-| Stored JSON/schema is invalid | fresh 18-piece playable snapshot, sound off |
+| Stored JSON/schema is invalid | fresh solvable level-one snapshot, sound off |
+| Valid version-one endless snapshot | preserve long-term progress and start a solvable level-one cluster |
+| Final triple clears | persist next harder level, gather/disappear preview, then unlock input |
 | Legacy version-one snapshot lacks `plant` | preserve game/preferences and seed `plantedAt` at load |
 | Storage access/write throws | continue in memory; write returns `false` |
 | PiP API unavailable | render no small-window button or warning |
@@ -95,13 +102,14 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
 
 ## 6. Tests Required
 
-1. controller selection, clear callback, persistence, and default-muted sound;
+1. controller selection, clear callback, finite inventory, level advancement,
+   persistence, and default-muted sound;
    assert the clear preview contains the exact cleared IDs and settles to the
    canonical tray;
 2. away cancellation/restart of the 700ms recovery timer;
-3. snapshot round-trip, malformed JSON/schema, duplicate IDs, invalid geometry,
-   tray/counter/plant bounds, legacy plant migration, inaccessible storage,
-   and quota failure;
+3. snapshot round-trip, version-one migration, malformed JSON/schema, duplicate
+   IDs, invalid geometry/inventory, tray/level/counter/plant bounds,
+   inaccessible storage, and quota failure;
 4. browser checks at `320x568`, `390x844`, `768x1024`, and `1440x900` for no
    horizontal overflow, pointer/focus gather, scatter, keyboard selection,
    blocked state, tray clear, plant growth, persistence, and no console errors;

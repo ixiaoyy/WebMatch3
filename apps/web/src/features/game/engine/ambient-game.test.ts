@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import {
   AmbientEngineError,
+  createLevelState,
   createInitialState,
   createSeededRandom,
   getBlockerIds,
+  getLevelConfig,
   getSelectablePieces,
   hasQuickMatch,
   recoverFullTray,
@@ -19,6 +21,7 @@ describe("ambient jelly engine", () => {
     const state = createInitialState(createSeededRandom(42));
 
     expect(state.pieces).toHaveLength(18);
+    expect(state.level).toBe(1);
     expect(new Set(state.pieces.map((piece) => piece.id)).size).toBe(18);
     expect(new Set(state.pieces.map((piece) => piece.kind)).size).toBeGreaterThan(1);
     expect(state.pieces.every((piece) => piece.layer >= 0 && piece.layer <= 2)).toBe(true);
@@ -97,8 +100,58 @@ describe("ambient jelly engine", () => {
     expect(third.kind).toBe("cleared");
     expect(third.state.tray).toHaveLength(0);
     expect(third.state.clearCount).toBe(1);
-    expect(third.state.pieces).toHaveLength(18);
+    expect(third.state.pieces).toHaveLength(15);
     expect(hasQuickMatch(third.state.pieces)).toBe(true);
+  });
+
+  it("constructs every progressive level with a complete removal path", () => {
+    for (let level = 1; level <= 8; level += 1) {
+      const random = createSeededRandom(100 + level);
+      let state = createLevelState(level, 0, 1, random);
+      let clears = 0;
+
+      while (state.level === level) {
+        const selectable = getSelectablePieces(state.pieces);
+        const highestLayer = Math.max(...state.pieces.map((piece) => piece.layer));
+        const exposedLayer = selectable.filter((piece) => piece.layer === highestLayer);
+        const matching = exposedLayer.find(
+          (piece) => exposedLayer.filter(
+            (candidate) => candidate.kind === piece.kind,
+          ).length >= 3,
+        );
+        expect(matching).toBeDefined();
+        if (!matching) break;
+        const triple = exposedLayer
+          .filter((piece) => piece.kind === matching.kind)
+          .slice(0, 3);
+
+        for (const piece of triple) {
+          const result = selectPiece(state, piece.id, random);
+          expect(result.kind === "moved" || result.kind === "cleared").toBe(true);
+          if (result.kind === "cleared") clears += 1;
+          state = result.state;
+        }
+      }
+
+      expect(state.level).toBe(level + 1);
+      expect(clears).toBe(getLevelConfig(level).pieceCount / 3);
+    }
+  });
+
+  it("raises piece, layer, and kind difficulty without exceeding the layout cap", () => {
+    expect(getLevelConfig(1)).toEqual({
+      pieceCount: 18,
+      layerCount: 2,
+      kindCount: 3,
+    });
+    expect(getLevelConfig(2)).toEqual({
+      pieceCount: 21,
+      layerCount: 2,
+      kindCount: 4,
+    });
+    expect(getLevelConfig(3).layerCount).toBe(3);
+    expect(getLevelConfig(7).pieceCount).toBe(36);
+    expect(getLevelConfig(99).pieceCount).toBe(36);
   });
 
   it("returns two pieces from a full tray without erasing progress", () => {
@@ -119,11 +172,27 @@ describe("ambient jelly engine", () => {
     expect(result.state.tray).toHaveLength(5);
     expect(result.state.pieces).toHaveLength(base.pieces.length + 2);
     expect(result.state.clearCount).toBe(9);
+    expect(result.state.nextPieceId).toBe(state.nextPieceId);
+    expect(result.returned.every((returned) => result.state.pieces.some(
+      (piece) => piece.id === returned.id && piece.kind === returned.kind,
+    ))).toBe(true);
     expect(
       getSelectablePieces(result.state.pieces).some(
         (piece) => piece.kind === result.preservedKind,
       ),
     ).toBe(true);
+    const completingPiece = getSelectablePieces(result.state.pieces).find(
+      (piece) => piece.kind === result.preservedKind,
+    );
+    expect(completingPiece).toBeDefined();
+    if (!completingPiece) return;
+    const completion = selectPiece(
+      result.state,
+      completingPiece.id,
+      createSeededRandom(32),
+    );
+    expect(completion.kind).toBe("cleared");
+    expect(completion.state.tray).toHaveLength(3);
   });
 
   it("rejects invalid random sources", () => {

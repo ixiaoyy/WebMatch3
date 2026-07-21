@@ -8,14 +8,16 @@ product
 
 Ambient Jelly serves people who want a five-second, interruption-friendly
 moment in a pinned browser tab. They should be able to touch a few satisfying
-objects, see a small environmental reward, and return to work without starting
-or finishing a round.
+objects, see a small environmental reward, and return to work without a start
+gate or a penalty for leaving a cluster unfinished.
 
 ## Product Purpose
 
 Provide a calm browser-native desktop corner built around freeform jelly
 selection. Progress persists locally and is expressed through a growing plant,
-not scores, levels, missions, timers, or failure screens. The website never
+not scores, numeric levels, missions, timers, or failure screens. Each finite
+jelly cluster can be cleared completely; the next cluster becomes gradually
+denser and more layered. The website never
 claims to remain visible above other applications; Document Picture-in-Picture
 is an optional browser-owned enhancement when available.
 
@@ -36,19 +38,23 @@ in a work browser, but materially rich when the player touches it.
 2. **Gather on attention.** Jellies rest loosely across the surface, gather into
    a shallow playable pile on pointer or keyboard engagement, and scatter when
    attention leaves.
-3. **Five seconds is enough.** A fresh or replenished scene always offers a
-   quick visible match with no start gate or remembered plan.
+3. **Five seconds is enough.** Every new cluster opens with a quick visible
+   match and a constructed complete solution, with no start gate.
 4. **Resume without ceremony.** Save stable state after meaningful actions and
    restore it directly, with no welcome-back or offline-reward flow.
 5. **Growth instead of pressure.** Clears visibly evolve the plant; tray
    saturation recovers softly and never becomes game over.
-6. **Rules stay testable.** Occlusion, selection, clearing, recovery, and
+6. **Finish, then deepen.** Clears permanently reduce the current cluster.
+   Emptying it opens a larger or more layered solvable cluster without showing
+   a numeric level HUD.
+7. **Rules stay testable.** Occlusion, selection, clearing, recovery, and
    generation remain pure and independent from Vue and browser services.
 
 ## Anti-references
 
 - No rectangular board, cells, rows, columns, swap interaction, HUD, lobby,
-  campaign level, leaderboard, score, timer, mission, or prominent currency.
+  level picker, numeric level label, leaderboard, score, timer, mission, or
+  prominent currency.
 - No candy-wrapper styling, casino spectacle, continuous ambient audio, or
   reward animation that competes with the quiet scene.
 - No extension, desktop package, operating-system overlay, notification, or

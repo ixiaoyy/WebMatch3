@@ -161,9 +161,11 @@ onBeforeUnmount(() => {
         />
 
         <JellyCluster
+          :key="game.game.value.level"
           :pieces="game.game.value.pieces"
           :engaged="engaged"
           :disabled="!game.canSelect.value"
+          :transitioning="game.feedback.value === 'level'"
           @activate="game.activate"
           @activity="markInteraction"
           @engagement="setEngagement"

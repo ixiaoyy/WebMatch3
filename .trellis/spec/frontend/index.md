@@ -16,7 +16,7 @@ This directory contains guidelines for frontend development. Fill in each file w
 |-------|-------------|--------|
 | [Directory Structure](./directory-structure.md) | Module organization and file layout | Active |
 | [Toolchain Contract](./toolchain-contract.md) | Workspace commands, dependency installation, and validation | Active |
-| [Ambient Jelly Engine Contract](./game-engine-contract.md) | Freeform pile, blockers, tray clears, replenishment, and recovery | Active |
+| [Ambient Jelly Engine Contract](./game-engine-contract.md) | Solvable finite levels, blockers, tray clears, progression, and recovery | Active |
 | [Ambient Jelly UI Contract](./game-ui-contract.md) | Persistence, attention, input, sound, and Picture-in-Picture boundaries | Active |
 | [Rain-Washed Ambient Jelly Visual Design](./visual-design-contract.md) | Wallpaper, generated assets, gather/scatter layout, growth, and responsive composition | Active |
 | [Production Deployment](./deployment-contract.md) | GitHub Actions, immutable releases, container health checks, and rollback | Active |
@@ -32,7 +32,7 @@ This directory contains guidelines for frontend development. Fill in each file w
 
 - Read [Directory Structure](./directory-structure.md) before adding or moving frontend modules.
 - Read [Toolchain Contract](./toolchain-contract.md) before changing dependencies, package scripts, Vite, TypeScript, ESLint, Vitest, or workspace configuration.
-- Read [Ambient Jelly Engine Contract](./game-engine-contract.md) before changing pile generation, blockers, tray clears, replenishment, recovery, or UI-facing transitions.
+- Read [Ambient Jelly Engine Contract](./game-engine-contract.md) before changing level generation, blockers, tray clears, progression, recovery, or UI-facing transitions.
 - Read [Ambient Jelly UI Contract](./game-ui-contract.md) before changing persistence, attention, input, audio, controller timing, or Picture-in-Picture.
 - Read [Rain-Washed Ambient Jelly Visual Design](./visual-design-contract.md) before changing wallpaper, visual tokens, generated assets, gather/scatter layout, plant growth, controls, or responsive composition.
 - Read [Production Deployment](./deployment-contract.md) before changing GitHub Actions, release packaging, SSH upload, container activation, or rollback.

@@ -1,5 +1,6 @@
 import {
-  createReplacementPieces,
+  createLevelState,
+  exposePieceForRecovery,
   getBlockerIds,
   getSelectablePieces,
   returnTrayPiecesToPile,
@@ -42,18 +43,17 @@ export function selectPiece(
 
   if (triple.length === 3) {
     const clearedIds = new Set(triple.map((candidate) => candidate.id));
-    const replacementState: AmbientGameState = { ...state, pieces, tray };
-    const replacements = createReplacementPieces(replacementState, random);
+    const remainingTray = tray.filter((candidate) => !clearedIds.has(candidate.id));
+    const clearCount = state.clearCount + 1;
+    const levelAdvanced = pieces.length === 0 && remainingTray.length === 0;
     return {
       kind: "cleared",
       selected,
       cleared: triple,
-      state: {
-        pieces: [...pieces, ...replacements],
-        tray: tray.filter((candidate) => !clearedIds.has(candidate.id)),
-        clearCount: state.clearCount + 1,
-        nextPieceId: state.nextPieceId + replacements.length,
-      },
+      levelAdvanced,
+      state: levelAdvanced
+        ? createLevelState(state.level + 1, clearCount, state.nextPieceId, random)
+        : { ...state, pieces, tray: remainingTray, clearCount },
     };
   }
 
@@ -85,9 +85,12 @@ export function recoverFullTray(
   }
 
   const counts = countKinds(state.tray);
-  const preservedKind = JELLY_KINDS.reduce((best, kind) =>
-    (counts.get(kind) ?? 0) > (counts.get(best) ?? 0) ? kind : best,
-  );
+  const preservedKind = JELLY_KINDS
+    .filter((kind) => (counts.get(kind) ?? 0) >= 2)
+    .find((kind) => state.pieces.some((piece) => piece.kind === kind)) ??
+    JELLY_KINDS.reduce((best, kind) =>
+      (counts.get(kind) ?? 0) > (counts.get(best) ?? 0) ? kind : best,
+    );
   const preservedIds = new Set(
     state.tray
       .filter((piece) => piece.kind === preservedKind)
@@ -98,16 +101,15 @@ export function recoverFullTray(
     .filter((piece) => !preservedIds.has(piece.id))
     .slice(-2);
   const returnedIds = new Set(returned.map((piece) => piece.id));
-  let pieces = state.pieces;
-
-  const hasCompletingPiece = getSelectablePieces(pieces).some(
+  const completingPiece = state.pieces.find((piece) => piece.kind === preservedKind);
+  const hasCompletingPiece = getSelectablePieces(state.pieces).some(
     (piece) => piece.kind === preservedKind,
   );
-  const returnedKinds = returned.map((piece, index) =>
-    !hasCompletingPiece && index === 0 ? preservedKind : piece.kind,
-  );
-  const returnedPieces = returnTrayPiecesToPile(state, returnedKinds, random);
-  pieces = [...pieces, ...returnedPieces];
+  const returnedPieces = returnTrayPiecesToPile(state, returned, random);
+  let pieces = [...state.pieces, ...returnedPieces];
+  if (!hasCompletingPiece && completingPiece) {
+    pieces = [...exposePieceForRecovery(pieces, completingPiece.id, random)];
+  }
 
   return {
     returned,
@@ -116,7 +118,6 @@ export function recoverFullTray(
       ...state,
       pieces,
       tray: state.tray.filter((piece) => !returnedIds.has(piece.id)),
-      nextPieceId: state.nextPieceId + returnedPieces.length,
     },
   };
 }

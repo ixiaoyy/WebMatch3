@@ -14,7 +14,7 @@ import {
   loadAmbientSnapshot,
   resolveBrowserStorage,
   saveAmbientSnapshot,
-  type AmbientSnapshotV1,
+  type AmbientSnapshotV2,
   type StorageLike,
 } from "../session/ambient-storage";
 
@@ -57,7 +57,7 @@ export function createAmbientController(
   const game = shallowRef<AmbientGameState>(initial.game);
   const soundEnabled = ref(initial.preferences.soundEnabled);
   const status = ref("果冻散在桌面上。移近一点，它们会聚拢。");
-  const feedback = ref<"idle" | "clear" | "recovery">("idle");
+  const feedback = ref<"idle" | "clear" | "recovery" | "level">("idle");
   const trayPreview = shallowRef<readonly TrayPiece[] | null>(null);
   const clearingPieceIds = shallowRef<readonly string[]>([]);
   const isAway = ref(false);
@@ -71,10 +71,12 @@ export function createAmbientController(
     Math.floor((currentTime.value - initial.plant.plantedAt) / 86_400_000),
   ));
   const canSelect = computed(
-    () => !isAway.value && feedback.value !== "recovery",
+    () => !isAway.value &&
+      feedback.value !== "recovery" &&
+      feedback.value !== "level",
   );
 
-  function snapshot(): AmbientSnapshotV1 {
+  function snapshot(): AmbientSnapshotV2 {
     return {
       version: AMBIENT_SNAPSHOT_VERSION,
       game: game.value,
@@ -106,14 +108,17 @@ export function createAmbientController(
     clearingPieceIds.value = [];
   }
 
-  function settleFeedback(kind: "clear" | "recovery", delay: number): void {
+  function settleFeedback(
+    kind: "clear" | "recovery" | "level",
+    delay: number,
+  ): void {
     clearFeedbackTimer();
     const token = generation;
     feedback.value = kind;
     feedbackHandle = timers.schedule(() => {
       if (token === generation && !isAway.value) {
         feedback.value = "idle";
-        if (kind === "clear") clearTrayFeedback();
+        if (kind === "clear" || kind === "level") clearTrayFeedback();
       }
       feedbackHandle = null;
     }, delay);
@@ -158,10 +163,15 @@ export function createAmbientController(
       trayPreview.value = [...game.value.tray, result.selected];
       clearingPieceIds.value = result.cleared.map((piece) => piece.id);
       game.value = result.state;
-      status.value = `三颗${KIND_NAMES[result.selected.kind]}融在一起，植物长高了一点。`;
+      status.value = result.levelAdvanced
+        ? "桌面清空了，一簇更有挑战的果冻正在展开。"
+        : `三颗${KIND_NAMES[result.selected.kind]}融在一起，植物长高了一点。`;
       persist();
       options.onClear?.();
-      settleFeedback("clear", 460);
+      settleFeedback(
+        result.levelAdvanced ? "level" : "clear",
+        620,
+      );
       return;
     }
     game.value = result.state;

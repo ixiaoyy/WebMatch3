@@ -26,6 +26,7 @@ export interface AmbientGameState {
   readonly pieces: readonly PilePiece[];
   readonly tray: readonly TrayPiece[];
   readonly clearCount: number;
+  readonly level: number;
   readonly nextPieceId: number;
 }
 
@@ -51,6 +52,7 @@ export interface ClearedSelection {
   readonly state: AmbientGameState;
   readonly selected: TrayPiece;
   readonly cleared: readonly TrayPiece[];
+  readonly levelAdvanced: boolean;
 }
 
 export interface RecoveryNeededSelection {
