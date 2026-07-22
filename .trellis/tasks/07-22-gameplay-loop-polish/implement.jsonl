@@ -1,0 +1,3 @@
+{"file":".trellis/spec/guides/index.md","reason":"Follow the project thinking-guide routing and pre-modification search rule."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Failure and feedback data flow crosses engine, controller, persistence, and Vue components."}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"The task changes shared constants, random helpers, feedback states, and existing transition patterns."}
