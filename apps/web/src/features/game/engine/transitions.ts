@@ -1,20 +1,22 @@
+import { createLevelState } from "./pile";
 import {
-  createLevelState,
-  returnTrayPiecesToPile,
-} from "./pile";
-import {
-  FISH_KINDS,
   type AmbientGameState,
   type FedFish,
   type FeedResult,
   type FishKind,
   type RandomSource,
-  type RecoveryResult,
   type SelectionResult,
   type TrayPiece,
 } from "./ambient-types";
 
 const MAX_FED_FISH = 3;
+
+export function restartAfterLoss(
+  state: AmbientGameState,
+  random: RandomSource = Math.random,
+): AmbientGameState {
+  return createLevelState(1, state.clearCount, state.nextPieceId, random);
+}
 
 function findTriple(
   tray: readonly TrayPiece[],
@@ -111,61 +113,15 @@ export function selectPiece(
     };
   }
 
-  const nextState: AmbientGameState = { ...state, pieces, tray };
   if (tray.length === 7) {
-    return { kind: "recovery-needed", state: nextState, selected };
+    return {
+      kind: "lost",
+      state: restartAfterLoss(state, random),
+      selected,
+      tray,
+    };
   }
-  return { kind: "moved", state: nextState, selected };
-}
-
-function countKinds(tray: readonly TrayPiece[]): Map<FishKind, number> {
-  const counts = new Map<FishKind, number>();
-  for (const kind of FISH_KINDS) {
-    counts.set(kind, 0);
-  }
-  for (const piece of tray) {
-    counts.set(piece.kind, (counts.get(piece.kind) ?? 0) + 1);
-  }
-  return counts;
-}
-
-export function recoverFullTray(
-  state: AmbientGameState,
-  random: RandomSource = Math.random,
-): RecoveryResult {
-  if (state.tray.length < 7) {
-    const fallbackKind = state.tray[0]?.kind ?? "whale";
-    return { state, returned: [], preservedKind: fallbackKind };
-  }
-
-  const counts = countKinds(state.tray);
-  const preservedKind = FISH_KINDS
-    .filter((kind) => (counts.get(kind) ?? 0) >= 2)
-    .find((kind) => state.pieces.some((piece) => piece.kind === kind)) ??
-    FISH_KINDS.reduce((best, kind) =>
-      (counts.get(kind) ?? 0) > (counts.get(best) ?? 0) ? kind : best,
-    );
-  const preservedIds = new Set(
-    state.tray
-      .filter((piece) => piece.kind === preservedKind)
-      .slice(0, 2)
-      .map((piece) => piece.id),
-  );
-  const returned = state.tray
-    .filter((piece) => !preservedIds.has(piece.id))
-    .slice(-2);
-  const returnedIds = new Set(returned.map((piece) => piece.id));
-  const returnedPieces = returnTrayPiecesToPile(state, returned, random);
-
-  return {
-    returned,
-    preservedKind,
-    state: {
-      ...state,
-      pieces: [...state.pieces, ...returnedPieces],
-      tray: state.tray.filter((piece) => !returnedIds.has(piece.id)),
-    },
-  };
+  return { kind: "moved", state: { ...state, pieces, tray }, selected };
 }
 
 export function feedPiece(

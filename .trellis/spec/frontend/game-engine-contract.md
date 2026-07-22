@@ -4,7 +4,7 @@
 
 Apply this contract when changing finite level generation, field-geometry
 overlap relationships, tray selection, automatic triples, progressive difficulty,
-full-tray recovery, or any consumer of those transitions. The engine lives in
+full-tray loss restart, or any consumer of those transitions. The engine lives in
 `apps/web/src/features/game/engine` and stays independent from Vue, DOM APIs,
 timers, storage, sound, and Picture-in-Picture.
 
@@ -22,7 +22,7 @@ getSelectablePieces(pieces: readonly PilePiece[]): readonly PilePiece[]
 hasQuickMatch(pieces: readonly PilePiece[]): boolean
 selectPiece(state: AmbientGameState, pieceId: string, random?: RandomSource): SelectionResult
 feedPiece(state: AmbientGameState, pieceId: string, random?: RandomSource): FeedResult
-recoverFullTray(state: AmbientGameState, random?: RandomSource): RecoveryResult
+restartAfterLoss(state: AmbientGameState, random?: RandomSource): AmbientGameState
 createSeededRandom(seed: number): RandomSource
 ```
 
@@ -107,11 +107,13 @@ interface FedFish extends TrayPiece {
   fullness history and reset when the next level is created.
 - Clearing the final triple creates the next level atomically and marks the
   clear result with `levelAdvanced: true`; incomplete levels never advance.
-- A seven-item unmatched tray requests controller recovery. Recovery returns
-  exactly two original entries to the pile without changing their IDs or
-  kinds, preserves progress, and keeps an existing piece that can complete a
-  preserved pair. Recovery never invents replacement inventory or repositions
-  an already selectable pile piece.
+- A seventh unmatched tray entry loses immediately after normal tray triples
+  and feed-credit settlement have had priority. The result contains a readonly
+  seven-piece tray preview plus a newly generated stable level-one state.
+- Loss restart clears the tray, fed history, and current field while preserving
+  `clearCount` and using the previous `nextPieceId` as the first ID of the new
+  level. The resulting counter remains monotonic. No loss transition decreases
+  plant progress or introduces a confirmation step.
 - Tests inject seeded randomness. Production may use `Math.random` only at the
   public default boundary.
 
@@ -127,8 +129,7 @@ interface FedFish extends TrayPiece {
 | One/two tray fish plus same-species credits reach three | remove the short tray group, settle only the credits used, `kind: "settled"` |
 | Fourth feed is attempted | return `kind: "full"` with unchanged state |
 | Selected kind clears the last three objects | create the harder next level and set `levelAdvanced: true` |
-| Tray reaches seven without triple | stable state plus `kind: "recovery-needed"` |
-| Recovery called below seven | no-op state and empty `returned` |
+| Tray reaches seven after triple and feed-credit checks | `kind: "lost"`, seven-piece preview, and stable level-one restart |
 | Random value is non-finite or outside `[0, 1)` | throw `AmbientEngineError` |
 
 ## 5. Good / Base / Bad Cases
@@ -136,13 +137,13 @@ interface FedFish extends TrayPiece {
 - Good: the UI asks `getBlockerIds` only to animate related neighbors after a
   stacked fish is removed; all revealed native buttons stay actionable.
 - Base: a fresh state exposes a quick triple and a complete removal path
-  without any timer, score, numeric level label, or fail state.
+  without any timer, score, numeric level label, or failure page.
 - Good: the UI reveals canonical `pile` coordinates without regenerating or
   mutating state; legacy `spread` remains snapshot-compatible only.
 - Bad: a component compares DOM rectangles to infer blockers.
 - Bad: a clear appends replacements and makes the current level endless.
-- Bad: recovery clears the tray, recolors a piece, changes `clearCount`, or
-  ends the game.
+- Bad: loss restart persists a seven-piece tray, resets `clearCount`, reuses
+  generated IDs, or waits for player confirmation.
 
 ## 6. Tests Required
 
@@ -156,8 +157,8 @@ interface FedFish extends TrayPiece {
 5. complete solver traversal across progressive levels and atomic advancement;
 6. piece-count progression `36, 42, 48, 54, 60`, unique authored positions at
    the 60-piece cap, and active species counts `3, 4, 5, 6, 7, 8` capped at eight;
-7. seven-slot recovery returning exact pieces, preserving progress, and
-   exposing the completing piece;
+7. seventh-entry loss preview, triple/feed-credit priority, level-one restart,
+   cleared tray/feed history, preserved `clearCount`, and monotonic IDs;
 8. invalid random values and deterministic seeded repetition.
 9. arbitrary mixed-species feeds, one- and two-fish short-group settlement,
    one-time credit consumption, and normal-triple priority.

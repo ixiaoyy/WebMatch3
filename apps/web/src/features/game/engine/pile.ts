@@ -350,28 +350,3 @@ export function hasQuickMatch(pieces: readonly PilePiece[]): boolean {
   }
   return [...counts.values()].some((count) => count >= 3);
 }
-
-export function returnTrayPiecesToPile(
-  state: AmbientGameState,
-  returned: readonly { readonly id: string; readonly kind: FishKind }[],
-  random: RandomSource,
-): readonly PilePiece[] {
-  const recoveryAnchors = [
-    { pile: { x: 0.14, y: 0.22 }, spread: { x: 0.08, y: 0.20 } },
-    { pile: { x: 0.86, y: 0.22 }, spread: { x: 0.92, y: 0.20 } },
-  ] as const;
-  return returned.map((piece, offset) => {
-    const template = TEMPLATES[(state.pieces.length + offset) % TEMPLATES.length];
-    const anchor = recoveryAnchors[offset % recoveryAnchors.length];
-    return {
-      id: piece.id,
-      kind: piece.kind,
-      pile: jitterPoint(anchor.pile, random, 0.008),
-      spread: jitterPoint(anchor.spread, random, 0.008),
-      rotation: template.rotation,
-      scale: template.scale,
-      layer: 2,
-      blockerIds: [],
-    };
-  });
-}

@@ -21,6 +21,7 @@ import plantStagePomegranateUrl from "./assets/ambient/plant-stage-pomegranate.w
 export type FocusDirection = "up" | "right" | "down" | "left";
 export type PlantStage = "growing" | "flowering" | "fruiting" | "mature";
 export type CatPose = "idle" | "eating" | "full" | "lying" | "sleeping";
+export type GameFeedback = "idle" | "clear" | "settle" | "loss" | "level";
 
 export interface FishPresentation {
   readonly label: string;
@@ -76,14 +77,29 @@ export function getCatPresentation(pose: CatPose): CatPresentation {
 }
 
 export function getGrowthPercent(clearCount: number): number {
-  const milestones = [0, 100, 300, 600, 1_000, 1_800, 3_000, 5_000, 8_000] as const;
-  let stage = 0;
-  for (let index = 0; index < milestones.length; index += 1) {
-    if (clearCount >= milestones[index]) stage = index;
+  const milestones = [
+    { clears: 0, percent: 0 },
+    { clears: 1, percent: 4 },
+    { clears: 12, percent: 18 },
+    { clears: 100, percent: 30 },
+    { clears: 300, percent: 42 },
+    { clears: 600, percent: 55 },
+    { clears: 1_000, percent: 67 },
+    { clears: 1_800, percent: 78 },
+    { clears: 3_000, percent: 90 },
+    { clears: 5_000, percent: 96 },
+    { clears: 8_000, percent: 100 },
+  ] as const;
+  const normalizedCount = Math.max(0, clearCount);
+  for (let index = 1; index < milestones.length; index += 1) {
+    const upper = milestones[index];
+    if (normalizedCount > upper.clears) continue;
+    const lower = milestones[index - 1];
+    const progress = (normalizedCount - lower.clears) /
+      (upper.clears - lower.clears);
+    return lower.percent + (upper.percent - lower.percent) * progress;
   }
-  const base = [0, 18, 30, 42, 55, 67, 78, 90, 100][stage];
-  if (clearCount <= 8_000) return base;
-  return Math.min(104, base + Math.floor((clearCount - 8_000) / 2_000));
+  return Math.min(104, 100 + (normalizedCount - 8_000) / 2_000);
 }
 
 export function getPlantStage(clearCount: number, ageDays: number): PlantStage {

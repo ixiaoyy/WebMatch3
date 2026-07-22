@@ -82,7 +82,7 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
   Explicit reactions replace the current bubble; low-frequency automatic idle
   reactions never select, reveal, or approach fish. Reaction and travel timers
   pause while away without replaying missed automatic reactions.
-- Stable state persists after selection, clear, recovery, preference change,
+- Stable state persists after selection, clear, loss restart, preference change,
   and attention loss using `web-match3:ambient-state`. The obsolete
   `web-match3:progress` key is not read or deleted.
 - Light coordinates, afterglow handles, focus, pointer capture, and drag motion
@@ -94,6 +94,9 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
   normalizes it to home. Only an existing guard target is restored; malformed,
   stale, or full-cat targets default home without rejecting
   the otherwise valid game snapshot.
+- A valid legacy version-three snapshot with a seven-piece tray normalizes to
+  a fresh stable level-one field, clears feed and guard state, and preserves
+  `clearCount`, the plant timestamp, preferences, and monotonic piece IDs.
 - A clear persists canonical state immediately but may expose the pre-clear
   tray as an ephemeral 620ms preview. The exact three pieces first travel into
   one shared tray position, then bubble and dissolve together before the tray
@@ -115,8 +118,9 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
   the short level-arrival feedback. No numeric level label is rendered.
 - Storage absence, malformed data, security errors, or quota failures fall
   back to in-memory play and never block rendering.
-- Full-tray recovery waits about 700ms of foreground attention. Away/unmount
-  cancels the timer; returning restarts it instead of consuming hidden time.
+- A full-tray loss persists the already-reset stable level-one state before a
+  1-1.5 second seven-piece tray preview. Away/unmount cancels and clears the
+  preview; returning resumes the stable field instead of replaying the loss.
 - Audio is muted by default. Explicit opt-in enables only one short clear
   sound; away/dispose stops active nodes immediately.
 - Document Picture-in-Picture is feature-detected and hidden when unsupported.
@@ -140,7 +144,7 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
 | Feed credit completes one/two tray fish | animate only that short group, consume credits once, no plant clear |
 | Cat already has three feeds | keep feed mode off and announce that the cat is full |
 | Coarse pointer or width `<=620px` | touch scanning and semantic controls work without hover dependency |
-| Seven unmatched tray entries | lock briefly, foreground timer, return two, resume |
+| Seven unmatched tray entries | persist stable level-one restart, lock for the loss preview, then resume automatically |
 | Window/document becomes away | persist, cancel timers, stop sound, pause motion |
 | Stored JSON/schema is invalid | fresh solvable level-one snapshot, sound off |
 | Valid version-two snapshot uses four or eight legacy keys | map kinds, preserve opaque IDs and progress, return version three |
@@ -170,8 +174,9 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
    persistence, and default-muted sound;
    assert the clear preview contains the exact cleared IDs and settles to the
    canonical tray;
-2. away cancellation/restart of the 700ms recovery timer;
-3. version-three snapshot round-trip, four-kind and eight-kind version-two
+2. immediate stable persistence plus automatic completion, away cancellation,
+   and dispose cancellation of the 1-1.5 second loss preview;
+3. version-three snapshot round-trip and full-tray normalization, four-kind and eight-kind version-two
    migration, opaque legacy IDs, version-one migration, malformed JSON/schema,
    duplicate IDs, invalid
    geometry/inventory, tray/level/counter/plant bounds, inaccessible storage,

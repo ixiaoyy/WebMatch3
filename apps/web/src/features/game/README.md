@@ -2,7 +2,7 @@
 
 The public game is a persistent freeform felt-fish desktop, not a grid-based
 Match-3 session. Pure pile, occlusion, finite solvable level generation, tray
-clears, progression, and recovery rules live in `engine/`. Versioned local
+clears, progression, and loss-restart rules live in `engine/`. Versioned local
 persistence lives in `session/`. Vue,
 attention lifecycle, optional Document Picture-in-Picture, sound, and visual
 projection live in `ui/`.
@@ -26,12 +26,13 @@ matching tray fish may use those feed credits to complete and disappear.
 
 Each level is constructed from same-layer triples, so removing upper groups
 before lower groups is always a complete solution. Clears never replenish the
-current level. Emptying the pile advances to a gradually denser level, while
-full-tray recovery only repositions returned tray pieces and preserves an
-existing fish that can complete the kept pair.
+current level. Emptying the pile advances to a gradually denser level. A full
+tray briefly remains visible as failure feedback while the persisted stable
+state immediately restarts at level one with plant experience preserved.
 
 Version-three persistence stores canonical game, preferences, plant age, and
-only a validated guarded fish ID. Missing, malformed, stale, or full-cat guard
-state safely restores the cat home. The same mounted Vue surface
+only a validated guarded fish ID. Missing, malformed, stale, full-tray, or
+full-cat guard state safely restores a playable level with the cat home. The
+same mounted Vue surface
 moves into Document Picture-in-Picture and reflows there without creating a
 second controller.

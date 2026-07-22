@@ -25,6 +25,7 @@ const props = defineProps<{
   feedable: boolean;
   disabled: boolean;
   transitioning: boolean;
+  loss: boolean;
   away: boolean;
   projection: FieldProjection;
   guidedPieceId: string | null;
@@ -421,6 +422,7 @@ onBeforeUnmount(() => {
     class="fish-field"
     :data-spotlight="spotlightMode"
     :data-transitioning="transitioning"
+    :data-loss="loss"
     :style="{
       '--light-x': projectedLight.x,
       '--light-y': projectedLight.y,
@@ -495,6 +497,10 @@ onBeforeUnmount(() => {
 
   &[data-transitioning="true"] {
     animation: fish-level-arrive 620ms var(--ease-out) both;
+  }
+
+  &[data-loss="true"] {
+    animation: fish-field-loss 1.2s var(--ease-out) both;
   }
 
   &__spotlight {
@@ -628,12 +634,23 @@ onBeforeUnmount(() => {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .fish-field[data-transitioning="true"] {
+  .fish-field[data-transitioning="true"],
+  .fish-field[data-loss="true"] {
     animation: none;
+  }
+
+  .fish-field[data-loss="true"] {
+    filter: brightness(0.88) saturate(0.68);
   }
 
   .fish-field__spotlight {
     transition: none;
   }
+}
+
+@keyframes fish-field-loss {
+  0% { filter: none; }
+  24%, 70% { filter: brightness(0.82) saturate(0.62); }
+  100% { filter: none; }
 }
 </style>

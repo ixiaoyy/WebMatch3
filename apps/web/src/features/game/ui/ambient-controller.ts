@@ -3,7 +3,6 @@ import { computed, ref, shallowRef } from "vue";
 import {
   feedPiece,
   getSelectablePieces,
-  recoverFullTray,
   selectPiece,
   type AmbientGameState,
   type RandomSource,
@@ -20,6 +19,7 @@ import {
 import {
   getFishPresentation,
   type CatPose,
+  type GameFeedback,
 } from "./game-ui";
 import {
   chooseCatReaction,
@@ -47,6 +47,7 @@ const CAT_ACTIVATION_THROTTLE = 800;
 const CAT_BUBBLE_DURATION = 2_400;
 const CAT_AUTO_REACTION_MIN_DELAY = 45_000;
 const CAT_AUTO_REACTION_JITTER = 30_000;
+const LOSS_FEEDBACK_DURATION = 1_200;
 
 const browserTimers: TimerApi = {
   schedule: (callback, delay) => globalThis.setTimeout(callback, delay),
@@ -68,7 +69,7 @@ export function createAmbientController(
   const game = shallowRef<AmbientGameState>(initial.game);
   const soundEnabled = ref(initial.preferences.soundEnabled);
   const status = ref("小鱼藏在桌面上。移动指针、触摸或方向键寻找它们。");
-  const feedback = ref<"idle" | "clear" | "settle" | "recovery" | "level">("idle");
+  const feedback = ref<GameFeedback>("idle");
   const catPose = ref<CatPose>(
     initial.game.fed.length === 0
       ? "idle"
@@ -82,7 +83,6 @@ export function createAmbientController(
     initial.pet.guardedPieceId ? "guarding" : "home",
   );
   const isAway = ref(false);
-  let recoveryHandle: unknown = null;
   let feedbackHandle: unknown = null;
   let catPoseHandle: unknown = null;
   let catReactionHandle: unknown = null;
@@ -103,7 +103,7 @@ export function createAmbientController(
   ));
   const canSelect = computed(
     () => !isAway.value &&
-      feedback.value !== "recovery" &&
+      feedback.value !== "loss" &&
       feedback.value !== "level",
   );
   const guardedPiece = computed(() =>
@@ -136,13 +136,6 @@ export function createAmbientController(
     if (feedbackHandle !== null) {
       timers.cancel(feedbackHandle);
       feedbackHandle = null;
-    }
-  }
-
-  function clearRecoveryTimer(): void {
-    if (recoveryHandle !== null) {
-      timers.cancel(recoveryHandle);
-      recoveryHandle = null;
     }
   }
 
@@ -320,7 +313,7 @@ export function createAmbientController(
   }
 
   function requestCatSearch(): void {
-    if (isAway.value) return;
+    if (isAway.value || feedback.value === "loss") return;
     const activatedAt = now();
     if (activatedAt - lastCatActivationAt < CAT_ACTIVATION_THROTTLE) return;
     lastCatActivationAt = activatedAt;
@@ -370,7 +363,7 @@ export function createAmbientController(
   }
 
   function settleFeedback(
-    kind: "clear" | "settle" | "recovery" | "level",
+    kind: Exclude<GameFeedback, "idle">,
     delay: number,
   ): void {
     clearFeedbackTimer();
@@ -379,32 +372,15 @@ export function createAmbientController(
     feedbackHandle = timers.schedule(() => {
       if (token === generation && !isAway.value) {
         feedback.value = "idle";
-        if (kind === "clear" || kind === "settle" || kind === "level") {
-          clearTrayFeedback();
+        clearTrayFeedback();
+        if (kind === "loss") {
+          catPose.value = "idle";
+          status.value = "新的第一局已经排好，可以继续寻找小鱼。";
+          scheduleCatAutoReaction();
         }
       }
       feedbackHandle = null;
     }, delay);
-  }
-
-  function runRecovery(): void {
-    recoveryHandle = null;
-    if (isAway.value || game.value.tray.length < 7) return;
-    const result = recoverFullTray(game.value, random);
-    game.value = result.state;
-    status.value = "托盘放回了两条小鱼，桌面上又有空间了。";
-    persist();
-    settleFeedback("recovery", 420);
-  }
-
-  function scheduleRecovery(): void {
-    clearRecoveryTimer();
-    const token = generation;
-    feedback.value = "recovery";
-    status.value = "托盘有点挤，小鱼正在自己调整。";
-    recoveryHandle = timers.schedule(() => {
-      if (token === generation) runRecovery();
-    }, 700);
   }
 
   function feedToCat(pieceId: string): void {
@@ -499,9 +475,18 @@ export function createAmbientController(
     }
     game.value = result.state;
     resolveGuardedPiece(pieceId);
-    if (result.kind === "recovery-needed") {
+    if (result.kind === "lost") {
+      trayPreview.value = result.tray;
+      clearingPieceIds.value = [];
+      returnCatHome();
+      clearCatPoseTimer();
+      clearCatAutoReactionTimer();
+      dismissCatReaction();
+      wakeAfterSleep = false;
+      catPose.value = "lying";
+      status.value = "托盘装满了，小鱼们安静地重新排好，从第一局再来。";
       persist();
-      scheduleRecovery();
+      settleFeedback("loss", LOSS_FEEDBACK_DURATION);
       return;
     }
 
@@ -519,9 +504,9 @@ export function createAmbientController(
     if (isAway.value === away) return;
     isAway.value = away;
     currentTime.value = now();
+    const lossInterrupted = feedback.value === "loss";
     generation += 1;
     clearFeedbackTimer();
-    clearRecoveryTimer();
     clearCatPoseTimer();
     clearCatSearchTimer();
     clearCatAutoReactionTimer();
@@ -533,6 +518,7 @@ export function createAmbientController(
       clearCatReactionTimer();
       feedback.value = "idle";
       clearTrayFeedback();
+      if (lossInterrupted) catPose.value = "idle";
       persist();
       return;
     }
@@ -543,13 +529,11 @@ export function createAmbientController(
     resumeCatPoseSequence();
     resumeCatSearchSequence();
     scheduleCatAutoReaction();
-    if (game.value.tray.length === 7) scheduleRecovery();
   }
 
   function dispose(): void {
     generation += 1;
     clearFeedbackTimer();
-    clearRecoveryTimer();
     clearCatPoseTimer();
     clearCatSearchTimer();
     clearCatAutoReactionTimer();

@@ -16,7 +16,7 @@ This directory contains guidelines for frontend development. Fill in each file w
 |-------|-------------|--------|
 | [Directory Structure](./directory-structure.md) | Module organization and file layout | Active |
 | [Toolchain Contract](./toolchain-contract.md) | Workspace commands, dependency installation, and validation | Active |
-| [Ambient Fish Engine Contract](./game-engine-contract.md) | Solvable finite levels, blockers, tray clears, progression, and recovery | Active |
+| [Ambient Fish Engine Contract](./game-engine-contract.md) | Solvable finite levels, blockers, tray clears, progression, and loss restart | Active |
 | [Ambient Fish UI Contract](./game-ui-contract.md) | Persistence, attention, input, sound, and Picture-in-Picture boundaries | Active |
 | [Rain-Washed Ambient Fish Visual Design](./visual-design-contract.md) | Wallpaper, generated assets, stable spotlight field, growth, and responsive composition | Active |
 | [Production Deployment](./deployment-contract.md) | GitHub Actions, immutable releases, container health checks, and rollback | Active |
@@ -32,7 +32,7 @@ This directory contains guidelines for frontend development. Fill in each file w
 
 - Read [Directory Structure](./directory-structure.md) before adding or moving frontend modules.
 - Read [Toolchain Contract](./toolchain-contract.md) before changing dependencies, package scripts, Vite, TypeScript, ESLint, Vitest, or workspace configuration.
-- Read [Ambient Fish Engine Contract](./game-engine-contract.md) before changing level generation, blockers, tray clears, progression, recovery, or UI-facing transitions.
+- Read [Ambient Fish Engine Contract](./game-engine-contract.md) before changing level generation, blockers, tray clears, progression, loss restart, or UI-facing transitions.
 - Read [Ambient Fish UI Contract](./game-ui-contract.md) before changing persistence, attention, input, audio, controller timing, or Picture-in-Picture.
 - Read [Rain-Washed Ambient Fish Visual Design](./visual-design-contract.md) before changing wallpaper, visual tokens, generated assets, spotlight field layout, plant growth, controls, or responsive composition.
 - Read [Production Deployment](./deployment-contract.md) before changing GitHub Actions, release packaging, SSH upload, container activation, or rollback.

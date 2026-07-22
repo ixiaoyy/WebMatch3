@@ -72,10 +72,11 @@ export interface SettledSelection {
   readonly levelAdvanced: boolean;
 }
 
-export interface RecoveryNeededSelection {
-  readonly kind: "recovery-needed";
+export interface LostSelection {
+  readonly kind: "lost";
   readonly state: AmbientGameState;
   readonly selected: TrayPiece;
+  readonly tray: readonly TrayPiece[];
 }
 
 export type SelectionResult =
@@ -83,13 +84,7 @@ export type SelectionResult =
   | MovedSelection
   | ClearedSelection
   | SettledSelection
-  | RecoveryNeededSelection;
-
-export interface RecoveryResult {
-  readonly state: AmbientGameState;
-  readonly returned: readonly TrayPiece[];
-  readonly preservedKind: FishKind;
-}
+  | LostSelection;
 
 export interface FedFishResult {
   readonly kind: "fed";

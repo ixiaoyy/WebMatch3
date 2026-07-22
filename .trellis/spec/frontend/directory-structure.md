@@ -30,7 +30,7 @@ apps/web/
     │       └── global.scss
     ├── features/
     │   └── game/
-    │       ├── engine/   # pure solvable levels, blockers, tray, clear, recovery
+    │       ├── engine/   # pure solvable levels, blockers, tray, clear, loss restart
     │       ├── session/  # versioned local snapshot validation
     │       └── ui/       # Vue, attention, sound, PiP, generated assets
     └── shared/

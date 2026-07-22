@@ -47,11 +47,17 @@ describe("ambient plant presentation", () => {
     expect(getPlantStage(8_000, 30)).toBe("mature");
   });
 
-  it("spreads foliage growth across the multiplied-by-one-hundred curve", () => {
-    expect(getGrowthPercent(1)).toBe(0);
-    expect(getGrowthPercent(100)).toBe(18);
-    expect(getGrowthPercent(1_000)).toBe(55);
+  it("grows continuously from the first clear to the first-field milestone", () => {
+    expect(getGrowthPercent(0)).toBe(0);
+    expect(getGrowthPercent(1)).toBe(4);
+    expect(getGrowthPercent(2)).toBeGreaterThan(getGrowthPercent(1));
+    expect(getGrowthPercent(11)).toBeLessThan(18);
+    expect(getGrowthPercent(12)).toBe(18);
+    expect(getGrowthPercent(100)).toBe(30);
+    expect(getGrowthPercent(1_000)).toBe(67);
     expect(getGrowthPercent(8_000)).toBe(100);
+    expect(getGrowthPercent(10_000)).toBe(101);
+    expect(getGrowthPercent(16_000)).toBe(104);
   });
 
   it("maps every stage to a distinct non-numeric flower presentation", () => {

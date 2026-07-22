@@ -203,6 +203,7 @@ onBeforeUnmount(() => {
         class="ambient-surface"
         :class="{ 'ambient-surface--in-pip': pipOpen }"
         :data-away="game.isAway.value"
+        :data-feedback="game.feedback.value"
         :style="{ '--wallpaper-url': `url(${wallpaperUrl})` }"
         aria-label="毛毡小鱼桌面"
       >
@@ -233,6 +234,7 @@ onBeforeUnmount(() => {
             :travel-phase="game.catTravelPhase.value"
             :full="game.game.value.fed.length >= 3 || game.catIsResting.value"
             :drop-hover="catDropHover"
+            :loss="game.feedback.value === 'loss'"
             @activate="game.requestCatSearch"
           />
         </div>
@@ -243,6 +245,7 @@ onBeforeUnmount(() => {
           :feedable="game.catCanEat.value"
           :disabled="!game.canSelect.value"
           :transitioning="game.feedback.value === 'level'"
+          :loss="game.feedback.value === 'loss'"
           :away="game.isAway.value"
           :projection="fieldProjection"
           :guided-piece-id="catGuidedPieceId"

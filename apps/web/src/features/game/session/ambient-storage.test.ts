@@ -76,6 +76,41 @@ describe("ambient snapshot storage", () => {
     expect(loadAmbientSnapshot(storage, createSeededRandom(12))).toEqual(snapshot);
   });
 
+  it("normalizes a legacy full-tray snapshot without losing permanent progress", () => {
+    const storage = createMemoryStorage();
+    const fresh = createFreshSnapshot(createSeededRandom(15), 5_000);
+    const traySources = fresh.game.pieces.slice(0, 7);
+    const fedSource = fresh.game.pieces[7];
+    expect(fedSource).toBeDefined();
+    if (!fedSource) return;
+    const snapshot = {
+      ...fresh,
+      game: {
+        ...fresh.game,
+        pieces: fresh.game.pieces.slice(8),
+        tray: traySources.map(({ id, kind }) => ({ id, kind })),
+        fed: [{ id: fedSource.id, kind: fedSource.kind, settled: false }],
+        clearCount: 24,
+      },
+      preferences: { soundEnabled: true },
+      pet: { guardedPieceId: fresh.game.pieces[8]?.id ?? null },
+    };
+    expect(saveAmbientSnapshot(storage, snapshot)).toBe(true);
+
+    const restored = loadAmbientSnapshot(storage, createSeededRandom(16), 9_000);
+
+    expect(restored.game.level).toBe(1);
+    expect(restored.game.pieces).toHaveLength(36);
+    expect(restored.game.pieces[0]?.id).toBe(`fish-${fresh.game.nextPieceId}`);
+    expect(restored.game.tray).toEqual([]);
+    expect(restored.game.fed).toEqual([]);
+    expect(restored.game.clearCount).toBe(24);
+    expect(restored.game.nextPieceId).toBe(fresh.game.nextPieceId + 36);
+    expect(restored.plant.plantedAt).toBe(5_000);
+    expect(restored.preferences.soundEnabled).toBe(true);
+    expect(restored.pet.guardedPieceId).toBeNull();
+  });
+
   it("round-trips mixed feed credits and explicit settled state", () => {
     const storage = createMemoryStorage();
     const fresh = createFreshSnapshot(createSeededRandom(41));

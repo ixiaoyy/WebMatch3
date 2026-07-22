@@ -4,6 +4,7 @@ import {
   createLevelState,
   createInitialState,
   getLevelConfig,
+  restartAfterLoss,
   type AmbientGameState,
   type FedFish,
   type FishKind,
@@ -354,6 +355,18 @@ export function createFreshSnapshot(
   };
 }
 
+function normalizeLoadedSnapshot(
+  snapshot: AmbientSnapshotV3,
+  random: RandomSource,
+): AmbientSnapshotV3 {
+  if (snapshot.game.tray.length < 7) return snapshot;
+  return {
+    ...snapshot,
+    game: restartAfterLoss(snapshot.game, random),
+    pet: { guardedPieceId: null },
+  };
+}
+
 export function loadAmbientSnapshot(
   storage: StorageLike | null,
   random: RandomSource = Math.random,
@@ -364,10 +377,11 @@ export function loadAmbientSnapshot(
     const raw = storage.getItem(AMBIENT_STORAGE_KEY);
     if (!raw) return createFreshSnapshot(random, now);
     const parsed = JSON.parse(raw) as unknown;
-    return parseAmbientSnapshot(parsed, now) ??
+    const snapshot = parseAmbientSnapshot(parsed, now) ??
       migrateLegacyV2Snapshot(parsed, now) ??
       migrateLegacyV1Snapshot(parsed, random, now) ??
       createFreshSnapshot(random, now);
+    return normalizeLoadedSnapshot(snapshot, random);
   } catch {
     return createFreshSnapshot(random, now);
   }

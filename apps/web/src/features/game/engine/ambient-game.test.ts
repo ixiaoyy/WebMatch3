@@ -11,12 +11,10 @@ import {
   getLevelConfig,
   getSelectablePieces,
   hasQuickMatch,
-  recoverFullTray,
   selectPiece,
   type AmbientGameState,
   type FedFish,
   type PilePiece,
-  type TrayPiece,
 } from "./ambient";
 
 describe("ambient fish engine", () => {
@@ -332,45 +330,76 @@ describe("ambient fish engine", () => {
     }
   });
 
-  it("returns two pieces from a full tray without erasing progress", () => {
-    const base = createInitialState(createSeededRandom(30));
-    const tray: readonly TrayPiece[] = [
+  it("loses on a seventh ordinary fish and restarts level one without progress loss", () => {
+    const base = createLevelState(3, 9, 101, createSeededRandom(30));
+    const target = base.pieces.find((piece) => piece.kind === "pufferfish");
+    expect(target).toBeDefined();
+    if (!target) return;
+    const tray = [
       { id: "t1", kind: "whale" },
       { id: "t2", kind: "koi" },
       { id: "t3", kind: "sardine" },
-      { id: "t4", kind: "pufferfish" },
+      { id: "t4", kind: "sardine" },
       { id: "t5", kind: "whale" },
       { id: "t6", kind: "koi" },
-      { id: "t7", kind: "sardine" },
-    ];
-    const state: AmbientGameState = { ...base, tray, clearCount: 9 };
-    const result = recoverFullTray(state, createSeededRandom(31));
+    ] as const;
+    const state: AmbientGameState = {
+      ...base,
+      tray,
+      fed: [{ id: "fed", kind: "goldfish", settled: false }],
+    };
+    const firstNewPieceId = state.nextPieceId;
+    const result = selectPiece(state, target.id, createSeededRandom(31));
 
-    expect(result.returned).toHaveLength(2);
-    expect(result.state.tray).toHaveLength(5);
-    expect(result.state.pieces).toHaveLength(base.pieces.length + 2);
+    expect(result.kind).toBe("lost");
+    if (result.kind !== "lost") return;
+    expect(result.tray).toEqual([...tray, { id: target.id, kind: target.kind }]);
+    expect(result.state.level).toBe(1);
+    expect(result.state.pieces).toHaveLength(36);
+    expect(result.state.pieces[0]?.id).toBe(`fish-${firstNewPieceId}`);
+    expect(result.state.tray).toEqual([]);
+    expect(result.state.fed).toEqual([]);
     expect(result.state.clearCount).toBe(9);
-    expect(result.state.nextPieceId).toBe(state.nextPieceId);
-    expect(result.returned.every((returned) => result.state.pieces.some(
-      (piece) => piece.id === returned.id && piece.kind === returned.kind,
-    ))).toBe(true);
-    expect(
-      getSelectablePieces(result.state.pieces).some(
-        (piece) => piece.kind === result.preservedKind,
-      ),
-    ).toBe(true);
-    const completingPiece = getSelectablePieces(result.state.pieces).find(
-      (piece) => piece.kind === result.preservedKind,
-    );
-    expect(completingPiece).toBeDefined();
-    if (!completingPiece) return;
-    const completion = selectPiece(
-      result.state,
-      completingPiece.id,
-      createSeededRandom(32),
-    );
-    expect(completion.kind).toBe("cleared");
-    expect(completion.state.tray).toHaveLength(3);
+    expect(result.state.nextPieceId).toBe(firstNewPieceId + 36);
+  });
+
+  it("settles a triple or feed credit before applying the full-tray loss", () => {
+    const base = createInitialState(createSeededRandom(32));
+    const target = base.pieces.find((piece) => piece.kind === "whale");
+    expect(target).toBeDefined();
+    if (!target) return;
+    const tripleTray = [
+      { id: "w1", kind: "whale" },
+      { id: "w2", kind: "whale" },
+      { id: "k1", kind: "koi" },
+      { id: "k2", kind: "koi" },
+      { id: "s1", kind: "sardine" },
+      { id: "p1", kind: "pufferfish" },
+    ] as const;
+
+    const triple = selectPiece({
+      ...base,
+      pieces: [target],
+      tray: tripleTray,
+    }, target.id, createSeededRandom(33));
+    expect(triple.kind).toBe("cleared");
+
+    const creditTray = [
+      { id: "w1", kind: "whale" },
+      { id: "k1", kind: "koi" },
+      { id: "k2", kind: "koi" },
+      { id: "s1", kind: "sardine" },
+      { id: "s2", kind: "sardine" },
+      { id: "p1", kind: "pufferfish" },
+    ] as const;
+    const credited = selectPiece({
+      ...base,
+      pieces: [target],
+      tray: creditTray,
+      fed: [{ id: "fed-whale", kind: "whale", settled: false }],
+    }, target.id, createSeededRandom(34));
+    expect(credited.kind).toBe("settled");
+    expect(credited.state.tray).toHaveLength(5);
   });
 
   it("rejects invalid random sources", () => {

@@ -2,11 +2,11 @@
 import { computed } from "vue";
 
 import type { TrayPiece } from "../../engine";
-import { getFishPresentation } from "../game-ui";
+import { getFishPresentation, type GameFeedback } from "../game-ui";
 
 const props = defineProps<{
   pieces: readonly TrayPiece[];
-  feedback: "idle" | "clear" | "settle" | "recovery" | "level";
+  feedback: GameFeedback;
   clearingPieceIds: readonly string[];
 }>();
 
@@ -114,8 +114,13 @@ function clearStyle(index: number): Record<string, string | number> {
       0 16px 34px rgb(91 74 141 / 15%);
   }
 
-  &[data-feedback="recovery"] {
-    transform: translateY(-2px);
+  &[data-feedback="loss"] {
+    border-color: rgb(173 112 124 / 52%);
+    box-shadow:
+      inset 0 3px 3px rgb(255 255 255 / 62%),
+      inset 0 -5px 8px rgb(91 55 76 / 20%),
+      0 8px 20px rgb(91 55 76 / 18%);
+    animation: fish-tray-loss 1.2s var(--ease-out) both;
   }
 
   &__slot {
@@ -237,6 +242,13 @@ function clearStyle(index: number): Record<string, string | number> {
   }
 }
 
+@keyframes fish-tray-loss {
+  0%, 100% { transform: translateY(0); }
+  18% { transform: translateY(3px) scaleY(0.96); }
+  34% { transform: translate(-2px, 2px) scaleY(0.97); }
+  48% { transform: translate(2px, 1px) scaleY(0.98); }
+}
+
 @media (max-width: 620px) {
   .fish-tray {
     right: 50%;
@@ -246,15 +258,27 @@ function clearStyle(index: number): Record<string, string | number> {
     padding: 8px 6px;
     transform: translateX(50%);
 
-    &[data-feedback="recovery"] {
-      transform: translateX(50%) translateY(-2px);
+    &[data-feedback="loss"] {
+      animation-name: fish-tray-loss-mobile;
     }
   }
+}
+
+@keyframes fish-tray-loss-mobile {
+  0%, 100% { transform: translateX(50%); }
+  18% { transform: translateX(50%) translateY(3px) scaleY(0.96); }
+  34% { transform: translateX(calc(50% - 2px)) translateY(2px); }
+  48% { transform: translateX(calc(50% + 2px)) translateY(1px); }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .fish-tray {
     transition: none;
+
+    &[data-feedback="loss"] {
+      animation: none;
+      filter: saturate(0.7) brightness(0.92);
+    }
   }
 
   .fish-tray__slot[data-clearing="true"] img {

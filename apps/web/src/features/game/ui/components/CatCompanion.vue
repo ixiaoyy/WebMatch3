@@ -10,10 +10,14 @@ const props = defineProps<{
   travelPhase: CatTravelPhase;
   full: boolean;
   dropHover: boolean;
+  loss: boolean;
 }>();
 const emit = defineEmits<{ activate: [] }>();
 const presentation = computed(() => getCatPresentation(props.pose));
 const actionLabel = computed(() => {
+  if (props.loss) {
+    return `${presentation.value.label}，托盘已经装满，小鱼正在重新布置`;
+  }
   if (props.full) {
     return `${presentation.value.label}，已经吃饱，正在休息，暂时不能寻鱼或喂食`;
   }
@@ -32,8 +36,10 @@ const actionLabel = computed(() => {
     :data-reaction="reaction?.motion"
     :data-travel-phase="travelPhase"
     :data-drop-hover="dropHover"
+    :data-loss="loss"
     :aria-label="actionLabel"
-    :aria-disabled="full"
+    :aria-disabled="full || loss"
+    :disabled="loss"
     @click="emit('activate')"
   >
     <Transition name="cat-pose" mode="out-in">
@@ -93,6 +99,10 @@ const actionLabel = computed(() => {
   &[data-drop-hover="true"] {
     filter: drop-shadow(0 0 13px rgb(255 208 136 / 64%));
     transform: scale(1.035);
+  }
+
+  &[data-loss="true"] &__image {
+    animation: cat-loss-reaction 1.2s var(--ease-out) both;
   }
 
   &__image {
@@ -167,6 +177,13 @@ const actionLabel = computed(() => {
 
 @keyframes cat-soft-pat {
   45% { transform: translateY(2px) scale(0.99); }
+}
+
+@keyframes cat-loss-reaction {
+  0%, 100% { transform: none; filter: none; }
+  20% { transform: translateY(3px) rotate(-2deg); filter: saturate(0.72); }
+  42% { transform: translateY(2px) rotate(1deg); filter: saturate(0.72); }
+  72% { transform: translateY(2px); filter: saturate(0.78); }
 }
 
 .cat-pose-enter-active,

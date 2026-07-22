@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { createSeededRandom, getSelectablePieces } from "../engine";
-import type { StorageLike } from "../session/ambient-storage";
+import {
+  loadAmbientSnapshot,
+  type StorageLike,
+} from "../session/ambient-storage";
 import { createAmbientController, type TimerApi } from "./ambient-controller";
 
 function memoryStorage(): StorageLike {
@@ -14,17 +17,22 @@ function memoryStorage(): StorageLike {
 
 function controlledTimers() {
   const callbacks: Array<() => void> = [];
+  const delays: number[] = [];
   const timers: TimerApi = {
-    schedule(callback) {
+    schedule(callback, delay) {
       callbacks.push(callback);
+      delays.push(delay);
       return callback;
     },
     cancel(handle) {
       const index = callbacks.indexOf(handle as () => void);
-      if (index >= 0) callbacks.splice(index, 1);
+      if (index >= 0) {
+        callbacks.splice(index, 1);
+        delays.splice(index, 1);
+      }
     },
   };
-  return { callbacks, timers };
+  return { callbacks, delays, timers };
 }
 
 describe("ambient controller", () => {
@@ -303,36 +311,122 @@ describe("ambient controller", () => {
     controller.dispose();
   });
 
-  it("cancels and restarts full-tray recovery around away state", () => {
-    const { callbacks, timers } = controlledTimers();
+  it("persists a stable restart before non-modal loss feedback and cancels it when away", () => {
+    const { callbacks, delays, timers } = controlledTimers();
+    const storage = memoryStorage();
+    const now = 100_000;
     const controller = createAmbientController({
       random: createSeededRandom(60),
+      storage,
+      timers,
+      now: () => now,
+    });
+    controller.setSoundEnabled(true);
+    const base = controller.game.value;
+    const target = {
+      ...base.pieces[0],
+      id: "loss-target",
+      kind: "pufferfish" as const,
+    };
+    const lossTray = [
+      { id: "tray-0", kind: "whale" },
+      { id: "tray-1", kind: "whale" },
+      { id: "tray-2", kind: "koi" },
+      { id: "tray-3", kind: "koi" },
+      { id: "tray-4", kind: "sardine" },
+      { id: "tray-5", kind: "sardine" },
+    ] as const;
+    controller.game.value = {
+      ...base,
+      level: 3,
+      clearCount: 9,
+      pieces: [target],
+      tray: lossTray,
+      fed: [{ id: "fed", kind: "goldfish", settled: false }],
+    };
+    controller.requestCatSearch();
+    expect(controller.guardedPiece.value?.id).toBe(target.id);
+
+    controller.activate(target.id);
+
+    expect(controller.feedback.value).toBe("loss");
+    expect(controller.canSelect.value).toBe(false);
+    expect(controller.trayPreview.value).toEqual([
+      ...lossTray,
+      { id: target.id, kind: target.kind },
+    ]);
+    expect(controller.game.value.level).toBe(1);
+    expect(controller.game.value.tray).toEqual([]);
+    expect(controller.game.value.fed).toEqual([]);
+    expect(controller.game.value.clearCount).toBe(9);
+    expect(controller.guardedPiece.value).toBeNull();
+    expect(controller.catTravelPhase.value).toBe("home");
+    expect(controller.catPose.value).toBe("lying");
+    expect(delays).toEqual([1_200]);
+
+    const persisted = loadAmbientSnapshot(storage, createSeededRandom(61), now);
+    expect(persisted.game).toEqual(controller.game.value);
+    expect(persisted.preferences.soundEnabled).toBe(true);
+    expect(persisted.plant.plantedAt).toBe(now);
+    expect(persisted.pet.guardedPieceId).toBeNull();
+
+    controller.setAway(true);
+    expect(callbacks).toHaveLength(0);
+    expect(controller.feedback.value).toBe("idle");
+    expect(controller.trayPreview.value).toBeNull();
+    expect(controller.catPose.value).toBe("idle");
+    controller.setAway(false);
+    expect(callbacks).toHaveLength(0);
+    expect(controller.canSelect.value).toBe(true);
+
+    controller.game.value = {
+      ...controller.game.value,
+      pieces: [target],
+      tray: lossTray,
+    };
+    controller.activate(target.id);
+    expect(callbacks).toHaveLength(1);
+    controller.dispose();
+    expect(callbacks).toHaveLength(0);
+    expect(controller.trayPreview.value).toBeNull();
+  });
+
+  it("automatically finishes loss feedback without confirmation", () => {
+    const { callbacks, timers } = controlledTimers();
+    const controller = createAmbientController({
+      random: createSeededRandom(62),
       storage: null,
       timers,
     });
-    const kinds = [
-      "whale",
-      "koi",
-      "sardine",
-      "pufferfish",
-      "whale",
-      "koi",
-      "sardine",
-    ] as const;
+    const target = {
+      ...controller.game.value.pieces[0],
+      id: "loss-target",
+      kind: "pufferfish" as const,
+    };
     controller.game.value = {
       ...controller.game.value,
-      pieces: controller.game.value.pieces.slice(7),
-      tray: kinds.map((kind, index) => ({ id: `tray-${index}`, kind })),
+      pieces: [target],
+      tray: [
+        "whale",
+        "whale",
+        "koi",
+        "koi",
+        "sardine",
+        "sardine",
+      ].map((kind, index) => ({
+        id: `tray-${index}`,
+        kind: kind as "whale" | "koi" | "sardine",
+      })),
     };
 
-    controller.setAway(true);
-    controller.setAway(false);
-    expect(callbacks).toHaveLength(1);
-    controller.setAway(true);
-    expect(callbacks).toHaveLength(0);
-    controller.setAway(false);
+    controller.activate(target.id);
     callbacks.shift()?.();
-    expect(controller.game.value.tray).toHaveLength(5);
+
+    expect(controller.feedback.value).toBe("idle");
+    expect(controller.trayPreview.value).toBeNull();
+    expect(controller.catPose.value).toBe("idle");
+    expect(controller.canSelect.value).toBe(true);
+    expect(controller.status.value).toBe("新的第一局已经排好，可以继续寻找小鱼。");
     controller.dispose();
   });
 

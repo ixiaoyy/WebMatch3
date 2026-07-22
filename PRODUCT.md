@@ -43,12 +43,13 @@ in a work browser, but materially rich when the player touches it.
    match and a constructed complete solution, with no start gate.
 4. **Resume without ceremony.** Save stable state after meaningful actions and
    restore it directly, with no welcome-back or offline-reward flow.
-5. **Growth instead of pressure.** Clears visibly evolve the plant; tray
-   saturation recovers softly and never becomes game over.
+5. **Growth instead of pressure.** Clears visibly evolve the plant. A full tray
+   triggers a brief, quiet loss response and automatically restarts at the
+   first difficulty without a failure screen or any plant-progress penalty.
 6. **Finish, then deepen.** Clears permanently reduce the current field.
    Emptying it opens a larger or more layered solvable field without showing
    a numeric level HUD.
-7. **Rules stay testable.** Occlusion, selection, clearing, recovery, and
+7. **Rules stay testable.** Occlusion, selection, clearing, loss restart, and
    generation remain pure and independent from Vue and browser services.
 8. **The cat collaborates, not competes.** Activating the cat asks it to find
    one hidden legal fish; when it arrives, it immediately keeps an independent

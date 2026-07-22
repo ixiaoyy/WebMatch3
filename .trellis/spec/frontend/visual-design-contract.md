@@ -48,9 +48,11 @@ wallpaper containing interactive objects.
   related neighbors slide a few pixels sideways and down before settling.
   Neither motion changes canonical positions. Focused and dragged pieces retain
   recognizable silhouettes outside the light.
-- Plant begins as an empty ceramic pot. Generated foliage reveals slowly at
-  clear milestones `0,100,300,600,1000,1800,3000,5000,8000`, with no numeric
-  label. Stage changes use both clear count and elapsed plant age: flowering
+- Plant begins as an empty ceramic pot. Generated foliage reveals continuously
+  from the first clear: clear `1` reaches 4%, the first field's 12 clears reach
+  18%, and later nodes `100,300,600,1000,1800,3000,5000,8000` preserve the
+  long-term arc, with no numeric label. Stage changes use both clear count and
+  elapsed plant age: flowering
   requires `1000 clears + 3 days`, fruiting `3000 + 10 days`, and mature ripe
   fruit `8000 + 30 days`.
 - Flowering, fruiting, and mature are separate transparent bitmap assets with
@@ -123,7 +125,7 @@ wallpaper containing interactive objects.
 3. inspect hidden idle, pointer/touch/keyboard reveal, afterglow, retained
    focus/drag, stacked lower selection and settling, bubble clear, growing,
    flowering, fruiting, mature,
-   full-tray recovery, away, and reduced-motion states;
+   full-tray loss, away, and reduced-motion states;
 4. validate tab title `小鱼`, whale favicon legibility, console cleanliness, and no
    horizontal overflow;
 5. run UI tests and `pnpm ci:web` after visual fixes.
