@@ -46,6 +46,13 @@ const catGuardStyle = computed(() => {
     "--cat-guard-bottom": `${(1 - projectedTarget.y) * 100}%`,
   };
 });
+const catGuardSide = computed(() => {
+  const target = game.guardedPiece.value;
+  if (!target) return "left";
+  return projectFieldPoint(target.pile, fieldProjection.value).x < 0.5
+    ? "right"
+    : "left";
+});
 const catAwayFromHome = computed(() =>
   game.catTravelPhase.value === "travelling" ||
   game.catTravelPhase.value === "guarding",
@@ -217,6 +224,7 @@ onBeforeUnmount(() => {
           ref="catDropTarget"
           class="cat-companion-slot"
           :data-away-from-home="catAwayFromHome"
+          :data-guard-side="catGuardSide"
           :style="catGuardStyle"
         >
           <CatCompanion
@@ -328,13 +336,13 @@ onBeforeUnmount(() => {
     transform 520ms var(--ease-out);
 
   &[data-away-from-home="true"] {
-    left: clamp(
-      var(--cat-companion-width),
-      var(--cat-guard-left),
-      calc(100% - 24px)
-    );
+    left: clamp(24px, var(--cat-guard-left), calc(100% - 24px));
     bottom: var(--cat-guard-bottom);
-    transform: translate(-92%, 45%);
+    transform: translate(calc(-100% - 64px), 45%);
+  }
+
+  &[data-away-from-home="true"][data-guard-side="right"] {
+    transform: translate(64px, 45%);
   }
 }
 
@@ -357,13 +365,13 @@ onBeforeUnmount(() => {
     bottom: var(--scene-companion-base);
 
     &[data-away-from-home="true"] {
-      left: clamp(
-        var(--cat-companion-width),
-        var(--cat-guard-left),
-        calc(100% - 24px)
-      );
+      left: clamp(16px, var(--cat-guard-left), calc(100% - 16px));
       bottom: var(--cat-guard-bottom);
-      transform: translate(-82%, 48%);
+      transform: translate(calc(-100% - 64px), 48%);
+    }
+
+    &[data-away-from-home="true"][data-guard-side="right"] {
+      transform: translate(64px, 48%);
     }
   }
 

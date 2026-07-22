@@ -103,6 +103,18 @@ const stageAssets: Readonly<Record<PlantStage, string>> = {
     clip-path: inset(calc(100% - var(--growth)) 0 0 0);
   }
 
+  &[data-stage="growing"] &__stage-mark {
+    top: auto;
+    bottom: 55%;
+    left: 50%;
+    width: clamp(156px, 13vw, 196px);
+    transform: translateX(-50%);
+  }
+
+  &[data-stage="growing"] &__stage-flower {
+    width: 82%;
+  }
+
   &__pot {
     z-index: 2;
     right: 3%;
@@ -150,18 +162,6 @@ const stageAssets: Readonly<Record<PlantStage, string>> = {
     opacity: 0;
   }
 
-  &--empty &__stage-mark {
-    top: auto;
-    bottom: 55%;
-    left: 50%;
-    width: clamp(68px, 6vw, 84px);
-    transform: translateX(-50%);
-  }
-
-  &--empty &__stage-flower {
-    width: 82%;
-  }
-
   &--celebrating {
     animation: plant-reward 460ms var(--ease-out);
   }
@@ -202,11 +202,16 @@ const stageAssets: Readonly<Record<PlantStage, string>> = {
       width: 54px;
     }
 
-    &--empty .growing-plant__stage-mark {
+    &[data-stage="growing"] .growing-plant__stage-mark {
       top: auto;
-      bottom: 46%;
+      bottom: 45%;
       left: 50%;
-      width: 46px;
+      width: 92px;
+      transform: translateX(-50%);
+    }
+
+    &[data-stage="growing"] .growing-plant__stage-flower {
+      width: 82%;
     }
   }
 }
