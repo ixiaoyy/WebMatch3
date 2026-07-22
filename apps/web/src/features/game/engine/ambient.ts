@@ -2,10 +2,15 @@ export { AmbientEngineError, createSeededRandom } from "./ambient-random";
 export {
   createLevelState,
   createInitialState,
+  DISCOVERY_RADIUS_X,
+  DISCOVERY_RADIUS_Y,
   getBlockerIds,
   getLevelConfig,
   getSelectablePieces,
+  hasDiscoverableMatch,
   hasQuickMatch,
+  INITIAL_DISCOVERY_POINT,
+  isSafeFieldPoint,
   MAX_PIECE_COUNT,
   type LevelConfig,
 } from "./pile";

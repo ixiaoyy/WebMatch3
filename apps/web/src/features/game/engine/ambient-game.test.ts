@@ -10,12 +10,66 @@ import {
   getBlockerIds,
   getLevelConfig,
   getSelectablePieces,
+  hasDiscoverableMatch,
   hasQuickMatch,
+  isSafeFieldPoint,
   selectPiece,
   type AmbientGameState,
   type FedFish,
   type PilePiece,
 } from "./ambient";
+
+function footprintsOverlap(first: PilePiece, second: PilePiece): boolean {
+  const firstWidth = 0.2 * first.scale;
+  const firstHeight = 0.29 * first.scale;
+  const secondWidth = 0.2 * second.scale;
+  const secondHeight = 0.29 * second.scale;
+  const overlapWidth = Math.max(
+    0,
+    Math.min(first.pile.x + firstWidth / 2, second.pile.x + secondWidth / 2) -
+      Math.max(first.pile.x - firstWidth / 2, second.pile.x - secondWidth / 2),
+  );
+  const overlapHeight = Math.max(
+    0,
+    Math.min(first.pile.y + firstHeight / 2, second.pile.y + secondHeight / 2) -
+      Math.max(first.pile.y - firstHeight / 2, second.pile.y - secondHeight / 2),
+  );
+  return overlapWidth * overlapHeight / (firstWidth * firstHeight) >= 0.28;
+}
+
+const EXPECTED_COVERAGE_REGIONS = [
+  { minX: 0.06, maxX: 0.3, minY: 0.08, maxY: 0.34 },
+  { minX: 0.3, maxX: 0.54, minY: 0.08, maxY: 0.34 },
+  { minX: 0.54, maxX: 0.72, minY: 0.08, maxY: 0.35 },
+  { minX: 0.06, maxX: 0.36, minY: 0.3, maxY: 0.61 },
+  { minX: 0.57, maxX: 0.9, minY: 0.35, maxY: 0.63 },
+  { minX: 0.06, maxX: 0.3, minY: 0.54, maxY: 0.8 },
+  { minX: 0.3, maxX: 0.65, minY: 0.55, maxY: 0.8 },
+  { minX: 0.65, maxX: 0.9, minY: 0.54, maxY: 0.8 },
+] as const;
+
+function isInsideExpectedSafeRegion(piece: PilePiece): boolean {
+  return piece.pile.x >= 0.06 &&
+    piece.pile.x <= 0.9 &&
+    piece.pile.y >= 0.08 &&
+    piece.pile.y <= 0.8 &&
+    !(piece.pile.x > 0.72 && piece.pile.y < 0.36);
+}
+
+function getMissingExpectedRegions(pieces: readonly PilePiece[]): readonly number[] {
+  return EXPECTED_COVERAGE_REGIONS.map((region, index) => pieces.some((piece) =>
+    piece.pile.x >= region.minX &&
+    piece.pile.x <= region.maxX &&
+    piece.pile.y >= region.minY &&
+    piece.pile.y <= region.maxY
+  ) ? -1 : index).filter((index) => index >= 0);
+}
+
+function maxMeaningfulOverlapCount(pieces: readonly PilePiece[]): number {
+  return Math.max(...pieces.map((piece) => pieces.filter((candidate) =>
+    candidate.id !== piece.id && footprintsOverlap(piece, candidate)
+  ).length));
+}
 
 describe("ambient fish engine", () => {
   it("creates a stable mixed, shallow, immediately playable scene", () => {
@@ -52,6 +106,126 @@ describe("ambient fish engine", () => {
           state.pieces.filter((piece) => piece.kind === kind).length % 3,
         ).toBe(0);
       }
+    }
+  });
+
+  it("generates deterministic safe layouts with broad coverage and bounded overlap", () => {
+    const layouts = new Set<string>();
+    const layerOrders = new Set<string>();
+    const rotationQuadrants = new Set<number>();
+    let maxBlockerCount = 0;
+    let maxOverlapCount = 0;
+
+    for (let seed = 1; seed <= 64; seed += 1) {
+      const level = 1 + seed % 8;
+      const state = createLevelState(level, seed, 1, createSeededRandom(seed));
+      const repeated = createLevelState(level, seed, 1, createSeededRandom(seed));
+      expect(repeated).toEqual(state);
+      expect(state.pieces.every(isInsideExpectedSafeRegion)).toBe(true);
+      expect(state.pieces.every((piece) => isSafeFieldPoint(piece.pile))).toBe(true);
+      expect(getMissingExpectedRegions(state.pieces), `seed ${seed} covers all regions`).toEqual([]);
+      expect(hasDiscoverableMatch(state.pieces)).toBe(true);
+      const discoveryMatch = FISH_KINDS.map((kind) => state.pieces
+        .map((piece, index) => ({ piece, groupIndex: Math.floor(index / 3) }))
+        .filter(({ piece }) => piece.kind === kind && Math.hypot(
+          (piece.pile.x - 0.5) / 0.115,
+          (piece.pile.y - 0.45) / 0.165,
+        ) <= 1)
+      ).find((candidates) =>
+        candidates.length >= 3 &&
+        new Set(candidates.map(({ groupIndex }) => groupIndex)).size >= 3 &&
+        new Set(candidates.map(({ piece }) => piece.layer)).size >= 2
+      );
+      expect(discoveryMatch, `seed ${seed} has a cross-group discovery match`)
+        .toBeDefined();
+
+      const xs = state.pieces.map((piece) => piece.pile.x);
+      const ys = state.pieces.map((piece) => piece.pile.y);
+      expect(Math.max(...xs) - Math.min(...xs)).toBeGreaterThan(0.45);
+      expect(Math.max(...ys) - Math.min(...ys)).toBeGreaterThan(0.45);
+      expect(new Set(state.pieces.map((piece) =>
+        `${piece.pile.x.toFixed(6)}:${piece.pile.y.toFixed(6)}`
+      )).size).toBe(state.pieces.length);
+      const occupiedQuadrants = new Set(state.pieces.map((piece) =>
+        `${piece.pile.x < 0.5 ? "left" : "right"}:${
+          piece.pile.y < 0.45 ? "top" : "bottom"
+        }`
+      ));
+      expect(occupiedQuadrants.size).toBe(4);
+
+      for (const piece of state.pieces) {
+        expect(piece.rotation).toBeGreaterThanOrEqual(0);
+        expect(piece.rotation).toBeLessThan(360);
+        rotationQuadrants.add(Math.floor(piece.rotation / 90));
+        expect(piece.blockerIds).toEqual(state.pieces
+          .filter((candidate) =>
+            candidate.layer > piece.layer && footprintsOverlap(piece, candidate)
+          )
+          .map((candidate) => candidate.id));
+        maxBlockerCount = Math.max(
+          maxBlockerCount,
+          piece.blockerIds?.length ?? 0,
+        );
+        const overlapping = state.pieces.filter((candidate) =>
+          candidate.id !== piece.id &&
+          footprintsOverlap(piece, candidate)
+        );
+        maxOverlapCount = Math.max(maxOverlapCount, overlapping.length);
+      }
+
+      const groupLayers = Array.from(
+        { length: state.pieces.length / 3 },
+        (_, groupIndex) => state.pieces[groupIndex * 3].layer,
+      );
+      for (let offset = 0; offset < state.pieces.length; offset += 3) {
+        expect(new Set(state.pieces.slice(offset, offset + 3).map(
+          (piece) => piece.layer,
+        )).size).toBe(1);
+      }
+      const layerCounts = Array.from({ length: getLevelConfig(level).layerCount },
+        (_, layer) => groupLayers.filter((value) => value === layer).length,
+      );
+      expect(Math.max(...layerCounts) - Math.min(...layerCounts)).toBeLessThanOrEqual(1);
+      layerOrders.add(groupLayers.join(""));
+      layouts.add(state.pieces.map((piece) =>
+        `${piece.pile.x.toFixed(4)}:${piece.pile.y.toFixed(4)}`
+      ).join("|"));
+    }
+
+    expect(rotationQuadrants).toEqual(new Set([0, 1, 2, 3]));
+    expect(layerOrders.size).toBeGreaterThan(16);
+    expect(layouts.size).toBe(64);
+    expect(maxBlockerCount).toBeLessThanOrEqual(12);
+    expect(maxOverlapCount).toBeLessThanOrEqual(13);
+  });
+
+  it("uses a finite safe fallback for constant and extreme random sources", () => {
+    for (const unit of [0, 0.5, 0.999_999]) {
+      let callCount = 0;
+      const constantRandom = () => {
+        callCount += 1;
+        return unit;
+      };
+      const state = createLevelState(5, 0, 1, constantRandom);
+      const repeated = createLevelState(5, 0, 1, () => unit);
+
+      expect(repeated).toEqual(state);
+      expect(callCount).toBeLessThan(2_000);
+      expect(state.pieces).toHaveLength(60);
+      expect(state.pieces.every(isInsideExpectedSafeRegion)).toBe(true);
+      expect(state.pieces.every((piece) => isSafeFieldPoint(piece.pile))).toBe(true);
+      expect(
+        getMissingExpectedRegions(state.pieces),
+        `constant ${unit} covers all regions`,
+      ).toEqual([]);
+      expect(hasDiscoverableMatch(state.pieces)).toBe(true);
+      expect(
+        maxMeaningfulOverlapCount(state.pieces),
+        `constant ${unit} keeps overlap bounded`,
+      ).toBeLessThanOrEqual(13);
+      expect(new Set(state.pieces.map((piece) =>
+        `${piece.pile.x.toFixed(6)}:${piece.pile.y.toFixed(6)}`
+      )).size).toBe(state.pieces.length);
     }
   });
 
@@ -280,6 +454,30 @@ describe("ambient fish engine", () => {
 
       expect(state.level).toBe(level + 1);
       expect(clears).toBe(getLevelConfig(level).pieceCount / 3);
+    }
+  });
+
+  it("completely clears sixty-four seeded layouts", () => {
+    for (let seed = 1; seed <= 64; seed += 1) {
+      const level = 1 + seed % 8;
+      const random = createSeededRandom(1_000 + seed);
+      let state = createLevelState(level, 0, 1, random);
+
+      while (state.level === level) {
+        const matching = state.pieces.find((piece) =>
+          state.pieces.filter((candidate) => candidate.kind === piece.kind).length >= 3
+        );
+        expect(matching).toBeDefined();
+        if (!matching) break;
+        const triple = state.pieces
+          .filter((piece) => piece.kind === matching.kind)
+          .slice(0, 3);
+        for (const piece of triple) {
+          state = selectPiece(state, piece.id, random).state;
+        }
+      }
+
+      expect(state.level).toBe(level + 1);
     }
   });
 

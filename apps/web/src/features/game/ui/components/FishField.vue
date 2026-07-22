@@ -4,6 +4,7 @@ import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
 import {
   getBlockerIds,
   getSelectablePieces,
+  INITIAL_DISCOVERY_POINT,
   type PilePiece,
   type Point,
 } from "../../engine";
@@ -119,7 +120,7 @@ const separationOffsets = computed(() => {
   return offsets;
 });
 const projectedLight = computed(() => projectFieldPoint(
-  light.value ?? { x: 0.5, y: 0.45 },
+  light.value ?? INITIAL_DISCOVERY_POINT,
   props.projection,
 ));
 const guidedSpotlightStyle = computed(() => {
@@ -372,7 +373,7 @@ function onPointerLeave(): void {
 function onFocusIn(): void {
   focusInside.value = true;
   if (!light.value) {
-    light.value = { x: 0.5, y: 0.45 };
+    light.value = INITIAL_DISCOVERY_POINT;
     spotlightMode.value = "searching";
   }
 }

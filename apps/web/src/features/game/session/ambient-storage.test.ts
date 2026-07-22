@@ -68,7 +68,13 @@ describe("ambient snapshot storage", () => {
     const selection = selectPiece(fresh.game, target.id, createSeededRandom(11));
     const snapshot = {
       ...fresh,
-      game: selection.state,
+      game: {
+        ...selection.state,
+        pieces: selection.state.pieces.map((piece, index) => ({
+          ...piece,
+          rotation: index === 0 ? -12 : index === 1 ? 359.999 : piece.rotation,
+        })),
+      },
       preferences: { soundEnabled: true },
     };
 

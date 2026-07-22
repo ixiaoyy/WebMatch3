@@ -20,6 +20,11 @@ MAX_PIECE_COUNT: number
 getBlockerIds(pieces: readonly PilePiece[], pieceId: string): readonly string[]
 getSelectablePieces(pieces: readonly PilePiece[]): readonly PilePiece[]
 hasQuickMatch(pieces: readonly PilePiece[]): boolean
+hasDiscoverableMatch(pieces: readonly PilePiece[]): boolean
+isSafeFieldPoint(point: Point): boolean
+INITIAL_DISCOVERY_POINT: Point
+DISCOVERY_RADIUS_X: number
+DISCOVERY_RADIUS_Y: number
 selectPiece(state: AmbientGameState, pieceId: string, random?: RandomSource): SelectionResult
 feedPiece(state: AmbientGameState, pieceId: string, random?: RandomSource): FeedResult
 restartAfterLoss(state: AmbientGameState, random?: RandomSource): AmbientGameState
@@ -68,17 +73,23 @@ interface FedFish extends TrayPiece {
   pufferfish, goldfish, clownfish, angelfish, and betta. Legacy color keys are
   accepted only by the version-two storage adapter and never enter the engine.
 - Level one contains 36 unique pieces, three active shape-capable kinds,
-  irregular authored coordinates, and two shallow layers. Each subsequent
-  level adds six pieces through the 60-piece authored-geometry cap; levels two
+  constrained randomized coordinates, and two shallow layers. Each subsequent
+  level adds six pieces through the shared 60-piece cap; levels two
   through six expose one additional kind per level, level three introduces the
   third layer, and level six exposes all eight kinds.
-- `MAX_PIECE_COUNT` is derived from the authored template count and is reused
-  by snapshot parsing. Never maintain a separate storage-only inventory cap;
+- `MAX_PIECE_COUNT` is the generation cap and is reused by snapshot parsing.
+  Never maintain a separate storage-only inventory cap;
   otherwise the engine can generate states that persistence rejects.
-- Every level consists of same-kind triples assigned as complete groups to one
-  layer and authored scatter/cluster slots. Clearing groups from the highest
-  remaining layer down is therefore a deterministic complete solution, and a
-  new level exposes a quick triple.
+- Every level consists of complete same-kind triples dealt across three-kind
+  spatial groups. Groups receive balanced layer quotas and the seeded random
+  source shuffles their layer order. The kind schedule preserves a complete
+  removal path, and each new level exposes one same-kind triple inside the
+  initial discovery spotlight across at least two layers.
+- Generation samples shuffled safe regions with a finite rejection limit. It
+  keeps group centers apart using the canonical fish footprint, reserves the
+  cat/plant/tray corner, covers all four field quadrants, and uses a finite
+  deterministic eight-region lattice fallback when random candidates degenerate.
+  The same seed must reproduce positions, layers, species, scale, and rotation.
 - New levels use one stable normalized field position (`pile === spread`) and
   persist explicit higher-layer `blockerIds`. They describe visual overlap for
   nearby settling motion, but never gate selection. Old snapshots without
@@ -87,7 +98,12 @@ interface FedFish extends TrayPiece {
 - The normalized overlap rectangle tracks the rendered fish footprint
   (currently `0.20 × 0.29` of the field surface at scale `1`). Relationships
   include only meaningful overlap from a strictly higher layer; same-layer
-  overlap does not trigger settling motion.
+  overlap does not trigger settling motion. Generation calculates all
+  `blockerIds` once after final positions and layers are known; rotation does
+  not change this conservative footprint.
+- New pieces sample rotation across `[0, 360)`. Version-three snapshots retain
+  their stored rotation unchanged, including legacy negative angles accepted
+  by the existing `[-360, 360]` parser range.
 - Every remaining pile piece is selectable and feedable regardless of layer.
   Public transitions never mutate their input, and a missing selection returns
   the original state object.
@@ -155,12 +171,16 @@ interface FedFish extends TrayPiece {
 3. missing result identity and complete input immutability;
 4. ordered tray movement and automatic triples that reduce inventory by three;
 5. complete solver traversal across progressive levels and atomic advancement;
-6. piece-count progression `36, 42, 48, 54, 60`, unique authored positions at
+6. piece-count progression `36, 42, 48, 54, 60`, unique safe positions at
    the 60-piece cap, and active species counts `3, 4, 5, 6, 7, 8` capped at eight;
 7. seventh-entry loss preview, triple/feed-credit priority, level-one restart,
    cleared tray/feed history, preserved `clearCount`, and monotonic IDs;
-8. invalid random values and deterministic seeded repetition.
-9. arbitrary mixed-species feeds, one- and two-fish short-group settlement,
+8. invalid random values, deterministic seeded repetition, and a finite unique
+   fallback under a degenerate constant random source;
+9. multi-seed safe bounds, broad coverage, bounded overlap, balanced shuffled
+   layers, all rotation quadrants, initial discoverable matches, and complete
+   clearing paths;
+10. arbitrary mixed-species feeds, one- and two-fish short-group settlement,
    one-time credit consumption, and normal-triple priority.
 
 Run focused `ambient-game` tests before `pnpm ci:web`.

@@ -1,4 +1,4 @@
-import { randomBetween, sampleIndex } from "./ambient-random";
+import { randomBetween, sampleIndex, shuffle } from "./ambient-random";
 import {
   FISH_KINDS,
   type AmbientGameState,
@@ -8,146 +8,249 @@ import {
   type RandomSource,
 } from "./ambient-types";
 
-interface PieceTemplate {
-  readonly pile: Point;
-  readonly spread: Point;
-  readonly rotation: number;
-  readonly scale: number;
-}
-
 export interface LevelConfig {
   readonly pieceCount: number;
   readonly layerCount: 2 | 3;
   readonly kindCount: 3 | 4 | 5 | 6 | 7 | 8;
 }
 
+interface LayoutRegion {
+  readonly minX: number;
+  readonly maxX: number;
+  readonly minY: number;
+  readonly maxY: number;
+}
+
 const KIND_COUNT_BY_LEVEL = [3, 4, 5, 6, 7, 8] as const;
 const INITIAL_PIECE_COUNT = 36;
 const PIECE_COUNT_STEP = 6;
+export const MAX_PIECE_COUNT = 60;
 
-const SCATTER_POINTS = [
-  { x: 0.16, y: 0.28 },
-  { x: 0.46, y: 0.17 },
-  { x: 0.77, y: 0.30 },
-] as const;
-const CLUSTER_ANCHORS = [
-  { x: 0.34, y: 0.39 },
-  { x: 0.64, y: 0.40 },
-  { x: 0.81, y: 0.56 },
-  { x: 0.49, y: 0.59 },
-  { x: 0.23, y: 0.66 },
-  { x: 0.66, y: 0.71 },
-] as const;
-const CLUSTER_OFFSETS = [
-  { x: -0.027, y: 0.018 },
-  { x: 0, y: -0.023 },
-  { x: 0.029, y: 0.019 },
-] as const;
+export const INITIAL_DISCOVERY_POINT: Point = Object.freeze({ x: 0.5, y: 0.45 });
+export const DISCOVERY_RADIUS_X = 0.115;
+export const DISCOVERY_RADIUS_Y = 0.165;
 
-const TEMPLATES: readonly PieceTemplate[] = Object.freeze([
-  { pile: { x: 0.24, y: 0.69 }, spread: { x: 0.08, y: 0.22 }, rotation: -12, scale: 0.94 },
-  { pile: { x: 0.43, y: 0.73 }, spread: { x: 0.30, y: 0.12 }, rotation: 9, scale: 1.02 },
-  { pile: { x: 0.62, y: 0.70 }, spread: { x: 0.56, y: 0.18 }, rotation: -5, scale: 0.96 },
-  { pile: { x: 0.79, y: 0.72 }, spread: { x: 0.84, y: 0.12 }, rotation: 14, scale: 0.92 },
-  { pile: { x: 0.31, y: 0.51 }, spread: { x: 0.18, y: 0.47 }, rotation: 7, scale: 0.98 },
-  { pile: { x: 0.53, y: 0.52 }, spread: { x: 0.48, y: 0.42 }, rotation: -10, scale: 1.03 },
-  { pile: { x: 0.72, y: 0.51 }, spread: { x: 0.77, y: 0.38 }, rotation: 5, scale: 0.95 },
-  { pile: { x: 0.39, y: 0.61 }, spread: { x: 0.10, y: 0.76 }, rotation: -8, scale: 1.03 },
-  { pile: { x: 0.58, y: 0.62 }, spread: { x: 0.35, y: 0.70 }, rotation: 12, scale: 0.94 },
-  { pile: { x: 0.73, y: 0.62 }, spread: { x: 0.65, y: 0.76 }, rotation: -4, scale: 1.01 },
-  { pile: { x: 0.35, y: 0.42 }, spread: { x: 0.91, y: 0.61 }, rotation: 13, scale: 0.92 },
-  { pile: { x: 0.55, y: 0.40 }, spread: { x: 0.24, y: 0.91 }, rotation: -11, scale: 1.04 },
-  { pile: { x: 0.70, y: 0.40 }, spread: { x: 0.53, y: 0.92 }, rotation: 4, scale: 0.97 },
-  { pile: { x: 0.45, y: 0.52 }, spread: { x: 0.82, y: 0.89 }, rotation: -6, scale: 1.05 },
-  { pile: { x: 0.62, y: 0.51 }, spread: { x: 0.20, y: 0.31 }, rotation: 10, scale: 0.96 },
-  { pile: { x: 0.51, y: 0.34 }, spread: { x: 0.69, y: 0.26 }, rotation: -9, scale: 1.02 },
-  { pile: { x: 0.31, y: 0.58 }, spread: { x: 0.40, y: 0.28 }, rotation: 6, scale: 0.93 },
-  { pile: { x: 0.69, y: 0.58 }, spread: { x: 0.95, y: 0.32 }, rotation: -3, scale: 1.04 },
-  { pile: { x: 0.20, y: 0.57 }, spread: { x: 0.05, y: 0.52 }, rotation: 11, scale: 0.91 },
-  { pile: { x: 0.82, y: 0.57 }, spread: { x: 0.96, y: 0.54 }, rotation: -13, scale: 0.98 },
-  { pile: { x: 0.27, y: 0.36 }, spread: { x: 0.07, y: 0.92 }, rotation: -7, scale: 1.02 },
-  { pile: { x: 0.76, y: 0.34 }, spread: { x: 0.94, y: 0.84 }, rotation: 8, scale: 0.95 },
-  { pile: { x: 0.42, y: 0.27 }, spread: { x: 0.41, y: 0.06 }, rotation: 15, scale: 0.93 },
-  { pile: { x: 0.64, y: 0.26 }, spread: { x: 0.69, y: 0.08 }, rotation: -12, scale: 1.01 },
-  { pile: { x: 0.18, y: 0.76 }, spread: { x: 0.23, y: 0.58 }, rotation: 4, scale: 0.96 },
-  { pile: { x: 0.86, y: 0.75 }, spread: { x: 0.73, y: 0.55 }, rotation: -5, scale: 0.92 },
-  { pile: { x: 0.50, y: 0.82 }, spread: { x: 0.50, y: 0.82 }, rotation: 9, scale: 1.04 },
-  { pile: { x: 0.30, y: 0.78 }, spread: { x: 0.15, y: 0.36 }, rotation: -14, scale: 0.97 },
-  { pile: { x: 0.72, y: 0.79 }, spread: { x: 0.86, y: 0.30 }, rotation: 7, scale: 1.00 },
-  { pile: { x: 0.20, y: 0.44 }, spread: { x: 0.34, y: 0.96 }, rotation: 12, scale: 0.94 },
-  { pile: { x: 0.84, y: 0.45 }, spread: { x: 0.62, y: 0.96 }, rotation: -9, scale: 1.03 },
-  { pile: { x: 0.37, y: 0.47 }, spread: { x: 0.31, y: 0.35 }, rotation: 5, scale: 0.95 },
-  { pile: { x: 0.67, y: 0.45 }, spread: { x: 0.59, y: 0.34 }, rotation: -4, scale: 1.02 },
-  { pile: { x: 0.52, y: 0.58 }, spread: { x: 0.79, y: 0.68 }, rotation: 13, scale: 0.92 },
-  { pile: { x: 0.41, y: 0.37 }, spread: { x: 0.44, y: 0.58 }, rotation: -10, scale: 1.04 },
-  { pile: { x: 0.61, y: 0.36 }, spread: { x: 0.98, y: 0.70 }, rotation: 6, scale: 0.96 },
-  { pile: { x: 0.14, y: 0.64 }, spread: { x: 0.12, y: 0.10 }, rotation: -6, scale: 0.95 },
-  { pile: { x: 0.88, y: 0.63 }, spread: { x: 0.88, y: 0.22 }, rotation: 11, scale: 1.01 },
-  { pile: { x: 0.22, y: 0.29 }, spread: { x: 0.05, y: 0.36 }, rotation: -13, scale: 0.93 },
-  { pile: { x: 0.83, y: 0.29 }, spread: { x: 0.95, y: 0.44 }, rotation: 7, scale: 1.03 },
-  { pile: { x: 0.29, y: 0.67 }, spread: { x: 0.14, y: 0.66 }, rotation: 4, scale: 0.97 },
-  { pile: { x: 0.77, y: 0.67 }, spread: { x: 0.89, y: 0.73 }, rotation: -8, scale: 0.94 },
-  { pile: { x: 0.46, y: 0.78 }, spread: { x: 0.27, y: 0.83 }, rotation: 12, scale: 1.02 },
-  { pile: { x: 0.56, y: 0.76 }, spread: { x: 0.59, y: 0.84 }, rotation: -4, scale: 0.96 },
-  { pile: { x: 0.25, y: 0.40 }, spread: { x: 0.08, y: 0.64 }, rotation: 9, scale: 1.04 },
-  { pile: { x: 0.79, y: 0.41 }, spread: { x: 0.93, y: 0.63 }, rotation: -11, scale: 0.92 },
-  { pile: { x: 0.33, y: 0.32 }, spread: { x: 0.19, y: 0.16 }, rotation: 5, scale: 0.98 },
-  { pile: { x: 0.69, y: 0.31 }, spread: { x: 0.78, y: 0.16 }, rotation: -7, scale: 1.01 },
-  { pile: { x: 0.46, y: 0.45 }, spread: { x: 0.37, y: 0.48 }, rotation: 14, scale: 0.94 },
-  { pile: { x: 0.58, y: 0.46 }, spread: { x: 0.64, y: 0.48 }, rotation: -12, scale: 1.03 },
-  { pile: { x: 0.49, y: 0.63 }, spread: { x: 0.47, y: 0.68 }, rotation: 3, scale: 0.96 },
-  { pile: { x: 0.60, y: 0.67 }, spread: { x: 0.72, y: 0.68 }, rotation: -5, scale: 1.02 },
-  { pile: { x: 0.39, y: 0.70 }, spread: { x: 0.25, y: 0.74 }, rotation: 10, scale: 0.93 },
-  { pile: { x: 0.67, y: 0.73 }, spread: { x: 0.76, y: 0.76 }, rotation: -9, scale: 0.99 },
-  { pile: { x: 0.24, y: 0.79 }, spread: { x: 0.06, y: 0.84 }, rotation: 6, scale: 1.04 },
-  { pile: { x: 0.80, y: 0.80 }, spread: { x: 0.94, y: 0.92 }, rotation: -14, scale: 0.95 },
-  { pile: { x: 0.16, y: 0.50 }, spread: { x: 0.16, y: 0.40 }, rotation: 8, scale: 0.97 },
-  { pile: { x: 0.88, y: 0.50 }, spread: { x: 0.86, y: 0.48 }, rotation: -6, scale: 1.03 },
-  { pile: { x: 0.45, y: 0.29 }, spread: { x: 0.38, y: 0.18 }, rotation: 11, scale: 0.94 },
-  { pile: { x: 0.57, y: 0.28 }, spread: { x: 0.61, y: 0.20 }, rotation: -10, scale: 1.02 },
+const FIELD_MIN_X = 0.06;
+const FIELD_MAX_X = 0.9;
+const FIELD_MIN_Y = 0.08;
+const FIELD_MAX_Y = 0.8;
+const RESERVED_CORNER_MIN_X = 0.72;
+const RESERVED_CORNER_MAX_Y = 0.36;
+const MAX_LAYOUT_ATTEMPTS = 24;
+// Random layouts keep extra breathing room. The fallback uses a denser,
+// pre-verified lattice so all 20 groups still fit without unbounded retries.
+const MIN_RANDOM_GROUP_FOOTPRINT_DISTANCE = 0.6;
+const MIN_FALLBACK_GROUP_FOOTPRINT_DISTANCE = 0.44;
+const MIN_DISCOVERY_FOOTPRINT_DISTANCE = 0.5;
+const TAU = Math.PI * 2;
+
+const LAYOUT_REGIONS: readonly LayoutRegion[] = Object.freeze([
+  { minX: 0.14, maxX: 0.2, minY: 0.15, maxY: 0.21 },
+  { minX: 0.37, maxX: 0.44, minY: 0.15, maxY: 0.22 },
+  { minX: 0.59, maxX: 0.64, minY: 0.15, maxY: 0.23 },
+  { minX: 0.15, maxX: 0.22, minY: 0.41, maxY: 0.49 },
+  { minX: 0.68, maxX: 0.75, minY: 0.43, maxY: 0.5 },
+  { minX: 0.15, maxX: 0.22, minY: 0.68, maxY: 0.72 },
+  { minX: 0.41, maxX: 0.49, minY: 0.68, maxY: 0.72 },
+  { minX: 0.79, maxX: 0.82, minY: 0.69, maxY: 0.72 },
 ]);
 
-export const MAX_PIECE_COUNT = TEMPLATES.length;
-
 const HIT_WIDTH = 0.2;
-// Keep legacy overlap metadata aligned with the rendered fish footprint so
-// stacked neighbors fan apart and settle as one visually coherent group.
+// Rotation never changes the overlap footprint, keeping 360-degree fish aligned
+// with their stable interaction and settling relationships.
 const HIT_HEIGHT = 0.29;
 const BLOCKED_OVERLAP_RATIO = 0.28;
 
-function jitterPoint(point: Point, random: RandomSource, amount: number): Point {
+export function isSafeFieldPoint(point: Point): boolean {
+  return Number.isFinite(point.x) &&
+    Number.isFinite(point.y) &&
+    point.x >= FIELD_MIN_X &&
+    point.x <= FIELD_MAX_X &&
+    point.y >= FIELD_MIN_Y &&
+    point.y <= FIELD_MAX_Y &&
+    !(point.x > RESERVED_CORNER_MIN_X && point.y < RESERVED_CORNER_MAX_Y);
+}
+
+function footprintDistance(first: Point, second: Point): number {
+  return Math.hypot(
+    (first.x - second.x) / HIT_WIDTH,
+    (first.y - second.y) / HIT_HEIGHT,
+  );
+}
+
+function isSafeGroupCenter(point: Point): boolean {
+  const maximumGroupRadius = 0.07;
+  return point.x >= FIELD_MIN_X + maximumGroupRadius &&
+    point.x <= FIELD_MAX_X - maximumGroupRadius &&
+    point.y >= FIELD_MIN_Y + maximumGroupRadius &&
+    point.y <= FIELD_MAX_Y - maximumGroupRadius &&
+    !(point.x > RESERVED_CORNER_MIN_X - maximumGroupRadius &&
+      point.y < RESERVED_CORNER_MAX_Y + maximumGroupRadius);
+}
+
+function sampleRegionPoint(region: LayoutRegion, random: RandomSource): Point {
   return {
-    x: Math.min(0.98, Math.max(0.02, point.x + randomBetween(random, -amount, amount))),
-    y: Math.min(0.98, Math.max(0.02, point.y + randomBetween(random, -amount, amount))),
+    x: randomBetween(random, region.minX, region.maxX),
+    y: randomBetween(random, region.minY, region.maxY),
   };
+}
+
+function getFallbackRegionPoint(
+  region: LayoutRegion,
+): Point {
+  return {
+    x: region.minX + (region.maxX - region.minX) * 0.2,
+    y: region.minY + (region.maxY - region.minY) * 0.2,
+  };
+}
+
+function sampleGlobalCenterPoint(random: RandomSource): Point {
+  return {
+    x: randomBetween(random, FIELD_MIN_X + 0.07, FIELD_MAX_X - 0.07),
+    y: randomBetween(random, FIELD_MIN_Y + 0.07, FIELD_MAX_Y - 0.07),
+  };
+}
+
+function canUseGroupCenter(
+  point: Point,
+  centers: readonly Point[],
+  minimumDistance = MIN_RANDOM_GROUP_FOOTPRINT_DISTANCE,
+): boolean {
+  return isSafeGroupCenter(point) &&
+    footprintDistance(point, INITIAL_DISCOVERY_POINT) >=
+      MIN_DISCOVERY_FOOTPRINT_DISTANCE &&
+    centers.every((center) =>
+      footprintDistance(point, center) >= minimumDistance
+    );
+}
+
+function createFallbackGroupCenters(groupCount: number): readonly Point[] {
+  // Keep one center in every acceptance region before filling the remaining
+  // capacity; slicing smaller levels must never reintroduce a large blank area.
+  const coverage = [
+    { x: 0.15, y: 0.16 },
+    { x: 0.49, y: 0.16 },
+    { x: 0.64, y: 0.29 },
+    { x: 0.15, y: 0.42 },
+    { x: 0.66, y: 0.55 },
+    { x: 0.15, y: 0.72 },
+    { x: 0.49, y: 0.72 },
+    { x: 0.83, y: 0.72 },
+  ] as const;
+  const upper = [0.16, 0.29, 0.42].flatMap((y) =>
+    [0.15, 0.32, 0.49, 0.64].map((x) => ({ x, y }))
+  );
+  const lower = [0.55, 0.72].flatMap((y) =>
+    [0.15, 0.32, 0.49, 0.66, 0.83].map((x) => ({ x, y }))
+  );
+  const centers: Point[] = [];
+  for (const candidate of [...coverage, ...upper, ...lower]) {
+    if (canUseGroupCenter(
+      candidate,
+      centers,
+      MIN_FALLBACK_GROUP_FOOTPRINT_DISTANCE,
+    )) centers.push(candidate);
+  }
+  if (centers.length < groupCount) {
+    throw new RangeError(
+      `The deterministic layout fallback has ${centers.length}/${groupCount} groups.`,
+    );
+  }
+  return centers.slice(0, groupCount);
+}
+
+function createGroupCenters(
+  groupCount: number,
+  random: RandomSource,
+): readonly Point[] {
+  const regions = shuffle(random, LAYOUT_REGIONS);
+  const centers: Point[] = [];
+
+  for (let groupIndex = 0; groupIndex < groupCount; groupIndex += 1) {
+    const region = regions[groupIndex % regions.length];
+    let selectedCandidate: Point | null = null;
+
+    for (let attempt = 0; attempt < MAX_LAYOUT_ATTEMPTS; attempt += 1) {
+      const candidate = groupIndex < regions.length
+        ? sampleRegionPoint(region, random)
+        : sampleGlobalCenterPoint(random);
+      if (canUseGroupCenter(candidate, centers)) {
+        selectedCandidate = candidate;
+        break;
+      }
+    }
+
+    if (!selectedCandidate && groupIndex < regions.length) {
+      const fallback = getFallbackRegionPoint(region);
+      if (canUseGroupCenter(fallback, centers)) selectedCandidate = fallback;
+    }
+    if (!selectedCandidate) return createFallbackGroupCenters(groupCount);
+    centers.push(selectedCandidate);
+  }
+
+  return centers;
+}
+
+function createGroupPoints(
+  center: Point,
+  groupIndex: number,
+  random: RandomSource,
+): readonly Point[] {
+  const angle = randomBetween(random, 0, TAU);
+  const radius = groupIndex % 4 === 0
+    ? randomBetween(random, 0.06, 0.07)
+    : randomBetween(random, 0.035, 0.05);
+  return Array.from({ length: 3 }, (_, memberIndex) => {
+    const memberAngle = angle + memberIndex * TAU / 3;
+    return {
+      x: center.x + Math.cos(memberAngle) * radius,
+      y: center.y + Math.sin(memberAngle) * radius,
+    };
+  });
+}
+
+function createLayoutPoints(
+  groupCount: number,
+  random: RandomSource,
+): readonly Point[] {
+  return createGroupCenters(groupCount, random).flatMap((center, groupIndex) =>
+    createGroupPoints(center, groupIndex, random)
+  );
+}
+
+function createDiscoveryPoints(random: RandomSource): readonly Point[] {
+  const anchor = {
+    x: INITIAL_DISCOVERY_POINT.x + randomBetween(random, -0.018, 0.018),
+    y: INITIAL_DISCOVERY_POINT.y + randomBetween(random, -0.025, 0.025),
+  };
+  const angle = randomBetween(random, 0, TAU);
+  const radius = randomBetween(random, 0.052, 0.063);
+  return Array.from({ length: 3 }, (_, index) => {
+    const pointAngle = angle + index * TAU / 3;
+    return {
+      x: anchor.x + Math.cos(pointAngle) * radius,
+      y: anchor.y + Math.sin(pointAngle) * radius,
+    };
+  });
 }
 
 function createPiece(
   id: number,
   kind: FishKind,
-  template: PieceTemplate,
   random: RandomSource,
   layer: 0 | 1 | 2,
   fieldPoint: Point,
 ): PilePiece {
-  const position = jitterPoint(fieldPoint, random, 0.006);
   return {
     id: `fish-${id}`,
     kind,
-    pile: position,
-    spread: position,
-    rotation: template.rotation + randomBetween(random, -3, 3),
-    scale: template.scale + randomBetween(random, -0.025, 0.025),
+    pile: fieldPoint,
+    spread: fieldPoint,
+    rotation: randomBetween(random, 0, 360),
+    scale: randomBetween(random, 0.92, 1.05),
     layer,
     blockerIds: [],
   };
-}
-
-function getFieldPoint(slotIndex: number, memberIndex: number): Point {
-  if (slotIndex === 0) return SCATTER_POINTS[memberIndex];
-  const anchor = CLUSTER_ANCHORS[(slotIndex - 1) % CLUSTER_ANCHORS.length];
-  const offset = CLUSTER_OFFSETS[memberIndex];
-  return { x: anchor.x + offset.x, y: anchor.y + offset.y };
 }
 
 export function getLevelConfig(level: number): LevelConfig {
@@ -169,6 +272,7 @@ export function getLevelConfig(level: number): LevelConfig {
 function createGroupLayers(
   groupCount: number,
   layerCount: 2 | 3,
+  random: RandomSource,
 ): readonly (0 | 1 | 2)[] {
   const baseCount = Math.floor(groupCount / layerCount);
   const remainder = groupCount % layerCount;
@@ -177,7 +281,7 @@ function createGroupLayers(
     const groupsOnLayer = baseCount + (layer >= layerCount - remainder ? 1 : 0);
     layers.push(...Array.from({ length: groupsOnLayer }, () => layer as 0 | 1 | 2));
   }
-  return layers;
+  return shuffle(random, layers);
 }
 
 function createKindSchedule(
@@ -230,62 +334,25 @@ function createKindSchedule(
   return schedule;
 }
 
-export function createLevelState(
-  level: number,
-  clearCount: number,
-  nextPieceId: number,
-  random: RandomSource = Math.random,
-): AmbientGameState {
-  const config = getLevelConfig(level);
-  const groupCount = config.pieceCount / 3;
-  const groupLayers = createGroupLayers(groupCount, config.layerCount);
-  const layerSlots = new Map<0 | 1 | 2, number>();
-  const groupSlots = groupLayers.map((layer) => {
-    const slot = layerSlots.get(layer) ?? 0;
-    layerSlots.set(layer, slot + 1);
-    return slot;
-  });
-  const activeKinds = FISH_KINDS.slice(0, config.kindCount);
-  const kindOffset = sampleIndex(random, activeKinds.length);
-  const kindSchedule = createKindSchedule(activeKinds, groupCount, kindOffset);
-  const pieces = Array.from({ length: config.pieceCount }, (_, offset) => {
-    const groupIndex = Math.floor(offset / 3);
-    const template = TEMPLATES[(nextPieceId + offset - 1) % TEMPLATES.length];
-    const memberIndex = offset % 3;
-    return createPiece(
-      nextPieceId + offset,
-      kindSchedule[offset],
-      template,
-      random,
-      groupLayers[groupIndex],
-      getFieldPoint(groupSlots[groupIndex], memberIndex),
-    );
-  });
-  const piecesWithBlockers = pieces.map((piece) => ({
-    ...piece,
-    blockerIds: pieces
-      .filter(
-        (candidate) =>
-          candidate.layer > piece.layer &&
-          fieldOverlapRatio(piece, candidate) >= BLOCKED_OVERLAP_RATIO,
-      )
-      .map((candidate) => candidate.id),
-  }));
-
-  return {
-    pieces: piecesWithBlockers,
-    tray: [],
-    fed: [],
-    clearCount,
-    level,
-    nextPieceId: nextPieceId + piecesWithBlockers.length,
-  };
-}
-
-export function createInitialState(
-  random: RandomSource = Math.random,
-): AmbientGameState {
-  return createLevelState(1, 0, 1, random);
+function ensureDiscoveryLayerVariety(
+  groupLayers: readonly (0 | 1 | 2)[],
+  discoveryIndexes: readonly number[],
+): readonly (0 | 1 | 2)[] {
+  const layers = [...groupLayers];
+  const discoveryGroups = discoveryIndexes.map((index) => Math.floor(index / 3));
+  if (new Set(discoveryGroups.map((groupIndex) => layers[groupIndex])).size > 1) {
+    return layers;
+  }
+  const replacementGroup = layers.findIndex((layer, groupIndex) =>
+    !discoveryGroups.includes(groupIndex) && layer !== layers[discoveryGroups[0]]
+  );
+  if (replacementGroup < 0) return layers;
+  const targetGroup = discoveryGroups[1];
+  [layers[targetGroup], layers[replacementGroup]] = [
+    layers[replacementGroup],
+    layers[targetGroup],
+  ];
+  return layers;
 }
 
 function overlapRatio(lower: PilePiece, upper: PilePiece): number {
@@ -306,12 +373,68 @@ function overlapRatio(lower: PilePiece, upper: PilePiece): number {
   return (overlapWidth * overlapHeight) / (lowerWidth * lowerHeight);
 }
 
-function fieldOverlapRatio(lower: PilePiece, upper: PilePiece): number {
-  const horizontalDistance = Math.abs(lower.pile.x - upper.pile.x);
-  const verticalDistance = Math.abs(lower.pile.y - upper.pile.y);
-  const overlapWidth = Math.max(0, 0.075 - horizontalDistance);
-  const overlapHeight = Math.max(0, 0.105 - verticalDistance);
-  return (overlapWidth * overlapHeight) / (0.075 * 0.105);
+function withBlockerIds(pieces: readonly PilePiece[]): readonly PilePiece[] {
+  return pieces.map((piece) => ({
+    ...piece,
+    blockerIds: pieces
+      .filter((candidate) =>
+        candidate.layer > piece.layer &&
+        overlapRatio(piece, candidate) >= BLOCKED_OVERLAP_RATIO
+      )
+      .map((candidate) => candidate.id),
+  }));
+}
+
+export function createLevelState(
+  level: number,
+  clearCount: number,
+  nextPieceId: number,
+  random: RandomSource = Math.random,
+): AmbientGameState {
+  const config = getLevelConfig(level);
+  const groupCount = config.pieceCount / 3;
+  const activeKinds = FISH_KINDS.slice(0, config.kindCount);
+  const kindOffset = sampleIndex(random, activeKinds.length);
+  const kindSchedule = createKindSchedule(activeKinds, groupCount, kindOffset);
+  const discoveryKind = activeKinds[kindOffset];
+  const discoveryIndexes = kindSchedule
+    .map((kind, index) => kind === discoveryKind ? index : -1)
+    .filter((index) => index >= 0)
+    .slice(0, 3);
+  const groupLayers = ensureDiscoveryLayerVariety(
+    createGroupLayers(groupCount, config.layerCount, random),
+    discoveryIndexes,
+  );
+  const positions = [...createLayoutPoints(groupCount, random)];
+  const discoveryPoints = createDiscoveryPoints(random);
+  for (let index = 0; index < discoveryIndexes.length; index += 1) {
+    positions[discoveryIndexes[index]] = discoveryPoints[index];
+  }
+  const pieces = Array.from({ length: config.pieceCount }, (_, offset) =>
+    createPiece(
+      nextPieceId + offset,
+      kindSchedule[offset],
+      random,
+      groupLayers[Math.floor(offset / 3)],
+      positions[offset],
+    )
+  );
+  const piecesWithBlockers = withBlockerIds(pieces);
+
+  return {
+    pieces: piecesWithBlockers,
+    tray: [],
+    fed: [],
+    clearCount,
+    level,
+    nextPieceId: nextPieceId + piecesWithBlockers.length,
+  };
+}
+
+export function createInitialState(
+  random: RandomSource = Math.random,
+): AmbientGameState {
+  return createLevelState(1, 0, 1, random);
 }
 
 export function getBlockerIds(
@@ -319,20 +442,17 @@ export function getBlockerIds(
   pieceId: string,
 ): readonly string[] {
   const piece = pieces.find((candidate) => candidate.id === pieceId);
-  if (!piece) {
-    return [];
-  }
+  if (!piece) return [];
 
-  if (piece.blockerIds) {
+  if (piece.blockerIds !== undefined) {
     const remainingIds = new Set(pieces.map((candidate) => candidate.id));
     return piece.blockerIds.filter((blockerId) => remainingIds.has(blockerId));
   }
 
   return pieces
-    .filter(
-      (candidate) =>
-        candidate.layer > piece.layer &&
-        overlapRatio(piece, candidate) >= BLOCKED_OVERLAP_RATIO,
+    .filter((candidate) =>
+      candidate.layer > piece.layer &&
+      overlapRatio(piece, candidate) >= BLOCKED_OVERLAP_RATIO
     )
     .map((candidate) => candidate.id);
 }
@@ -349,4 +469,22 @@ export function hasQuickMatch(pieces: readonly PilePiece[]): boolean {
     counts.set(piece.kind, (counts.get(piece.kind) ?? 0) + 1);
   }
   return [...counts.values()].some((count) => count >= 3);
+}
+
+export function hasDiscoverableMatch(pieces: readonly PilePiece[]): boolean {
+  const candidatesByKind = new Map<FishKind, PilePiece[]>();
+  for (const piece of getSelectablePieces(pieces)) {
+    const distance = Math.hypot(
+      (piece.pile.x - INITIAL_DISCOVERY_POINT.x) / DISCOVERY_RADIUS_X,
+      (piece.pile.y - INITIAL_DISCOVERY_POINT.y) / DISCOVERY_RADIUS_Y,
+    );
+    if (distance > 1) continue;
+    const candidates = candidatesByKind.get(piece.kind) ?? [];
+    candidates.push(piece);
+    candidatesByKind.set(piece.kind, candidates);
+  }
+  return [...candidatesByKind.values()].some((candidates) =>
+    candidates.length >= 3 &&
+    new Set(candidates.map((piece) => piece.layer)).size >= 2
+  );
 }

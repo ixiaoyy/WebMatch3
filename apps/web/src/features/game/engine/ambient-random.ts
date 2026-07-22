@@ -50,3 +50,18 @@ export function randomBetween(
   }
   return minimum + unit * (maximum - minimum);
 }
+
+export function shuffle<T>(
+  random: RandomSource,
+  items: readonly T[],
+): readonly T[] {
+  const shuffled = [...items];
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const swapIndex = sampleIndex(random, index + 1);
+    [shuffled[index], shuffled[swapIndex]] = [
+      shuffled[swapIndex],
+      shuffled[index],
+    ];
+  }
+  return shuffled;
+}

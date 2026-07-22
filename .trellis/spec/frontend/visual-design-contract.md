@@ -39,9 +39,14 @@ wallpaper containing interactive objects.
   top bar, logo, level title, grid, or conventional HUD.
 - Eight fish share tactile felt, stitched seams, bead eyes, rounded volume, and
   lavender-compatible lighting while remaining distinct by species silhouette.
-- Fish use one irregular full-surface arrangement of singleton and shallow
-  grouped positions. Reveal, focus, and drag projection never alter canonical
-  coordinates or blocker relationships.
+- Fish use a seed-reproducible, irregular full-surface arrangement of singleton
+  and shallow grouped positions. Safe regions reserve the cat, plant, and tray;
+  bounded footprint-aware rejection prevents extreme piles while preserving
+  controlled overlap and four-quadrant coverage. Reveal, focus, and drag
+  projection never alter canonical coordinates or blocker relationships.
+- Fish may rotate through the complete `[0, 360)` range. The stable button
+  target and rotation-independent conservative overlap footprint keep vertical
+  and inverted silhouettes aligned with interaction and settling behavior.
 - Fish are visually unidentifiable outside the local spotlight. Revealed
   pieces remain fully actionable at every layer. A revealed stack quietly fans
   apart to expose distinct pointer targets; removing one may make directly
@@ -157,5 +162,5 @@ This recreates a board and fakes the primary bitmap material in CSS.
 }
 ```
 
-Generated assets provide the material; authored coordinates and UI-local
-reveal projection provide the stable hide-and-seek field.
+Generated assets provide the material; engine-owned constrained coordinates
+and UI-local reveal projection provide the stable hide-and-seek field.

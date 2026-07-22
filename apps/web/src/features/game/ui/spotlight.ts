@@ -1,4 +1,10 @@
-import type { PilePiece, Point } from "../engine";
+import {
+  DISCOVERY_RADIUS_X,
+  DISCOVERY_RADIUS_Y,
+  INITIAL_DISCOVERY_POINT,
+  type PilePiece,
+  type Point,
+} from "../engine";
 
 export type SpotlightMode = "inactive" | "searching" | "afterglow" | "dragging";
 export type SpotlightDirection = "up" | "right" | "down" | "left";
@@ -30,9 +36,6 @@ export const PORTRAIT_FIELD_PROJECTION: FieldProjection = Object.freeze({
   width: 0.56,
   height: 0.3,
 });
-
-const SPOTLIGHT_RADIUS_X = 0.115;
-const SPOTLIGHT_RADIUS_Y = 0.165;
 
 export function getFieldProjection(
   surfaceWidth: number,
@@ -80,8 +83,8 @@ export function getRevealedPieceIds(
   if (!light) return ids;
   for (const piece of pieces) {
     const distance = Math.hypot(
-      (piece.pile.x - light.x) / SPOTLIGHT_RADIUS_X,
-      (piece.pile.y - light.y) / SPOTLIGHT_RADIUS_Y,
+      (piece.pile.x - light.x) / DISCOVERY_RADIUS_X,
+      (piece.pile.y - light.y) / DISCOVERY_RADIUS_Y,
     );
     if (distance <= 1) ids.add(piece.id);
   }
@@ -93,7 +96,7 @@ export function moveSpotlight(
   direction: SpotlightDirection,
   fast = false,
 ): Point {
-  const origin = current ?? { x: 0.5, y: 0.45 };
+  const origin = current ?? INITIAL_DISCOVERY_POINT;
   const multiplier = fast ? 2 : 1;
   const movement: Readonly<Record<SpotlightDirection, Point>> = {
     up: { x: 0, y: -0.075 },

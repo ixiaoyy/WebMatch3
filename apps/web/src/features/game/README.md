@@ -7,7 +7,10 @@ persistence lives in `session/`. Vue,
 attention lifecycle, optional Document Picture-in-Picture, sound, and visual
 projection live in `ui/`.
 
-The engine owns one stable normalized field and explicit overlap relationships.
+The engine owns one stable, seed-reproducible normalized field and explicit
+overlap relationships. Finite footprint-aware rejection sampling keeps every
+generated point inside reserved-area-safe regions, balances shuffled visual
+layers, and falls back deterministically when random candidates degenerate.
 Every remaining fish is selectable; `FishField` uses those relationships to
 fan a revealed stack into distinct pointer targets, then briefly settles its
 neighbors when one is removed. Spotlight coordinates, touch afterglow, focus,
@@ -24,8 +27,9 @@ feeding stays separate through pointer-captured drag-to-cat or the focused
 fish `F` shortcut. Up to three fish of any species may be fed, and one or two
 matching tray fish may use those feed credits to complete and disappear.
 
-Each level is constructed from same-layer triples, so removing upper groups
-before lower groups is always a complete solution. Clears never replenish the
+Each level is constructed from complete kind triples dealt across distinct
+three-kind spatial groups. Balanced visual layers never gate selection, so the
+kind schedule always retains a complete solution. Clears never replenish the
 current level. Emptying the pile advances to a gradually denser level. A full
 tray briefly remains visible as failure feedback while the persisted stable
 state immediately restarts at level one with plant experience preserved.
