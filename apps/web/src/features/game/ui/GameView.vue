@@ -10,6 +10,11 @@ import GrowingPlant from "./components/GrowingPlant.vue";
 import QuietControls from "./components/QuietControls.vue";
 import { createDocumentPipController } from "./document-pip";
 import { createClearSound } from "./sound";
+import {
+  FULL_FIELD_PROJECTION,
+  getFieldProjection,
+  projectFieldPoint,
+} from "./spotlight";
 
 const surface = ref<HTMLElement | null>(null);
 const anchor = ref<HTMLElement | null>(null);
@@ -19,7 +24,13 @@ const catDropHover = ref(false);
 const revealedPieceIds = ref<ReadonlySet<string>>(new Set());
 const pipOpen = ref(false);
 const activePipWindow = ref<Window | null>(null);
+const fieldProjection = ref(
+  typeof window === "undefined"
+    ? FULL_FIELD_PROJECTION
+    : getFieldProjection(window.innerWidth, window.innerHeight),
+);
 const clearSound = createClearSound();
+let surfaceObserver: ResizeObserver | null = null;
 const game = createAmbientController({
   onClear: () => {
     if (game.soundEnabled.value) clearSound.play();
@@ -29,9 +40,10 @@ const game = createAmbientController({
 const catGuardStyle = computed(() => {
   const target = game.guardedPiece.value;
   if (!target) return {};
+  const projectedTarget = projectFieldPoint(target.pile, fieldProjection.value);
   return {
-    "--cat-guard-left": `${target.pile.x * 100}%`,
-    "--cat-guard-bottom": `${(1 - target.pile.y) * 100}%`,
+    "--cat-guard-left": `${projectedTarget.x * 100}%`,
+    "--cat-guard-bottom": `${(1 - projectedTarget.y) * 100}%`,
   };
 });
 const catAwayFromHome = computed(() =>
@@ -139,6 +151,18 @@ onMounted(() => {
   window.addEventListener("blur", updateMainAttention);
   updateMainAttention();
   game.startReactions();
+  if (surface.value && typeof ResizeObserver !== "undefined") {
+    surfaceObserver = new ResizeObserver(([entry]) => {
+      if (!entry) return;
+      fieldProjection.value = getFieldProjection(
+        entry.contentRect.width,
+        entry.contentRect.height,
+      );
+    });
+    surfaceObserver.observe(surface.value);
+    const bounds = surface.value.getBoundingClientRect();
+    fieldProjection.value = getFieldProjection(bounds.width, bounds.height);
+  }
 });
 
 onBeforeUnmount(() => {
@@ -147,6 +171,8 @@ onBeforeUnmount(() => {
   window.removeEventListener("blur", updateMainAttention);
   activePipWindow.value?.removeEventListener("focus", onPipFocus);
   activePipWindow.value?.removeEventListener("blur", onPipBlur);
+  surfaceObserver?.disconnect();
+  surfaceObserver = null;
   pip.close();
   clearSound.dispose();
   game.dispose();
@@ -164,6 +190,7 @@ onBeforeUnmount(() => {
         ref="surface"
         class="ambient-surface"
         :class="{ 'ambient-surface--in-pip': pipOpen }"
+        :data-away="game.isAway.value"
         :style="{ '--wallpaper-url': `url(${wallpaperUrl})` }"
         aria-label="毛毡小鱼桌面"
       >
@@ -204,6 +231,7 @@ onBeforeUnmount(() => {
           :disabled="!game.canSelect.value"
           :transitioning="game.feedback.value === 'level'"
           :away="game.isAway.value"
+          :projection="fieldProjection"
           @activate="game.activate"
           @feed="game.feedToCat"
           @revealed-change="onRevealedChange"
@@ -259,16 +287,18 @@ onBeforeUnmount(() => {
   }
 }
 
-.ambient-page[data-away="true"] .ambient-surface {
+.ambient-surface[data-away="true"] {
   filter: saturate(0.82) brightness(0.98);
 }
 
-.ambient-page[data-away="true"] :deep(*) {
+.ambient-surface[data-away="true"] :deep(*) {
   animation-play-state: paused !important;
   transition-duration: 0.01ms !important;
 }
 
 .cat-companion-slot {
+  --cat-companion-width: clamp(132px, 13vw, 184px);
+
   position: absolute;
   z-index: 7;
   left: clamp(22px, 5vw, 84px);
@@ -279,7 +309,11 @@ onBeforeUnmount(() => {
     transform 520ms var(--ease-out);
 
   &[data-away-from-home="true"] {
-    left: var(--cat-guard-left);
+    left: clamp(
+      var(--cat-companion-width),
+      var(--cat-guard-left),
+      calc(100% - 24px)
+    );
     bottom: var(--cat-guard-bottom);
     transform: translate(-92%, 45%);
   }
@@ -291,11 +325,17 @@ onBeforeUnmount(() => {
   }
 
   .cat-companion-slot {
+    --cat-companion-width: 118px;
+
     left: 10px;
-    bottom: 62px;
+    bottom: 74px;
 
     &[data-away-from-home="true"] {
-      left: var(--cat-guard-left);
+      left: clamp(
+        var(--cat-companion-width),
+        var(--cat-guard-left),
+        calc(100% - 24px)
+      );
       bottom: var(--cat-guard-bottom);
       transform: translate(-82%, 48%);
     }

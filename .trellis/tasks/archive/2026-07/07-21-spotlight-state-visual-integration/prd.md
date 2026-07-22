@@ -15,10 +15,10 @@ composition before the separate final QA task.
 
 ## Acceptance Criteria
 
-- [ ] Reload restores game/feed/guard state or safely returns the cat home.
-- [ ] 320px through desktop layout has no intentional object/input overlap.
-- [ ] Away, reduced motion, and PiP preserve semantics without queued reactions.
-- [ ] Documentation describes the implemented spotlight interaction.
+- [x] Reload restores game/feed/guard state or safely returns the cat home.
+- [x] 320px through desktop layout has no intentional object/input overlap.
+- [x] Away, reduced motion, and PiP preserve semantics without queued reactions.
+- [x] Documentation describes the implemented spotlight interaction.
 
 ## Validation handoff
 

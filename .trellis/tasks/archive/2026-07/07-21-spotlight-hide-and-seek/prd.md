@@ -69,18 +69,27 @@
 
 ## Acceptance Criteria
 
-- [ ] AC1：未搜索时无可辨认小鱼；鼠标、触屏和键盘探照灯只显影局部小鱼，离开/余光结束后重新隐藏。
-- [ ] AC2：每堆包含散落单鱼与局部鱼堆，覆盖全桌面安全区域，显影不改变位置或遮挡关系。
-- [ ] AC3：被发现且可选择的小鱼可点击入托盘；隐藏或被遮挡的小鱼不会误接收指针操作。
-- [ ] AC4：可选择小鱼可拖给小猫直接移除；失败/拒绝拖放回原位，托盘不变。
-- [ ] AC5：每堆仅前三次投喂成功，第四次被拒绝；投喂不增加 `clearCount` 或植物成长，且剩余关卡仍可完成。
-- [ ] AC6：激活清醒小猫会寻找并守候一条合法隐藏目标；目标处理后返回，吃饱/睡眠时拒绝寻找。
-- [ ] AC7：自动卖萌低频、非阻塞、不找鱼；失焦/隐藏时暂停且返回后不补播。
-- [ ] AC8：守候位置可接收拖拽投喂，且目标绑定不会被重复激活、自动反应或动画破坏。
-- [ ] AC9：空托盘近乎不可见，非空托盘清晰；小猫、植物常驻，安静控制待机弱化但可发现。
-- [ ] AC10：320px、触屏、键盘、屏幕阅读器和减少动态效果模式均可完成选择、投喂与消除。
-- [ ] AC11：有效旧快照、刷新、视口变化和 Picture-in-Picture 保持可玩状态、规范布局、托盘与小猫状态。
-- [ ] AC12：定向引擎、存档、控制器、组件测试及前端 lint、type-check、build 通过，响应式视觉 QA 无横向滚动或关键遮挡。
+- [x] AC1：未搜索时无可辨认小鱼；鼠标、触屏和键盘探照灯只显影局部小鱼，离开/余光结束后重新隐藏。
+- [x] AC2：每堆包含散落单鱼与局部鱼堆，覆盖全桌面安全区域，显影不改变位置或遮挡关系。
+- [x] AC3：被发现且可选择的小鱼可点击入托盘；隐藏或被遮挡的小鱼不会误接收指针操作。
+- [x] AC4：可选择小鱼可拖给小猫直接移除；失败/拒绝拖放回原位，托盘不变。
+- [x] AC5：每堆仅前三次投喂成功，第四次被拒绝；投喂不增加 `clearCount` 或植物成长，且剩余关卡仍可完成。
+- [x] AC6：激活清醒小猫会寻找并守候一条合法隐藏目标；目标处理后返回，吃饱/睡眠时拒绝寻找。
+- [x] AC7：自动卖萌低频、非阻塞、不找鱼；失焦/隐藏时暂停且返回后不补播。
+- [x] AC8：守候位置可接收拖拽投喂，且目标绑定不会被重复激活、自动反应或动画破坏。
+- [x] AC9：空托盘近乎不可见，非空托盘清晰；小猫、植物常驻，安静控制待机弱化但可发现。
+- [x] AC10：320px、触屏、键盘、屏幕阅读器和减少动态效果模式均可完成选择、投喂与消除。
+- [x] AC11：有效旧快照、刷新、视口变化和 Picture-in-Picture 保持可玩状态、规范布局、托盘与小猫状态。
+- [x] AC12：定向引擎、存档、控制器、组件测试及前端 lint、type-check、build 通过，响应式视觉 QA 无横向滚动或关键遮挡。
+
+## Completion evidence
+
+- Four implementation children are archived as completed.
+- Final integration verification passed `pnpm ci:web` with 49 tests and covered
+  `320x568`, `390x844`, `768x1024`, and `1440x900` browser QA.
+- Persistence, cat guard restoration, full/sleep reload, reduced-motion CSS,
+  and Picture-in-Picture fallback/move contracts are covered by the archived
+  integration task and its regression tests.
 
 ## Out of Scope
 

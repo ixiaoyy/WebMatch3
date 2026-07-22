@@ -99,7 +99,8 @@ function clearStyle(index: number): Record<string, string | number> {
     opacity 180ms ease;
 
   &[data-empty="true"] {
-    opacity: 0.16;
+    opacity: 0.14;
+    box-shadow: inset 0 1px rgb(255 255 255 / 44%);
   }
 
   &[data-feedback="clear"],
@@ -243,6 +244,10 @@ function clearStyle(index: number): Record<string, string | number> {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .fish-tray {
+    transition: none;
+  }
+
   .fish-tray__slot[data-clearing="true"] img {
     animation: none !important;
     opacity: 0.58;

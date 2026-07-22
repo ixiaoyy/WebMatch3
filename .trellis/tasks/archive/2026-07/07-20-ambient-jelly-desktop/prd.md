@@ -1,5 +1,14 @@
 # Ambient tab jelly desktop
 
+## Superseded
+
+This task was superseded on 2026-07-22 by the completed Ambient Fish, felt-fish,
+cat companion, feeding, and spotlight task chain. Its jelly title, four-kind
+inventory, spread/gather interaction, replenishing pile, and 80-clear plant
+contract conflict with the current accepted product and must not be resumed as
+implementation requirements. The task is retained only as historical design
+context.
+
 ## Goal
 
 Reposition WebMatch3 as a quiet browser-tab companion: a player can switch to

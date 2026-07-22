@@ -24,6 +24,7 @@ interface AmbientSnapshotV3 {
   readonly game: AmbientGameState;
   readonly preferences: { readonly soundEnabled: boolean };
   readonly plant: { readonly plantedAt: number };
+  readonly pet: { readonly guardedPieceId: string | null };
 }
 
 loadAmbientSnapshot(storage: StorageLike | null, random?: RandomSource): AmbientSnapshotV3
@@ -35,16 +36,26 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
 
 - Root page is immediately playable: no player name, lobby, start gate, HUD,
   score, leaderboard, round result, or restart modal.
-- Pointer entry and `focus-within` gather pieces; pointer exit returns the
-  authored spread. Narrow/coarse-pointer layouts stay gathered so gameplay
-  never depends on hover.
-- After 30 seconds without pointer or keyboard activity, a fine-pointer scene
-  returns to its authored spread without mutating pile, tray, or plant state.
-  Pointer movement, pointer down, or keyboard activity gathers it again.
-- Native piece buttons provide 44px-or-larger targets. Blocked pieces are
-  disabled and have a text-free, non-color overlap cue plus an accessible
-  covering label.
-  Arrow keys choose the nearest selectable piece in gathered coordinates.
+- Fish keep one canonical full-surface layout across pointer, touch, keyboard,
+  responsive, and Picture-in-Picture paths. Search never rewrites or switches
+  their persisted coordinates.
+- Narrow or short surfaces apply one UI-only affine field projection that
+  reserves the lower companion/tray area. Pointer coordinates use the inverse
+  projection, and cat guard travel uses the same forward projection, so resize
+  and Picture-in-Picture never regenerate or persist alternate fish positions.
+- A UI-local spotlight owns only `inactive`, `searching`, `afterglow`, and
+  `dragging` state. Pointer movement, touch scanning, and keyboard arrows move
+  one normalized light; touch release keeps a brief afterglow.
+- Fish outside the light are visually hidden and cannot intercept pointer
+  input. The actually focused fish and an active dragged fish stay visible;
+  blocked or globally disabled fish remain unavailable even while revealed.
+- Native piece buttons provide 44px-or-larger targets. Tab and assistive
+  technology retain a direct semantic action path that does not require
+  discovering visual coordinates. Blocked pieces are disabled and have a
+  text-free, non-color overlap cue plus an accessible covering label.
+- When the search surface itself is focused, arrows move the light and
+  Enter/Space selects the nearest revealed selectable fish. Focused piece
+  buttons retain directional navigation and `F` feeding.
 - The cat is a native button whose pointer, touch, Enter, and Space activation
   requests search help only; it never toggles feeding or chooses a personality
   reaction. Awake search travels to one eligible target and guards it until
@@ -52,8 +63,10 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
 - Pointer and touch feeding use one Pointer Events drag path from a selectable
   fish to the cat's current bounds. Canonical state changes only on a valid
   drop; failed/rejected drops restore the fish. Keyboard users focus a fish and
-  press `F` for the same feed transition, while Enter/Space still selects it
-  into the tray.
+  press `F` for the same controller transition, while Enter/Space still selects
+  it into the tray. The component never suppresses `F` when the cat is full or
+  resting; the controller rejects it with the same accessible status feedback
+  as a rejected pointer drop.
 - The current pile records at most three fed fish. Counts one and two show the
   eating pose; count three plays full, lying, then sleeping. Away state pauses
   that pose timer without resetting capacity, and the next generated pile
@@ -68,6 +81,13 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
 - Stable state persists after selection, clear, recovery, preference change,
   and attention loss using `web-match3:ambient-state`. The obsolete
   `web-match3:progress` key is not read or deleted.
+- Light coordinates, afterglow handles, focus, pointer capture, and drag motion
+  are component-local state and never enter an ambient snapshot. Away and
+  unmount clear them without changing canonical game state.
+- Version-three parsing accepts an omitted legacy `pet` projection and
+  normalizes it to home. Only an existing, selectable guard target is restored;
+  malformed, stale, blocked, or full-cat targets default home without rejecting
+  the otherwise valid game snapshot.
 - A clear persists canonical state immediately but may expose the pre-clear
   tray as an ephemeral 620ms preview. The exact three pieces first travel into
   one shared tray position, then bubble and dissolve together before the tray
@@ -96,27 +116,30 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
 - Document Picture-in-Picture is feature-detected and hidden when unsupported.
   It moves the existing mounted surface, never mounts a second game/controller,
   and restores that surface on `pagehide`.
+- Away styling is owned by the movable surface rather than its opener-page
+  ancestor, so animation pause and reduced-attention contrast remain effective
+  after the same DOM subtree enters Picture-in-Picture.
 
 ## 4. Validation & Error Matrix
 
 | Condition | Required outcome |
 |---|---|
-| Pointer leaves and no focus remains | scatter visually; canonical state unchanged |
-| Fine-pointer activity stops for 30 seconds | scatter projection only; next activity gathers and continues |
-| Keyboard focus enters pile | gather, expose one roving tab stop, skip blockers |
+| Pointer leaves and no focus remains | clear the transient light; canonical state remains unchanged |
+| Touch search ends | keep a brief local afterglow, then hide fish outside retained focus/drag targets |
+| Keyboard focus enters the field | expose the semantic path; focused fish stays visible and blockers stay unavailable |
 | Fish is dropped on the cat or focused fish receives `F` below capacity | remove it from the pile, persist feed count, update cat pose |
 | Fish drag ends outside the cat or feed is rejected | restore visual position; canonical pile/tray unchanged |
 | Awake cat is activated with an eligible target | look, travel, guard that target, show one brief bubble |
 | Guarded target is selected or fed | return cat home and clear the guard |
 | Feed credit completes one/two tray fish | animate only that short group, consume credits once, no plant clear |
 | Cat already has three feeds | keep feed mode off and announce that the cat is full |
-| Coarse pointer or width `<=620px` | gathered projection without hover dependency |
+| Coarse pointer or width `<=620px` | touch scanning and semantic controls work without hover dependency |
 | Seven unmatched tray entries | lock briefly, foreground timer, return two, resume |
 | Window/document becomes away | persist, cancel timers, stop sound, pause motion |
 | Stored JSON/schema is invalid | fresh solvable level-one snapshot, sound off |
 | Valid version-two snapshot uses four or eight legacy keys | map kinds, preserve opaque IDs and progress, return version three |
 | Valid version-one endless snapshot | preserve long-term progress and start a solvable version-three level-one field |
-| Final triple clears | persist next harder level, gather/disappear preview, then unlock input |
+| Final triple clears | persist next harder level, show disappear/arrival preview, then unlock input |
 | Legacy version-one snapshot lacks `plant` | preserve game/preferences and seed `plantedAt` at load |
 | Storage access/write throws | continue in memory; write returns `false` |
 | PiP API unavailable | render no small-window button or warning |
@@ -128,6 +151,9 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
 - Good: selection persists before decorative clear feedback finishes.
 - Base: unsupported PiP and blocked storage still provide complete play.
 - Good: hiding the opener does not pause an active PiP surface.
+- Good: reveal state derives from canonical coordinates but remains entirely
+  local to `FishField.vue`.
+- Bad: a hidden fish keeps a pointer hit box or light coordinates are saved.
 - Bad: a component calls `localStorage` or computes blockers itself.
 - Bad: hover state, timers, focus, DOM nodes, or audio objects enter snapshots.
 - Bad: a second Vue mount is created for the small window.
@@ -145,8 +171,9 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
    geometry/inventory, tray/level/counter/plant bounds, inaccessible storage,
    and quota failure;
 4. browser checks at `320x568`, `390x844`, `768x1024`, and `1440x900` for no
-   horizontal overflow, pointer/focus gather, scatter, keyboard selection,
-   blocked state, tray clear, plant growth, persistence, and no console errors;
+   horizontal overflow, pointer/touch reveal, afterglow, retained focus and
+   drag visibility, keyboard and semantic selection, blocked hit gating, tray
+   clear, plant growth, persistence, and no console errors;
 5. reduced-motion and supported/unsupported/rejected PiP paths.
 6. mixed-species feeding, short-group settlement without a clear callback,
    persisted feed credits, and full-to-lying-to-sleeping pose timing.

@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 
-import type { PilePiece } from "../../engine";
+import type { PilePiece, Point } from "../../engine";
 import { getFishPresentation } from "../game-ui";
 
 const props = defineProps<{
   piece: PilePiece;
+  position: Point;
   blocked: boolean;
   revealed: boolean;
   feedable: boolean;
@@ -36,7 +37,7 @@ const label = computed(() =>
     ? `${presentation.value.label}，被上层小鱼遮住，暂不可选择`
     : props.feedable
       ? `${presentation.value.label}，Enter或空格放入托盘，按F喂给小猫`
-      : `${presentation.value.label}，放入托盘，小猫已经吃饱`,
+      : `${presentation.value.label}，Enter或空格放入托盘；小猫正在休息，按F可听取提示`,
 );
 
 function onPointerDown(event: PointerEvent): void {
@@ -97,7 +98,7 @@ function onClick(): void {
 }
 
 function onKeydown(event: KeyboardEvent): void {
-  if (event.key.toLowerCase() === "f" && props.feedable) {
+  if (event.key.toLowerCase() === "f") {
     event.preventDefault();
     emit("feed", props.piece.id);
     return;
@@ -118,12 +119,10 @@ function onKeydown(event: KeyboardEvent): void {
     :disabled="blocked || disabled"
     :tabindex="blocked ? -1 : tabIndex"
     :aria-label="label"
-    :aria-keyshortcuts="feedable ? 'F' : undefined"
+    aria-keyshortcuts="F"
     :style="{
-      '--pile-x': piece.pile.x,
-      '--pile-y': piece.pile.y,
-      '--spread-x': piece.spread.x,
-      '--spread-y': piece.spread.y,
+      '--pile-x': position.x,
+      '--pile-y': position.y,
       '--piece-rotation': `${piece.rotation}deg`,
       '--piece-scale': piece.scale,
       '--piece-layer': piece.layer,
@@ -179,6 +178,10 @@ function onKeydown(event: KeyboardEvent): void {
   &[data-revealed="true"],
   &[data-dragging="true"] {
     opacity: 1;
+  }
+
+  &[data-revealed="true"]:not(:disabled),
+  &[data-dragging="true"]:not(:disabled) {
     pointer-events: auto;
   }
 
@@ -267,6 +270,12 @@ function onKeydown(event: KeyboardEvent): void {
   .fish-piece {
     width: clamp(62px, 20vw, 78px);
     height: clamp(62px, 20vw, 78px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fish-piece {
+    transition: none;
   }
 }
 </style>

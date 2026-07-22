@@ -74,7 +74,9 @@ Implement only one child task at a time, in this order:
    styles, tests, persistence boundaries, copy, and live docs to canonical Fish semantics.
 4. `07-21-cat-fish-feeding` — feed interaction and three-fish state machine.
 5. `07-21-cat-reactions` — click expressions, actions, and speech bubbles.
-6. `07-21-cat-companion-integration` — persistence, accessibility, responsive
+6. `07-21-spotlight-hide-and-seek` — stable mixed field, spotlight search,
+   drag-to-feed, and cat search/guard collaboration.
+7. `07-21-cat-companion-integration` — persistence, accessibility, responsive
    behavior, reduced motion, Picture-in-Picture, and regression coverage.
 
 Do not start the parent as one monolithic implementation run.
@@ -90,20 +92,23 @@ Do not start the parent as one monolithic implementation run.
 
 ## Acceptance Criteria
 
-- [ ] A selectable hard-to-match fish can be fed to the cat without entering
+- [x] A selectable hard-to-match fish can be fed to the cat without entering
       the tray, using pointer/touch and keyboard-accessible controls.
-- [ ] Feeding never leaves the finite pile mathematically impossible to finish.
-- [ ] The cat visibly distinguishes 0, 1, 2, and 3 consumed-fish states.
-- [ ] On the third fish the cat holds its belly, lies down, and shows `ZZZ`.
-- [ ] A sleeping cat rejects further feeding and resets only with the next pile.
-- [ ] Activating the cat produces brief varied expressions/actions/bubbles
+- [x] Feeding never leaves the finite pile mathematically impossible to finish.
+- [x] The cat visibly distinguishes 0, 1, 2, and 3 consumed-fish states.
+- [x] On the third fish the cat holds its belly, lies down, and shows `ZZZ`.
+- [x] A sleeping cat rejects further feeding and resets only with the next pile.
+- [x] Activating the cat produces brief varied expressions/actions/bubbles
       without blocking the game.
-- [ ] Cat and fish visuals materially follow the supplied felt references.
-- [ ] Reload, away-state, reduced-motion, responsive, keyboard, and supported
+- [x] Cat and fish visuals materially follow the supplied felt references.
+- [x] Reload, away-state, reduced-motion, responsive, keyboard, and supported
       Picture-in-Picture behavior preserve the existing product contracts.
-- [ ] The six child tasks remain independently startable and verifiable.
+- [x] The seven child tasks remain independently startable and verifiable.
 
-## Planning Gate
+## Completion evidence
 
-Do not run `task.py start` or modify application code until the user explicitly
-chooses a child task and asks to begin development.
+- All seven child tasks are archived as completed.
+- The final integration passed lint, type-check, 49 tests, production build,
+  and responsive browser QA at the four required viewport sizes.
+- This parent closure only reconciles the completed delivery record; it does
+  not add or modify application behavior.

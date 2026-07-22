@@ -7,11 +7,28 @@ persistence lives in `session/`. Vue,
 attention lifecycle, optional Document Picture-in-Picture, sound, and visual
 projection live in `ui/`.
 
-The engine owns both scattered and gathered coordinates. UI hover/focus only
-chooses the projection; it never derives blockers from DOM geometry.
+The engine owns one stable normalized field and explicit blockers. `FishField`
+keeps spotlight coordinates, touch afterglow, focus, and drag motion as local
+UI projection only; none of those transient values enter snapshots.
+Narrow/short surfaces apply a reversible UI-only projection that reserves the
+lower cat/tray area; pointer search and cat guard travel share that projection,
+so resize and Picture-in-Picture never rewrite canonical positions.
+
+Pointer movement, touch scanning, and keyboard arrows reveal nearby fish.
+Enter/Space selects a revealed or semantically focused fish into the tray.
+Activating the cat only asks it to find and guard one hidden selectable fish;
+feeding stays separate through pointer-captured drag-to-cat or the focused
+fish `F` shortcut. Up to three fish of any species may be fed, and one or two
+matching tray fish may use those feed credits to complete and disappear.
 
 Each level is constructed from same-layer triples, so removing upper groups
 before lower groups is always a complete solution. Clears never replenish the
 current level. Emptying the pile advances to a gradually denser level, while
 full-tray recovery only repositions existing pieces and exposes a completing
 fish.
+
+Version-three persistence stores canonical game, preferences, plant age, and
+only a validated guarded fish ID. Missing, malformed, stale, blocked, or
+full-cat guard state safely restores the cat home. The same mounted Vue surface
+moves into Document Picture-in-Picture and reflows there without creating a
+second controller.

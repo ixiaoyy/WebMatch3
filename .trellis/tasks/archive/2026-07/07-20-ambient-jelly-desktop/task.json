@@ -3,7 +3,7 @@
   "name": "ambient-jelly-desktop",
   "title": "Ambient tab jelly desktop",
   "description": "Replace the classic swap-grid game with a quiet browser-tab jelly desktop: freeform layered pieces, tray matching, persistent plant growth, browser-native Picture-in-Picture, and reference-aligned lavender desktop visuals.",
-  "status": "in_progress",
+  "status": "completed",
   "dev_type": "frontend",
   "scope": "apps/web ambient game product replacement",
   "package": "web",
@@ -11,7 +11,7 @@
   "creator": "webmatch3",
   "assignee": "webmatch3",
   "createdAt": "2026-07-20",
-  "completedAt": null,
+  "completedAt": "2026-07-22",
   "branch": null,
   "base_branch": "main",
   "worktree_path": null,
@@ -25,6 +25,6 @@
     "apps/web",
     ".trellis/spec/frontend"
   ],
-  "notes": "Planning only. Do not start implementation until the user explicitly resumes and approves development.",
+  "notes": "Superseded on 2026-07-22 by the completed Ambient Fish, cat companion, feeding, and spotlight task chain. Historical context only; do not resume implementation.",
   "meta": {}
 }

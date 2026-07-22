@@ -27,14 +27,14 @@ Picture without regressing the ambient matching game.
 
 ## Acceptance Criteria
 
-- [ ] Old, current, and corrupt snapshots each load into a valid playable state.
-- [ ] Feed count and full/sleep state survive reload and Picture-in-Picture moves.
-- [ ] Away state freezes pet behavior with no queued burst on return.
-- [ ] Pointer, touch, keyboard, and assistive-technology paths can feed and react.
-- [ ] The complete interface remains usable without horizontal scrolling at
+- [x] Old, current, and corrupt snapshots each load into a valid playable state.
+- [x] Feed count and full/sleep state survive reload and Picture-in-Picture moves.
+- [x] Away state freezes pet behavior with no queued burst on return.
+- [x] Pointer, touch, keyboard, and assistive-technology paths can feed and react.
+- [x] The complete interface remains usable without horizontal scrolling at
       320 px and retains the intended composition at 1440×900.
-- [ ] Reduced-motion mode preserves all functional and textual feedback.
-- [ ] Existing matching, recovery, persistence, plant, settings, and browser-
+- [x] Reduced-motion mode preserves all functional and textual feedback.
+- [x] Existing matching, recovery, persistence, plant, settings, and browser-
       capability tests remain green after the final integration.
 
 ## Dependency and Handoff
@@ -42,3 +42,16 @@ Picture without regressing the ambient matching game.
 - Runs only after the visual, feeding, and reaction child tasks are complete.
 - This is the final consolidation task, not permission to reimplement all prior
   children in one run.
+
+## Final verification
+
+- Focused engine, storage, controller, spotlight, and Picture-in-Picture tests
+  passed before the consolidated check.
+- Interactive browser QA covered the four required viewport sizes, pointer
+  reveal, cat search, keyboard feeding, full/sleep persistence, semantic status
+  feedback, request-rejection fallback, reduced-motion CSS presence, and a
+  clean console.
+- The browser could not emulate a reduced-motion operating-system preference or
+  open a real Document Picture-in-Picture surface. Those paths are covered by
+  motion-independent controller behavior, compiled CSS inspection, and the
+  dedicated Picture-in-Picture unit regressions.

@@ -68,7 +68,7 @@ const stageAssets: Readonly<Record<PlantStage, string>> = {
 <style scoped lang="scss">
 .growing-plant {
   position: absolute;
-  z-index: 2;
+  z-index: 4;
   right: clamp(26px, 3.6vw, 66px);
   bottom: 300px;
   width: clamp(132px, 13vw, 184px);
@@ -193,6 +193,14 @@ const stageAssets: Readonly<Record<PlantStage, string>> = {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .growing-plant--celebrating {
+    animation: none;
+  }
+
+  .growing-plant__foliage {
+    transition: none;
+  }
+
   .stage-flower-enter-active,
   .stage-flower-leave-active {
     transition: none;

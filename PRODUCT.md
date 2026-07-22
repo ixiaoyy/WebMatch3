@@ -32,13 +32,14 @@ in a work browser, but materially rich when the player touches it.
 
 ## Design Principles
 
-1. **The desktop is the frame.** Preserve generous negative space and anchor
-   the playable vignette near the lower-right rather than enclosing it in a
-   board or card.
-2. **Gather on attention.** Fish rest loosely across the surface, gather into
-   a shallow playable pile on pointer or keyboard engagement, and scatter when
-   attention leaves.
-3. **Five seconds is enough.** Every new field opens with a quick visible
+1. **The desktop is the frame.** Preserve generous negative space, let search
+   use the open surface, and keep the visible cat/plant/tray vignette near the
+   lower edges rather than enclosing play in a board or card.
+2. **Search without pressure.** Fish keep one stable hidden arrangement.
+   Pointer movement, touch scanning, or keyboard arrows reveal only a nearby
+   area; focused and dragged fish remain available without moving canonical
+   game state.
+3. **Five seconds is enough.** Every new field opens with a nearby discoverable
    match and a constructed complete solution, with no start gate.
 4. **Resume without ceremony.** Save stable state after meaningful actions and
    restore it directly, with no welcome-back or offline-reward flow.
@@ -49,6 +50,10 @@ in a work browser, but materially rich when the player touches it.
    a numeric level HUD.
 7. **Rules stay testable.** Occlusion, selection, clearing, recovery, and
    generation remain pure and independent from Vue and browser services.
+8. **The cat collaborates, not competes.** Activating the cat asks it to find
+   one hidden legal fish. Feeding is a separate action: drag a fish onto the
+   cat, or use `F` from a focused fish; any species may be fed up to the
+   current three-fish capacity.
 
 ## Anti-references
 
@@ -69,4 +74,5 @@ in a work browser, but materially rich when the player touches it.
 - Maintain at least 44 px effective targets and fit 320 px without horizontal
   scrolling.
 - Preserve all state feedback under `prefers-reduced-motion`; hover may enrich
-  layout but must never be required on coarse-pointer devices.
+  presentation but search and feeding never require it on coarse-pointer
+  devices.

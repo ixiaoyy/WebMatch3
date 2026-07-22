@@ -38,11 +38,13 @@ wallpaper containing interactive objects.
   top bar, logo, level title, grid, or conventional HUD.
 - Eight fish share tactile felt, stitched seams, bead eyes, rounded volume, and
   lavender-compatible lighting while remaining distinct by species silhouette.
-- Idle pieces use irregular spread coordinates; engaged pieces use a compact
-  shallow pile. Motion changes position only and does not alter blockers.
-- Blocked pieces use reduced saturation/brightness plus a quiet pair of
-  overlapping outlines. The visible cue contains no word or character;
-  selectable and focused pieces keep recognizable silhouettes.
+- Fish use one irregular full-surface arrangement of singleton and shallow
+  grouped positions. Reveal, focus, and drag projection never alter canonical
+  coordinates or blocker relationships.
+- Fish are visually unidentifiable outside the local spotlight. Revealed
+  blocked pieces use reduced saturation/brightness plus a quiet pair of
+  overlapping outlines, but never gain pointer input. Focused and dragged
+  pieces retain recognizable silhouettes outside the light.
 - Plant begins as an empty ceramic pot. Generated foliage reveals slowly at
   clear milestones `0,100,300,600,1000,1800,3000,5000,8000`, with no numeric
   label. Stage changes use both clear count and elapsed plant age: flowering
@@ -65,13 +67,20 @@ wallpaper containing interactive objects.
   same surface. The transition communicates progression without adding a
   number, label, modal, or separate result screen.
 - The seven-slot tray is the only persistent glass grouping. Quiet controls
-  stay low-opacity until hover/focus and preserve practical targets.
+  stay low-opacity until hover/focus, become slightly clearer on touch-only
+  surfaces, and preserve 44px-or-larger targets. The empty tray is present but
+  nearly transparent; occupied slots restore full readability.
 - The felt cat stays visible as a desktop companion. Search travel may move it
   beside one fish without covering that fish's target; its current bounds are
   also the pointer/touch feed drop region. Only one compact, translucent speech
   bubble is shown, and it never captures input or becomes a persistent HUD.
-- At `<=620px`, the vignette moves lower-center and stays gathered. No viewport
-  may gain horizontal overflow.
+- At `<=620px`, the same normalized field reprojects inside safe bounds and
+  touch scanning replaces hover assumptions. No viewport may gain horizontal
+  overflow. The cat clears the centered tray vertically, while the plant stays
+  pointer-transparent above revealed fish so neither blocks fish input.
+- The compact field projection compresses only rendered vertical coordinates.
+  Spotlight hit testing applies its inverse and cat guard placement applies the
+  same forward transform; blocker geometry and persisted anchors stay canonical.
 
 ## 4. Validation & Error Matrix
 
@@ -79,9 +88,10 @@ wallpaper containing interactive objects.
 |---|---|
 | Asset has opaque key-color background/fringe | reject or reprocess before import |
 | Fish silhouettes collapse at 32–48px | reject the set or adjust subject scale |
-| Idle scene resembles rows/cells | replace authored positions; hiding borders is insufficient |
+| Idle scene identifies fish before search | hide fish projection without removing its semantic action path |
+| Field resembles rows/cells | replace authored positions; hiding borders is insufficient |
 | Controls compete with scene | reduce opacity/weight, retain focus visibility |
-| 320px viewport | gathered pile, readable tray, 44px targets, no overflow |
+| 320px viewport | safe full-surface field, readable tray, 44px targets, no overflow |
 | Reduced motion | instant/near-instant projection and feedback, no lost state |
 | Clear reaches a plant stage before its day gate | remain in the previous stage |
 | Stage mark is shown | exactly one flower, correct species and increasing size, no visible copy |
@@ -92,7 +102,8 @@ wallpaper containing interactive objects.
 
 - Good: most pixels are quiet lavender empty space; the tactile vignette owns
   the lower-right without looking like a floating game panel.
-- Base: pot plus gathered fish and tray remain usable before any growth.
+- Base: the hidden fish field, cat, pot, and tray remain searchable and usable
+  before any growth.
 - Good: contact shadows ground objects without introducing a board surface.
 - Bad: every object receives glow, continuous bobbing, or saturated particles.
 - Bad: the tray expands into a dashboard or the pile becomes a rectangular
@@ -104,9 +115,9 @@ wallpaper containing interactive objects.
    image; inspect light direction, negative space, horizon, material, and
    lower-right hierarchy;
 2. capture `320x568`, `390x844`, `768x1024`, and `1440x900`;
-3. inspect spread, gathered, 30-second idle scatter, focus, blocked, bubble
-   clear, growing, flowering, fruiting, mature, full-tray recovery, away, and
-   reduced-motion states;
+3. inspect hidden idle, pointer/touch/keyboard reveal, afterglow, retained
+   focus/drag, blocked, bubble clear, growing, flowering, fruiting, mature,
+   full-tray recovery, away, and reduced-motion states;
 4. validate tab title `小鱼`, whale favicon legibility, console cleanliness, and no
    horizontal overflow;
 5. run UI tests and `pnpm ci:web` after visual fixes.
@@ -126,15 +137,17 @@ This recreates a board and fakes the primary bitmap material in CSS.
 
 ```scss
 .fish-piece {
-  left: calc(var(--active-x) * 100%);
-  top: calc(var(--active-y) * 100%);
+  left: calc(var(--pile-x) * 100%);
+  top: calc(var(--pile-y) * 100%);
+  opacity: 0;
+  pointer-events: none;
 }
 
-.fish-field:hover .fish-piece {
-  --active-x: var(--pile-x);
-  --active-y: var(--pile-y);
+.fish-piece[data-revealed="true"]:not(:disabled) {
+  opacity: 1;
+  pointer-events: auto;
 }
 ```
 
-Generated assets provide the material; authored coordinates provide the
-desktop spread and gathered pile.
+Generated assets provide the material; authored coordinates and UI-local
+reveal projection provide the stable hide-and-seek field.

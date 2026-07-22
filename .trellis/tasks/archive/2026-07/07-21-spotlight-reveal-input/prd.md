@@ -15,10 +15,10 @@ touch, keyboard, and assistive-technology paths.
 
 ## Acceptance Criteria
 
-- [ ] Fish are not visually identifiable before search.
-- [ ] Pointer, touch, keyboard, and semantic users can discover and select legal fish.
-- [ ] Hidden fish cannot intercept pointer input and blocked fish remain unavailable.
-- [ ] Light coordinates, afterglow, and drag motion never enter snapshots.
+- [x] Fish are not visually identifiable before search.
+- [x] Pointer, touch, keyboard, and semantic users can discover and select legal fish.
+- [x] Hidden fish cannot intercept pointer input and blocked fish remain unavailable.
+- [x] Light coordinates, afterglow, and drag motion never enter snapshots.
 
 ## Validation handoff
 

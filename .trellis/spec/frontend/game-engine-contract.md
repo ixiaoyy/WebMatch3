@@ -2,7 +2,7 @@
 
 ## 1. Scope / Trigger
 
-Apply this contract when changing finite level generation, gathered-geometry
+Apply this contract when changing finite level generation, field-geometry
 occlusion, tray selection, automatic triples, progressive difficulty,
 full-tray recovery, or any consumer of those transitions. The engine lives in
 `apps/web/src/features/game/engine` and stays independent from Vue, DOM APIs,
@@ -84,7 +84,7 @@ interface FedFish extends TrayPiece {
   lower piece immediately. Old snapshots without `blockerIds` retain the
   legacy overlap calculation until that level is finished.
 - The normalized blocker rectangle must track the rendered fish footprint
-  (currently `0.20 × 0.29` of the gathered surface at scale `1`). A visually
+  (currently `0.20 × 0.29` of the field surface at scale `1`). A visually
   covered lower half must not remain selectable because engine height is
   shorter than the native button.
 - A piece is blocked only by meaningful overlap from a strictly higher layer.
@@ -135,7 +135,8 @@ interface FedFish extends TrayPiece {
 - Good: the UI asks `getBlockerIds` and disables blocked native buttons.
 - Base: a fresh state exposes a quick triple and a complete removal path
   without any timer, score, numeric level label, or fail state.
-- Good: hover chooses `spread` or `pile` coordinates without regenerating state.
+- Good: the UI reveals canonical `pile` coordinates without regenerating or
+  mutating state; legacy `spread` remains snapshot-compatible only.
 - Bad: a component compares DOM rectangles to infer blockers.
 - Bad: a clear appends replacements and makes the current level endless.
 - Bad: recovery clears the tray, recolors a piece, changes `clearCount`, or
@@ -176,7 +177,8 @@ This duplicates rules in the DOM and mutates canonical state during hover.
 
 ```ts
 const blockerIds = getBlockerIds(state.pieces, piece.id);
-const projection = engaged ? piece.pile : piece.spread;
+const projection = piece.pile;
+const revealed = revealedIds.has(piece.id);
 ```
 
-The engine owns rule geometry; the UI only selects a visual projection.
+The engine owns rule geometry; the UI only derives transient reveal state.

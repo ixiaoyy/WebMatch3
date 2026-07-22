@@ -5,6 +5,7 @@ import {
   createLevelState,
   createSeededRandom,
   feedPiece,
+  getBlockerIds,
   getSelectablePieces,
   selectPiece,
 } from "../engine";
@@ -97,7 +98,7 @@ describe("ambient snapshot storage", () => {
     expect(loadAmbientSnapshot(storage, createSeededRandom(45))).toEqual(snapshot);
   });
 
-  it("restores a valid guard and safely drops corrupt pet state", () => {
+  it("restores only a valid guard and normalizes unsafe pet state home", () => {
     const fresh = createFreshSnapshot(createSeededRandom(46));
     const target = getSelectablePieces(fresh.game.pieces)[0];
     expect(target).toBeDefined();
@@ -107,6 +108,46 @@ describe("ambient snapshot storage", () => {
       pet: { guardedPieceId: target.id },
     };
     expect(parseAmbientSnapshot(guarded)?.pet).toEqual(guarded.pet);
+
+    const { pet: _pet, ...withoutPet } = fresh;
+    void _pet;
+    expect(parseAmbientSnapshot(withoutPet)?.pet.guardedPieceId).toBeNull();
+
+    const staleGuard = {
+      ...fresh,
+      pet: { guardedPieceId: "missing-fish" },
+    };
+    expect(parseAmbientSnapshot(staleGuard)?.pet.guardedPieceId).toBeNull();
+
+    const blockedTarget = fresh.game.pieces.find((piece) =>
+      getBlockerIds(fresh.game.pieces, piece.id).length > 0
+    );
+    expect(blockedTarget).toBeDefined();
+    if (blockedTarget) {
+      const blockedGuard = {
+        ...fresh,
+        pet: { guardedPieceId: blockedTarget.id },
+      };
+      expect(parseAmbientSnapshot(blockedGuard)?.pet.guardedPieceId).toBeNull();
+    }
+
+    let fullGame = fresh.game;
+    for (let index = 0; index < 3; index += 1) {
+      const feedTarget = getSelectablePieces(fullGame.pieces)[0];
+      expect(feedTarget).toBeDefined();
+      if (!feedTarget) break;
+      fullGame = feedPiece(
+        fullGame,
+        feedTarget.id,
+        createSeededRandom(460 + index),
+      ).state;
+    }
+    const fullGuard = {
+      ...fresh,
+      game: fullGame,
+      pet: { guardedPieceId: getSelectablePieces(fullGame.pieces)[0]?.id ?? null },
+    };
+    expect(parseAmbientSnapshot(fullGuard)?.pet.guardedPieceId).toBeNull();
 
     const corruptPet = {
       ...fresh,

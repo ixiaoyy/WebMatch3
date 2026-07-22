@@ -67,7 +67,7 @@ export function createAmbientController(
   const initial = loadAmbientSnapshot(storage, random, currentTime.value);
   const game = shallowRef<AmbientGameState>(initial.game);
   const soundEnabled = ref(initial.preferences.soundEnabled);
-  const status = ref("毛毡小鱼散在桌面上。移近一点，它们会聚拢。");
+  const status = ref("小鱼藏在桌面上。移动指针、触摸或方向键寻找它们。");
   const feedback = ref<"idle" | "clear" | "settle" | "recovery" | "level">("idle");
   const catPose = ref<CatPose>(
     initial.game.fed.length === 0
@@ -325,13 +325,20 @@ export function createAmbientController(
     lastCatActivationAt = activatedAt;
 
     if (game.value.fed.length >= 3 || catIsResting.value) {
-      status.value = "小猫已经睡着了，现在不能帮忙寻鱼。";
+      status.value = catPose.value === "sleeping"
+        ? "小猫已经睡着了，现在不能帮忙寻鱼。"
+        : "小猫已经吃饱，正在休息，现在不能帮忙寻鱼。";
       showCatReaction(catPose.value === "sleeping" ? "sleeping" : "full");
       return;
     }
     if (guardedPiece.value) {
       status.value = "小猫还守着刚找到的那条鱼。";
       showCatReaction("guarding");
+      return;
+    }
+    if (!canSelect.value) {
+      status.value = "桌面正在变化，请稍后再请小猫寻鱼。";
+      showCatReaction("unavailable");
       return;
     }
 

@@ -123,6 +123,15 @@ describe("ambient controller", () => {
     expect(controller.game.value.clearCount).toBe(0);
     expect(controller.catPose.value).toBe("full");
     expect(onClear).not.toHaveBeenCalled();
+
+    const fullState = controller.game.value;
+    controller.feedToCat("keep");
+    expect(controller.game.value).toBe(fullState);
+    expect(controller.status.value).toBe("小猫正在休息，现在不能再喂。");
+    controller.requestCatSearch();
+    expect(controller.guardedPiece.value).toBeNull();
+    expect(controller.status.value).toBe("小猫已经吃饱，正在休息，现在不能帮忙寻鱼。");
+
     callbacks.shift()?.();
     expect(controller.catPose.value).toBe("lying");
     callbacks.shift()?.();
@@ -163,16 +172,25 @@ describe("ambient controller", () => {
   it("searches, guards the target, and returns home when it is selected", () => {
     const { callbacks, timers } = controlledTimers();
     let currentTime = 1_000;
+    let excludedId: string | null = null;
     const controller = createAmbientController({
       random: createSeededRandom(54),
       storage: null,
       timers,
       now: () => currentTime,
+      isSearchCandidate: (pieceId) => pieceId !== excludedId,
     });
+    const beforeSearch = controller.game.value;
+    excludedId = [...controller.selectablePieces.value].sort((first, second) =>
+      Math.hypot(first.pile.x - 0.12, first.pile.y - 0.74) -
+      Math.hypot(second.pile.x - 0.12, second.pile.y - 0.74)
+    )[0]?.id ?? null;
 
     controller.requestCatSearch();
     const targetId = controller.guardedPiece.value?.id;
     expect(targetId).toBeDefined();
+    expect(targetId).not.toBe(excludedId);
+    expect(controller.game.value).toBe(beforeSearch);
     expect(controller.catTravelPhase.value).toBe("looking");
 
     callbacks.shift()?.();
@@ -189,6 +207,38 @@ describe("ambient controller", () => {
     currentTime += 100;
     controller.requestCatSearch();
     expect(controller.catTravelPhase.value).toBe("home");
+
+    currentTime += 1_000;
+    controller.feedback.value = "level";
+    controller.requestCatSearch();
+    expect(controller.guardedPiece.value).toBeNull();
+    expect(controller.status.value).toBe("桌面正在变化，请稍后再请小猫寻鱼。");
+    controller.dispose();
+  });
+
+  it("feeds a guarded target through the canonical transition and returns home", () => {
+    const onClear = vi.fn();
+    const controller = createAmbientController({
+      random: createSeededRandom(57),
+      storage: null,
+      onClear,
+    });
+
+    controller.requestCatSearch();
+    const target = controller.guardedPiece.value;
+    expect(target).not.toBeNull();
+    if (!target) return;
+    const clearCount = controller.game.value.clearCount;
+    const tray = controller.game.value.tray;
+
+    controller.feedToCat(target.id);
+
+    expect(controller.guardedPiece.value).toBeNull();
+    expect(controller.catTravelPhase.value).toBe("home");
+    expect(controller.game.value.fed.at(-1)?.id).toBe(target.id);
+    expect(controller.game.value.tray).toEqual(tray);
+    expect(controller.game.value.clearCount).toBe(clearCount);
+    expect(onClear).not.toHaveBeenCalled();
     controller.dispose();
   });
 

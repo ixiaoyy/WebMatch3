@@ -2,10 +2,10 @@
 
 ## Dependency gate
 
-- [ ] Finish and verify all eight fish assets and their canonical registry.
-- [ ] Finish `07-21-rename-jelly-domain-to-fish` with old-save compatibility.
-- [ ] Finish canonical three-feed state and cat reaction primitives.
-- [ ] Re-read this task after dependency completion and reconcile renamed paths.
+- [x] Finish and verify all eight fish assets and their canonical registry.
+- [x] Finish `07-21-rename-jelly-domain-to-fish` with old-save compatibility.
+- [x] Finish canonical three-feed state and cat reaction primitives.
+- [x] Re-read this task after dependency completion and reconcile renamed paths.
 
 ## Implementation sequence
 

@@ -16,11 +16,11 @@ without competing click semantics.
 
 ## Acceptance Criteria
 
-- [ ] Click/touch/keyboard cat activation produces the same search request.
-- [ ] Guarding never reveals or resolves the target automatically.
-- [ ] Valid drops feed; invalid drops restore; plant progress never changes.
-- [ ] Guard position becomes the live drop target and target resolution returns home.
-- [ ] Bubbles are non-stacking, non-repeating, throttled, and pointer-transparent.
+- [x] Click/touch/keyboard cat activation produces the same search request.
+- [x] Guarding never reveals or resolves the target automatically.
+- [x] Valid drops feed; invalid drops restore; plant progress never changes.
+- [x] Guard position becomes the live drop target and target resolution returns home.
+- [x] Bubbles are non-stacking, non-repeating, throttled, and pointer-transparent.
 
 ## Validation handoff
 

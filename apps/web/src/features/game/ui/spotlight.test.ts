@@ -2,9 +2,13 @@ import { describe, expect, it } from "vitest";
 
 import type { PilePiece } from "../engine";
 import {
+  FULL_FIELD_PROJECTION,
   findNearestRevealedPiece,
+  getFieldProjection,
   getRevealedPieceIds,
   moveSpotlight,
+  projectFieldPoint,
+  unprojectFieldPoint,
 } from "./spotlight";
 
 const pieces: readonly PilePiece[] = [
@@ -29,12 +33,24 @@ const pieces: readonly PilePiece[] = [
 ];
 
 describe("spotlight projection", () => {
-  it("reveals only local fish while always retaining a dragged fish", () => {
-    expect([...getRevealedPieceIds(pieces, { x: 0.5, y: 0.5 }, "far")]).toEqual([
+  it("reveals only local fish while retaining active semantic and drag targets", () => {
+    expect([...getRevealedPieceIds(
+      pieces,
+      { x: 0.5, y: 0.5 },
+      ["far", "missing"],
+    )]).toEqual([
       "far",
       "near",
     ]);
-    expect(getRevealedPieceIds(pieces, null, null).size).toBe(0);
+    expect(getRevealedPieceIds(pieces, null).size).toBe(0);
+  });
+
+  it("keeps a focused fish revealed when the light moves away", () => {
+    expect(getRevealedPieceIds(
+      pieces,
+      { x: 0.85, y: 0.8 },
+      ["near"],
+    )).toEqual(new Set(["near", "far"]));
   });
 
   it("moves and clamps the keyboard light", () => {
@@ -48,5 +64,18 @@ describe("spotlight projection", () => {
       new Set(["near", "far"]),
       { x: 0.52, y: 0.52 },
     )?.id).toBe("near");
+  });
+
+  it("reprojects compact surfaces without changing canonical coordinates", () => {
+    expect(getFieldProjection(1440, 900)).toBe(FULL_FIELD_PROJECTION);
+    const compact = getFieldProjection(320, 568);
+    const canonical = { x: 0.23, y: 0.66 };
+    const projected = projectFieldPoint(canonical, compact);
+
+    expect(projected.x).toBeCloseTo(0.23);
+    expect(projected.y).toBeCloseTo(0.4884);
+    const restored = unprojectFieldPoint(projected, compact);
+    expect(restored.x).toBeCloseTo(canonical.x);
+    expect(restored.y).toBeCloseTo(canonical.y);
   });
 });

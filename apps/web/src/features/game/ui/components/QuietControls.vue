@@ -35,7 +35,7 @@ const emit = defineEmits<{
 
   button {
     min-width: 48px;
-    min-height: 40px;
+    min-height: 44px;
     padding: 8px 12px;
     border: 1px solid var(--quiet-line);
     border-radius: 999px;
@@ -46,6 +46,18 @@ const emit = defineEmits<{
     font-weight: 680;
     cursor: pointer;
     backdrop-filter: blur(10px);
+  }
+}
+
+@media (hover: none) {
+  .quiet-controls {
+    opacity: 0.58;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .quiet-controls {
+    transition: none;
   }
 }
 </style>

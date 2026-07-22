@@ -3,16 +3,64 @@ import type { PilePiece, Point } from "../engine";
 export type SpotlightMode = "inactive" | "searching" | "afterglow" | "dragging";
 export type SpotlightDirection = "up" | "right" | "down" | "left";
 
+export interface FieldProjection {
+  readonly left: number;
+  readonly top: number;
+  readonly width: number;
+  readonly height: number;
+}
+
+export const FULL_FIELD_PROJECTION: FieldProjection = Object.freeze({
+  left: 0,
+  top: 0,
+  width: 1,
+  height: 1,
+});
+
 const SPOTLIGHT_RADIUS_X = 0.115;
 const SPOTLIGHT_RADIUS_Y = 0.165;
+
+export function getFieldProjection(
+  surfaceWidth: number,
+  surfaceHeight: number,
+): FieldProjection {
+  if (surfaceWidth <= 620 || surfaceHeight <= 620) {
+    return { left: 0, top: 0, width: 1, height: 0.74 };
+  }
+  return FULL_FIELD_PROJECTION;
+}
+
+export function projectFieldPoint(
+  point: Point,
+  projection: FieldProjection,
+): Point {
+  return {
+    x: projection.left + point.x * projection.width,
+    y: projection.top + point.y * projection.height,
+  };
+}
+
+export function unprojectFieldPoint(
+  point: Point,
+  projection: FieldProjection,
+): Point {
+  return {
+    x: Math.min(1, Math.max(0, (point.x - projection.left) / projection.width)),
+    y: Math.min(1, Math.max(0, (point.y - projection.top) / projection.height)),
+  };
+}
 
 export function getRevealedPieceIds(
   pieces: readonly PilePiece[],
   light: Point | null,
-  draggedPieceId: string | null,
+  retainedPieceIds: readonly (string | null)[] = [],
 ): ReadonlySet<string> {
-  const ids = new Set<string>();
-  if (draggedPieceId) ids.add(draggedPieceId);
+  const pieceIds = new Set(pieces.map((piece) => piece.id));
+  const ids = new Set(
+    retainedPieceIds.filter((pieceId): pieceId is string =>
+      pieceId !== null && pieceIds.has(pieceId)
+    ),
+  );
   if (!light) return ids;
   for (const piece of pieces) {
     const distance = Math.hypot(

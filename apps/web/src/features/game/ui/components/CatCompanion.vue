@@ -15,7 +15,7 @@ const emit = defineEmits<{ activate: [] }>();
 const presentation = computed(() => getCatPresentation(props.pose));
 const actionLabel = computed(() => {
   if (props.full) {
-    return `${presentation.value.label}，已经吃饱睡着，暂时不能寻鱼或喂食`;
+    return `${presentation.value.label}，已经吃饱，正在休息，暂时不能寻鱼或喂食`;
   }
   if (props.travelPhase === "guarding") {
     return `${presentation.value.label}，正守着找到的小鱼；也可以把小鱼拖到这里喂食`;
@@ -75,7 +75,7 @@ const actionLabel = computed(() => {
 <style scoped lang="scss">
 .cat-companion {
   position: relative;
-  width: clamp(132px, 13vw, 184px);
+  width: var(--cat-companion-width, clamp(132px, 13vw, 184px));
   height: clamp(150px, 16vw, 220px);
   padding: 0;
   border: 0;
@@ -206,7 +206,7 @@ const actionLabel = computed(() => {
 
 @media (max-width: 620px) {
   .cat-companion {
-    width: 118px;
+    width: var(--cat-companion-width, 118px);
     height: 142px;
   }
 }

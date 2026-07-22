@@ -12,6 +12,9 @@ import {
   findNearestRevealedPiece,
   getRevealedPieceIds,
   moveSpotlight,
+  projectFieldPoint,
+  unprojectFieldPoint,
+  type FieldProjection,
   type SpotlightDirection,
   type SpotlightMode,
 } from "../spotlight";
@@ -23,6 +26,7 @@ const props = defineProps<{
   disabled: boolean;
   transitioning: boolean;
   away: boolean;
+  projection: FieldProjection;
 }>();
 
 const emit = defineEmits<{
@@ -36,6 +40,7 @@ const emit = defineEmits<{
 
 const cluster = ref<HTMLElement | null>(null);
 const focusedId = ref<string | null>(null);
+const activeFocusedId = ref<string | null>(null);
 const light = ref<Point | null>(null);
 const spotlightMode = ref<SpotlightMode>("inactive");
 const draggedPieceId = ref<string | null>(null);
@@ -45,10 +50,18 @@ let searchPointerId: number | null = null;
 let afterglowHandle: ReturnType<typeof setTimeout> | null = null;
 
 const selectable = computed(() => getSelectablePieces(props.pieces));
-const revealedPieceIds = computed(() => getRevealedPieceIds(
-  props.pieces,
-  light.value,
-  draggedPieceId.value,
+const revealedPieceIds = computed(() =>
+  props.away
+    ? new Set<string>()
+    : getRevealedPieceIds(
+      props.pieces,
+      light.value,
+      [activeFocusedId.value, draggedPieceId.value],
+    )
+);
+const projectedLight = computed(() => projectFieldPoint(
+  light.value ?? { x: 0.5, y: 0.45 },
+  props.projection,
 ));
 
 watch(
@@ -68,12 +81,23 @@ watch(
 );
 
 watch(() => props.away, (away) => {
-  if (!away) return;
+  if (!away) {
+    const activeElement = cluster.value?.ownerDocument.activeElement ?? null;
+    const focusedPiece = findPieceElement(activeElement);
+    const pieceId = focusedPiece?.dataset.pieceId;
+    if (pieceId && cluster.value?.contains(focusedPiece)) {
+      revealFocusedPiece(pieceId);
+    }
+    return;
+  }
   clearAfterglow();
+  releaseSearchPointerCapture();
   light.value = null;
   spotlightMode.value = "inactive";
   draggedPieceId.value = null;
-  searchPointerId = null;
+  activeFocusedId.value = null;
+  pointerInside.value = false;
+  focusInside.value = false;
 });
 
 function clearAfterglow(): void {
@@ -81,6 +105,22 @@ function clearAfterglow(): void {
     globalThis.clearTimeout(afterglowHandle);
     afterglowHandle = null;
   }
+}
+
+function releaseSearchPointerCapture(): void {
+  if (
+    searchPointerId !== null &&
+    cluster.value?.hasPointerCapture(searchPointerId)
+  ) {
+    cluster.value.releasePointerCapture(searchPointerId);
+  }
+  searchPointerId = null;
+}
+
+function findPieceElement(target: EventTarget | null): HTMLElement | null {
+  const candidate = target as HTMLElement | null;
+  if (!candidate || typeof candidate.closest !== "function") return null;
+  return candidate.closest<HTMLElement>("[data-piece-id]");
 }
 
 function startAfterglow(): void {
@@ -98,10 +138,10 @@ function startAfterglow(): void {
 function pointFromClient(clientX: number, clientY: number): Point | null {
   const bounds = cluster.value?.getBoundingClientRect();
   if (!bounds || bounds.width === 0 || bounds.height === 0) return null;
-  return {
+  return unprojectFieldPoint({
     x: Math.min(1, Math.max(0, (clientX - bounds.left) / bounds.width)),
     y: Math.min(1, Math.max(0, (clientY - bounds.top) / bounds.height)),
-  };
+  }, props.projection);
 }
 
 function moveLight(clientX: number, clientY: number): void {
@@ -122,7 +162,9 @@ function focusPiece(pieceId: string): void {
 }
 
 function revealFocusedPiece(pieceId: string): void {
+  if (props.away) return;
   focusedId.value = pieceId;
+  activeFocusedId.value = pieceId;
   const piece = props.pieces.find((candidate) => candidate.id === pieceId);
   if (piece) {
     light.value = piece.pile;
@@ -157,6 +199,7 @@ function navigate(pieceId: string, event: KeyboardEvent): void {
 }
 
 function onSurfaceKeydown(event: KeyboardEvent): void {
+  if (props.away || props.disabled) return;
   if (event.target !== cluster.value) return;
   const directionByKey: Readonly<Record<string, SpotlightDirection | undefined>> = {
     ArrowUp: "up",
@@ -200,10 +243,7 @@ function onPointerMove(event: PointerEvent): void {
 
 function onPointerEnd(event: PointerEvent): void {
   if (searchPointerId !== event.pointerId) return;
-  if (cluster.value?.hasPointerCapture(event.pointerId)) {
-    cluster.value.releasePointerCapture(event.pointerId);
-  }
-  searchPointerId = null;
+  releaseSearchPointerCapture();
   pointerInside.value = false;
   startAfterglow();
 }
@@ -225,6 +265,10 @@ function onFocusIn(): void {
 }
 
 function onFocusOut(event: FocusEvent): void {
+  const nextPiece = findPieceElement(event.relatedTarget);
+  activeFocusedId.value = nextPiece && cluster.value?.contains(nextPiece)
+    ? nextPiece.dataset.pieceId ?? null
+    : null;
   if (!cluster.value?.contains(event.relatedTarget as Node | null)) {
     focusInside.value = false;
     if (!pointerInside.value && !draggedPieceId.value) {
@@ -252,7 +296,10 @@ function onDragEnd(pieceId: string, clientX: number, clientY: number): void {
   emit("dragEnd", pieceId, clientX, clientY);
 }
 
-onBeforeUnmount(clearAfterglow);
+onBeforeUnmount(() => {
+  clearAfterglow();
+  releaseSearchPointerCapture();
+});
 </script>
 
 <template>
@@ -262,8 +309,8 @@ onBeforeUnmount(clearAfterglow);
     :data-spotlight="spotlightMode"
     :data-transitioning="transitioning"
     :style="{
-      '--light-x': light?.x ?? 0.5,
-      '--light-y': light?.y ?? 0.45,
+      '--light-x': projectedLight.x,
+      '--light-y': projectedLight.y,
     }"
     tabindex="0"
     aria-label="小鱼搜索桌面。移动指针或用方向键移动探照灯，Enter选择显影小鱼。"
@@ -280,6 +327,7 @@ onBeforeUnmount(clearAfterglow);
       v-for="piece in pieces"
       :key="piece.id"
       :piece="piece"
+      :position="projectFieldPoint(piece.pile, projection)"
       :blocked="getBlockerIds(pieces, piece.id).length > 0"
       :revealed="revealedPieceIds.has(piece.id)"
       :feedable="feedable"

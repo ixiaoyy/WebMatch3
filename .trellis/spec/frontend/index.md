@@ -18,7 +18,7 @@ This directory contains guidelines for frontend development. Fill in each file w
 | [Toolchain Contract](./toolchain-contract.md) | Workspace commands, dependency installation, and validation | Active |
 | [Ambient Fish Engine Contract](./game-engine-contract.md) | Solvable finite levels, blockers, tray clears, progression, and recovery | Active |
 | [Ambient Fish UI Contract](./game-ui-contract.md) | Persistence, attention, input, sound, and Picture-in-Picture boundaries | Active |
-| [Rain-Washed Ambient Fish Visual Design](./visual-design-contract.md) | Wallpaper, generated assets, gather/scatter layout, growth, and responsive composition | Active |
+| [Rain-Washed Ambient Fish Visual Design](./visual-design-contract.md) | Wallpaper, generated assets, stable spotlight field, growth, and responsive composition | Active |
 | [Production Deployment](./deployment-contract.md) | GitHub Actions, immutable releases, container health checks, and rollback | Active |
 | [Component Guidelines](./component-guidelines.md) | Component patterns, props, composition | To fill |
 | [Hook Guidelines](./hook-guidelines.md) | Custom hooks, data fetching patterns | To fill |
@@ -34,7 +34,7 @@ This directory contains guidelines for frontend development. Fill in each file w
 - Read [Toolchain Contract](./toolchain-contract.md) before changing dependencies, package scripts, Vite, TypeScript, ESLint, Vitest, or workspace configuration.
 - Read [Ambient Fish Engine Contract](./game-engine-contract.md) before changing level generation, blockers, tray clears, progression, recovery, or UI-facing transitions.
 - Read [Ambient Fish UI Contract](./game-ui-contract.md) before changing persistence, attention, input, audio, controller timing, or Picture-in-Picture.
-- Read [Rain-Washed Ambient Fish Visual Design](./visual-design-contract.md) before changing wallpaper, visual tokens, generated assets, gather/scatter layout, plant growth, controls, or responsive composition.
+- Read [Rain-Washed Ambient Fish Visual Design](./visual-design-contract.md) before changing wallpaper, visual tokens, generated assets, spotlight field layout, plant growth, controls, or responsive composition.
 - Read [Production Deployment](./deployment-contract.md) before changing GitHub Actions, release packaging, SSH upload, container activation, or rollback.
 - Read the topic-specific guide only when the task touches that topic; files marked `To fill` are templates, not project conventions.
 
