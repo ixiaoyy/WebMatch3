@@ -17,6 +17,20 @@ export const FULL_FIELD_PROJECTION: FieldProjection = Object.freeze({
   height: 1,
 });
 
+export const LANDSCAPE_FIELD_PROJECTION: FieldProjection = Object.freeze({
+  left: 0.24,
+  top: 0.4,
+  width: 0.48,
+  height: 0.36,
+});
+
+export const PORTRAIT_FIELD_PROJECTION: FieldProjection = Object.freeze({
+  left: 0.08,
+  top: 0.49,
+  width: 0.56,
+  height: 0.3,
+});
+
 const SPOTLIGHT_RADIUS_X = 0.115;
 const SPOTLIGHT_RADIUS_Y = 0.165;
 
@@ -27,7 +41,9 @@ export function getFieldProjection(
   if (surfaceWidth <= 620 || surfaceHeight <= 620) {
     return { left: 0, top: 0, width: 1, height: 0.74 };
   }
-  return FULL_FIELD_PROJECTION;
+  return surfaceWidth < surfaceHeight * 1.05
+    ? PORTRAIT_FIELD_PROJECTION
+    : LANDSCAPE_FIELD_PROJECTION;
 }
 
 export function projectFieldPoint(

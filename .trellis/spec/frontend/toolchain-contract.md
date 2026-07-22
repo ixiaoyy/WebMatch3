@@ -39,6 +39,12 @@ The root `package.json` exposes these stable commands:
 - Vite development server: port 5175 with `strictPort: true`.
 - Vite preview server: port 4175 with `strictPort: true`.
 - Source alias: `@/*` maps to `apps/web/src/*` in both Vite and TypeScript.
+- PWA: `vite-plugin-pwa` generates the web manifest and an auto-updating
+  service worker. The production precache includes the app shell and all local
+  HTML, JavaScript, CSS, WebP, PNG, SVG, and WOFF2 assets so a previously loaded
+  release starts offline. `workbox-window` remains a direct development
+  dependency because `src/app/pwa.ts` imports the plugin's virtual registration
+  client and pnpm does not expose the plugin's internal copy to application code.
 - Tests: Node environment by default; an empty foundation may use
   `--passWithNoTests`, but feature tasks must add tests for implemented logic.
 - No environment variables are required by the foundation.
@@ -55,6 +61,7 @@ The root `package.json` exposes these stable commands:
 | No test files exist during the foundation task | `pnpm test:web` exits successfully |
 | A later feature has failing tests | `pnpm test:web` and `pnpm ci:web` fail |
 | Production bundling fails | `pnpm build:web` and the final CI stage fail |
+| A PWA icon or runtime asset is missing | the production build or precache generation fails |
 
 ## 5. Good / Base / Bad Cases
 
@@ -77,6 +84,8 @@ After toolchain or dependency changes:
    contains the `#app` mount element, then stop the server.
 4. Inspect direct dependencies with `pnpm --dir apps/web list --depth 0`;
    assert every runtime dependency has an implemented use case.
+5. Inspect `apps/web/dist`; assert `manifest.webmanifest`, `sw.js`, and the
+   Workbox runtime are emitted and every manifest icon exists.
 
 Feature tasks must replace the empty-suite allowance with relevant test files;
 they must not rely on `--passWithNoTests` as evidence that behavior is tested.

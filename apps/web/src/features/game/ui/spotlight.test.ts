@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import type { PilePiece } from "../engine";
 import {
   FULL_FIELD_PROJECTION,
+  LANDSCAPE_FIELD_PROJECTION,
+  PORTRAIT_FIELD_PROJECTION,
   findNearestRevealedPiece,
   getFieldProjection,
   getRevealedPieceIds,
@@ -67,7 +69,9 @@ describe("spotlight projection", () => {
   });
 
   it("reprojects compact surfaces without changing canonical coordinates", () => {
-    expect(getFieldProjection(1440, 900)).toBe(FULL_FIELD_PROJECTION);
+    expect(getFieldProjection(1440, 900)).toBe(LANDSCAPE_FIELD_PROJECTION);
+    expect(getFieldProjection(900, 1200)).toBe(PORTRAIT_FIELD_PROJECTION);
+    expect(FULL_FIELD_PROJECTION).toEqual({ left: 0, top: 0, width: 1, height: 1 });
     const compact = getFieldProjection(320, 568);
     const canonical = { x: 0.23, y: 0.66 };
     const projected = projectFieldPoint(canonical, compact);

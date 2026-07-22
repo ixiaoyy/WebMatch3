@@ -3,7 +3,6 @@ import {
   MAX_PIECE_COUNT,
   createLevelState,
   createInitialState,
-  getBlockerIds,
   getLevelConfig,
   type AmbientGameState,
   type FedFish,
@@ -270,8 +269,7 @@ function parsePet(
   if (
     guardedPieceId === null ||
     game.fed.length >= 3 ||
-    !game.pieces.some((piece) => piece.id === guardedPieceId) ||
-    getBlockerIds(game.pieces, guardedPieceId).length > 0
+    !game.pieces.some((piece) => piece.id === guardedPieceId)
   ) {
     return { guardedPieceId: null };
   }

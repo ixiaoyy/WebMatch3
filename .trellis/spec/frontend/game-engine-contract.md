@@ -3,7 +3,7 @@
 ## 1. Scope / Trigger
 
 Apply this contract when changing finite level generation, field-geometry
-occlusion, tray selection, automatic triples, progressive difficulty,
+overlap relationships, tray selection, automatic triples, progressive difficulty,
 full-tray recovery, or any consumer of those transitions. The engine lives in
 `apps/web/src/features/game/engine` and stays independent from Vue, DOM APIs,
 timers, storage, sound, and Picture-in-Picture.
@@ -80,21 +80,21 @@ interface FedFish extends TrayPiece {
   remaining layer down is therefore a deterministic complete solution, and a
   new level exposes a quick triple.
 - New levels use one stable normalized field position (`pile === spread`) and
-  persist explicit higher-layer `blockerIds`. Removing a blocker ID reveals the
-  lower piece immediately. Old snapshots without `blockerIds` retain the
-  legacy overlap calculation until that level is finished.
-- The normalized blocker rectangle must track the rendered fish footprint
-  (currently `0.20 × 0.29` of the field surface at scale `1`). A visually
-  covered lower half must not remain selectable because engine height is
-  shorter than the native button.
-- A piece is blocked only by meaningful overlap from a strictly higher layer.
-  Same-layer overlap never blocks.
-- Public transitions never mutate their input. Missing and blocked selection
-  return the original state object.
+  persist explicit higher-layer `blockerIds`. They describe visual overlap for
+  nearby settling motion, but never gate selection. Old snapshots without
+  `blockerIds` retain the legacy overlap calculation until that level is
+  finished.
+- The normalized overlap rectangle tracks the rendered fish footprint
+  (currently `0.20 × 0.29` of the field surface at scale `1`). Relationships
+  include only meaningful overlap from a strictly higher layer; same-layer
+  overlap does not trigger settling motion.
+- Every remaining pile piece is selectable and feedable regardless of layer.
+  Public transitions never mutate their input, and a missing selection returns
+  the original state object.
 - Three tray entries of the selected kind clear immediately, increment
   `clearCount` once, and leave the current level permanently smaller. No clear
   replenishes the active level.
-- Up to three selectable pile pieces may be fed regardless of species. Feeding
+- Up to three pile pieces may be fed regardless of species or overlap. Feeding
   never enters the tray and never increments `clearCount`. Each feed creates
   one unsettled same-species credit.
 - A normal three-entry tray match has priority over feed credits. Otherwise,
@@ -109,8 +109,9 @@ interface FedFish extends TrayPiece {
   clear result with `levelAdvanced: true`; incomplete levels never advance.
 - A seven-item unmatched tray requests controller recovery. Recovery returns
   exactly two original entries to the pile without changing their IDs or
-  kinds, preserves progress, and exposes an existing piece that can complete a
-  preserved pair. Recovery never invents replacement inventory.
+  kinds, preserves progress, and keeps an existing piece that can complete a
+  preserved pair. Recovery never invents replacement inventory or repositions
+  an already selectable pile piece.
 - Tests inject seeded randomness. Production may use `Math.random` only at the
   public default boundary.
 
@@ -119,10 +120,10 @@ interface FedFish extends TrayPiece {
 | Condition | Required outcome |
 |---|---|
 | Missing piece ID | `SelectionResult { kind: "missing", state }` with original identity |
-| Piece has remaining explicit or legacy higher-layer blockers | `kind: "blocked"` plus blocker IDs; no mutation |
-| Selectable piece, tray below seven, no triple | remove from pile, append to tray, `kind: "moved"` |
+| Existing piece has higher-layer overlap metadata | selection still removes it; UI may settle related neighbors |
+| Existing piece, tray below seven, no triple | remove from pile, append to tray, `kind: "moved"` |
 | Selected kind reaches three before level end | clear exactly three, increment once, do not replenish, `kind: "cleared"` |
-| Selectable piece is fed below capacity | remove from pile, append an unsettled feed record, never increment `clearCount` |
+| Existing piece is fed below capacity | remove from pile, append an unsettled feed record, never increment `clearCount` |
 | One/two tray fish plus same-species credits reach three | remove the short tray group, settle only the credits used, `kind: "settled"` |
 | Fourth feed is attempted | return `kind: "full"` with unchanged state |
 | Selected kind clears the last three objects | create the harder next level and set `levelAdvanced: true` |
@@ -132,7 +133,8 @@ interface FedFish extends TrayPiece {
 
 ## 5. Good / Base / Bad Cases
 
-- Good: the UI asks `getBlockerIds` and disables blocked native buttons.
+- Good: the UI asks `getBlockerIds` only to animate related neighbors after a
+  stacked fish is removed; all revealed native buttons stay actionable.
 - Base: a fresh state exposes a quick triple and a complete removal path
   without any timer, score, numeric level label, or fail state.
 - Good: the UI reveals canonical `pile` coordinates without regenerating or
@@ -146,10 +148,10 @@ interface FedFish extends TrayPiece {
 
 1. unique IDs, level-one 36-piece stable mixed layout, explicit blockers, and
    layers limited to `0..2`;
-2. meaningful higher-layer blocking and immediate reveal;
+2. meaningful higher-layer overlap metadata and lower-layer selection;
    include a vertically offset overlap that only passes when canonical height
    matches the rendered target;
-3. missing/blocked result identity and complete input immutability;
+3. missing result identity and complete input immutability;
 4. ordered tray movement and automatic triples that reduce inventory by three;
 5. complete solver traversal across progressive levels and atomic advancement;
 6. piece-count progression `36, 42, 48, 54, 60`, unique authored positions at

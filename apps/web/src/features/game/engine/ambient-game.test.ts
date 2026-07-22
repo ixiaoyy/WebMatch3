@@ -36,7 +36,7 @@ describe("ambient fish engine", () => {
     expect(hasQuickMatch(state.pieces)).toBe(true);
   });
 
-  it("blocks meaningful lower overlaps and reveals them synchronously", () => {
+  it("allows lower overlaps to be selected while retaining overlap metadata", () => {
     const state = createInitialState(createSeededRandom(7));
     const blocked = state.pieces.find(
       (piece) => getBlockerIds(state.pieces, piece.id).length > 0,
@@ -44,9 +44,10 @@ describe("ambient fish engine", () => {
     expect(blocked).toBeDefined();
     if (!blocked) return;
 
-    const blockedResult = selectPiece(state, blocked.id, createSeededRandom(8));
-    expect(blockedResult.kind).toBe("blocked");
-    expect(blockedResult.state).toBe(state);
+    expect(getSelectablePieces(state.pieces)).toHaveLength(state.pieces.length);
+    const selectedResult = selectPiece(state, blocked.id, createSeededRandom(8));
+    expect(selectedResult.kind).toBe("moved");
+    expect(selectedResult.state.pieces.some((piece) => piece.id === blocked.id)).toBe(false);
 
     const blockerId = getBlockerIds(state.pieces, blocked.id)[0];
     const withoutBlocker = {

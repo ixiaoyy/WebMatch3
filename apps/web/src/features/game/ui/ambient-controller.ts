@@ -291,6 +291,7 @@ export function createAmbientController(
         return;
       }
       catTravelPhase.value = "guarding";
+      status.value = "小猫找到了，正用光照着那条小鱼。";
       showCatReaction("guarding");
     }, delay);
   }
@@ -416,11 +417,6 @@ export function createAmbientController(
     const previousFeedCount = game.value.fed.length;
     const result = feedPiece(game.value, pieceId, random);
     if (result.kind === "missing") return;
-    if (result.kind === "blocked") {
-      status.value = "这条小鱼还被上层小鱼遮住，暂时不能喂。";
-      showCatReaction("unavailable");
-      return;
-    }
     if (result.kind === "full") {
       status.value = "小猫已经吃饱了，不能再喂。";
       showCatReaction(catPose.value === "sleeping" ? "sleeping" : "full");
@@ -462,10 +458,6 @@ export function createAmbientController(
     }
     const result = selectPiece(game.value, pieceId, random);
     if (result.kind === "missing") return;
-    if (result.kind === "blocked") {
-      status.value = "这条小鱼还被上层小鱼遮住，暂时拿不到。";
-      return;
-    }
 
     if (result.kind === "cleared") {
       trayPreview.value = [...game.value.tray, result.selected];

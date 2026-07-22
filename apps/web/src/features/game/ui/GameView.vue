@@ -50,6 +50,11 @@ const catAwayFromHome = computed(() =>
   game.catTravelPhase.value === "travelling" ||
   game.catTravelPhase.value === "guarding",
 );
+const catGuidedPieceId = computed(() =>
+  game.catTravelPhase.value === "guarding"
+    ? game.guardedPiece.value?.id ?? null
+    : null,
+);
 
 function isInsideCat(clientX: number, clientY: number): boolean {
   const bounds = catDropTarget.value?.getBoundingClientRect();
@@ -232,6 +237,7 @@ onBeforeUnmount(() => {
           :transitioning="game.feedback.value === 'level'"
           :away="game.isAway.value"
           :projection="fieldProjection"
+          :guided-piece-id="catGuidedPieceId"
           @activate="game.activate"
           @feed="game.feedToCat"
           @revealed-change="onRevealedChange"
@@ -273,6 +279,17 @@ onBeforeUnmount(() => {
 }
 
 .ambient-surface {
+  --scene-tray-bottom: clamp(32px, 3.2vh, 50px);
+  --scene-tray-height: clamp(76px, 7vw, 100px);
+  --scene-vignette-gap: clamp(112px, 11vh, 160px);
+  --scene-companion-base: calc(
+    var(--scene-tray-bottom) + var(--scene-tray-height) +
+      var(--scene-vignette-gap)
+  );
+  --scene-plant-base: calc(
+    var(--scene-companion-base) + clamp(60px, 6vh, 88px)
+  );
+
   overflow: hidden;
   transition: filter 240ms ease;
 
@@ -297,12 +314,14 @@ onBeforeUnmount(() => {
 }
 
 .cat-companion-slot {
-  --cat-companion-width: clamp(132px, 13vw, 184px);
+  --cat-companion-width: clamp(320px, 35vw, 500px);
 
   position: absolute;
   z-index: 7;
-  left: clamp(22px, 5vw, 84px);
-  bottom: clamp(72px, 10vh, 118px);
+  left: calc(
+    100% - clamp(110px, 12vw, 168px) - var(--cat-companion-width)
+  );
+  bottom: var(--scene-companion-base);
   transition:
     left 520ms var(--ease-out),
     bottom 520ms var(--ease-out),
@@ -324,11 +343,18 @@ onBeforeUnmount(() => {
     background-position: 43% center;
   }
 
+  .ambient-surface {
+    --scene-tray-bottom: 12px;
+    --scene-tray-height: 52px;
+    --scene-vignette-gap: 12px;
+    --scene-plant-base: calc(var(--scene-companion-base) + 34px);
+  }
+
   .cat-companion-slot {
     --cat-companion-width: 118px;
 
-    left: 10px;
-    bottom: 74px;
+    left: calc(100% - 104px - var(--cat-companion-width));
+    bottom: var(--scene-companion-base);
 
     &[data-away-from-home="true"] {
       left: clamp(

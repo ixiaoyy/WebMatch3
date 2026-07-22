@@ -2,6 +2,8 @@ node_modules/
 apps/*/node_modules/
 apps/web/dist/
 coverage/
+.tmp/
+.impeccable/
 *.log
 *.tsbuildinfo
 .DS_Store

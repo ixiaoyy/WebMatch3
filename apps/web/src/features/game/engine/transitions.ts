@@ -1,8 +1,5 @@
 import {
   createLevelState,
-  exposePieceForRecovery,
-  getBlockerIds,
-  getSelectablePieces,
   returnTrayPiecesToPile,
 } from "./pile";
 import {
@@ -67,11 +64,6 @@ export function selectPiece(
   const piece = state.pieces.find((candidate) => candidate.id === pieceId);
   if (!piece) {
     return { kind: "missing", state };
-  }
-
-  const blockerIds = getBlockerIds(state.pieces, pieceId);
-  if (blockerIds.length > 0) {
-    return { kind: "blocked", state, blockerIds };
   }
 
   const selected: TrayPiece = { id: piece.id, kind: piece.kind };
@@ -163,22 +155,14 @@ export function recoverFullTray(
     .filter((piece) => !preservedIds.has(piece.id))
     .slice(-2);
   const returnedIds = new Set(returned.map((piece) => piece.id));
-  const completingPiece = state.pieces.find((piece) => piece.kind === preservedKind);
-  const hasCompletingPiece = getSelectablePieces(state.pieces).some(
-    (piece) => piece.kind === preservedKind,
-  );
   const returnedPieces = returnTrayPiecesToPile(state, returned, random);
-  let pieces = [...state.pieces, ...returnedPieces];
-  if (!hasCompletingPiece && completingPiece) {
-    pieces = [...exposePieceForRecovery(pieces, completingPiece.id, random)];
-  }
 
   return {
     returned,
     preservedKind,
     state: {
       ...state,
-      pieces,
+      pieces: [...state.pieces, ...returnedPieces],
       tray: state.tray.filter((piece) => !returnedIds.has(piece.id)),
     },
   };
@@ -192,10 +176,6 @@ export function feedPiece(
   const piece = state.pieces.find((candidate) => candidate.id === pieceId);
   if (!piece) return { kind: "missing", state };
 
-  const blockerIds = getBlockerIds(state.pieces, pieceId);
-  if (blockerIds.length > 0) {
-    return { kind: "blocked", state, blockerIds };
-  }
   if (state.fed.length >= MAX_FED_FISH) return { kind: "full", state };
 
   const selected: TrayPiece = { id: piece.id, kind: piece.kind };

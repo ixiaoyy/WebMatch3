@@ -7,16 +7,19 @@ persistence lives in `session/`. Vue,
 attention lifecycle, optional Document Picture-in-Picture, sound, and visual
 projection live in `ui/`.
 
-The engine owns one stable normalized field and explicit blockers. `FishField`
-keeps spotlight coordinates, touch afterglow, focus, and drag motion as local
-UI projection only; none of those transient values enter snapshots.
+The engine owns one stable normalized field and explicit overlap relationships.
+Every remaining fish is selectable; `FishField` uses those relationships to
+fan a revealed stack into distinct pointer targets, then briefly settles its
+neighbors when one is removed. Spotlight coordinates, touch afterglow, focus,
+drag, separation, and settling motion stay local UI projection and never enter
+snapshots.
 Narrow/short surfaces apply a reversible UI-only projection that reserves the
 lower cat/tray area; pointer search and cat guard travel share that projection,
 so resize and Picture-in-Picture never rewrite canonical positions.
 
 Pointer movement, touch scanning, and keyboard arrows reveal nearby fish.
 Enter/Space selects a revealed or semantically focused fish into the tray.
-Activating the cat only asks it to find and guard one hidden selectable fish;
+Activating the cat only asks it to find, light, and guard one hidden fish;
 feeding stays separate through pointer-captured drag-to-cat or the focused
 fish `F` shortcut. Up to three fish of any species may be fed, and one or two
 matching tray fish may use those feed credits to complete and disappear.
@@ -24,11 +27,11 @@ matching tray fish may use those feed credits to complete and disappear.
 Each level is constructed from same-layer triples, so removing upper groups
 before lower groups is always a complete solution. Clears never replenish the
 current level. Emptying the pile advances to a gradually denser level, while
-full-tray recovery only repositions existing pieces and exposes a completing
-fish.
+full-tray recovery only repositions returned tray pieces and preserves an
+existing fish that can complete the kept pair.
 
 Version-three persistence stores canonical game, preferences, plant age, and
-only a validated guarded fish ID. Missing, malformed, stale, blocked, or
-full-cat guard state safely restores the cat home. The same mounted Vue surface
+only a validated guarded fish ID. Missing, malformed, stale, or full-cat guard
+state safely restores the cat home. The same mounted Vue surface
 moves into Document Picture-in-Picture and reflows there without creating a
 second controller.

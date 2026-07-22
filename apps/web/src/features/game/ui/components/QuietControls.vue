@@ -24,8 +24,8 @@ const emit = defineEmits<{
   top: max(16px, env(safe-area-inset-top));
   right: max(18px, env(safe-area-inset-right));
   display: flex;
-  gap: 6px;
-  opacity: 0.32;
+  gap: 8px;
+  opacity: 0.56;
   transition: opacity 160ms ease;
 
   &:hover,
@@ -34,15 +34,15 @@ const emit = defineEmits<{
   }
 
   button {
-    min-width: 48px;
-    min-height: 44px;
-    padding: 8px 12px;
+    min-width: 64px;
+    min-height: 48px;
+    padding: 9px 15px;
     border: 1px solid var(--quiet-line);
     border-radius: 999px;
     color: var(--ink-muted);
-    background: var(--quiet-surface);
-    box-shadow: 0 8px 20px rgb(57 70 112 / 8%);
-    font-size: 12px;
+    background: var(--quiet-surface-strong);
+    box-shadow: 0 6px 8px rgb(57 70 112 / 8%);
+    font-size: 14px;
     font-weight: 680;
     cursor: pointer;
     backdrop-filter: blur(10px);

@@ -198,6 +198,7 @@ describe("ambient controller", () => {
     expect(controller.catTravelPhase.value).toBe("travelling");
     callbacks.shift()?.();
     expect(controller.catTravelPhase.value).toBe("guarding");
+    expect(controller.status.value).toBe("小猫找到了，正用光照着那条小鱼。");
 
     if (!targetId) return;
     controller.activate(targetId);

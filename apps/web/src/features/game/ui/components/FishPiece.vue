@@ -7,11 +7,12 @@ import { getFishPresentation } from "../game-ui";
 const props = defineProps<{
   piece: PilePiece;
   position: Point;
-  blocked: boolean;
   revealed: boolean;
   feedable: boolean;
   tabIndex: number;
   disabled: boolean;
+  separation: Point;
+  slipDirection: -1 | 0 | 1;
 }>();
 
 const emit = defineEmits<{
@@ -33,11 +34,9 @@ let suppressClick = false;
 
 const presentation = computed(() => getFishPresentation(props.piece.kind));
 const label = computed(() =>
-  props.blocked
-    ? `${presentation.value.label}，被上层小鱼遮住，暂不可选择`
-    : props.feedable
-      ? `${presentation.value.label}，Enter或空格放入托盘，按F喂给小猫`
-      : `${presentation.value.label}，Enter或空格放入托盘；小猫正在休息，按F可听取提示`,
+  props.feedable
+    ? `${presentation.value.label}，Enter或空格放入托盘，按F喂给小猫`
+    : `${presentation.value.label}，Enter或空格放入托盘；小猫正在休息，按F可听取提示`,
 );
 
 function onPointerDown(event: PointerEvent): void {
@@ -113,11 +112,11 @@ function onKeydown(event: KeyboardEvent): void {
     type="button"
     :data-piece-id="piece.id"
     :data-kind="piece.kind"
-    :data-blocked="blocked"
     :data-revealed="revealed"
     :data-dragging="dragging"
-    :disabled="blocked || disabled"
-    :tabindex="blocked ? -1 : tabIndex"
+    :data-slipping="slipDirection !== 0"
+    :disabled="disabled"
+    :tabindex="tabIndex"
     :aria-label="label"
     aria-keyshortcuts="F"
     :style="{
@@ -126,8 +125,12 @@ function onKeydown(event: KeyboardEvent): void {
       '--piece-rotation': `${piece.rotation}deg`,
       '--piece-scale': piece.scale,
       '--piece-layer': piece.layer,
+      '--separation-x': `${separation.x}px`,
+      '--separation-y': `${separation.y}px`,
       '--drag-x': `${dragX}px`,
       '--drag-y': `${dragY}px`,
+      '--slip-x': `${slipDirection * 9}px`,
+      '--slip-rotation': `${slipDirection * 3}deg`,
     }"
     @click="onClick"
     @focus="emit('focus', piece.id)"
@@ -144,7 +147,6 @@ function onKeydown(event: KeyboardEvent): void {
       height="512"
       draggable="false"
     />
-    <span v-if="blocked" class="fish-piece__blocked" aria-hidden="true" />
   </button>
 </template>
 
@@ -166,7 +168,13 @@ function onKeydown(event: KeyboardEvent): void {
   touch-action: none;
   left: calc(var(--active-x) * 100%);
   top: calc(var(--active-y) * 100%);
-  transform: translate(-50%, -50%) rotate(var(--piece-rotation)) scale(var(--piece-scale));
+  transform:
+    translate(
+      calc(-50% + var(--separation-x)),
+      calc(-50% + var(--separation-y))
+    )
+    rotate(var(--piece-rotation))
+    scale(var(--piece-scale));
   transform-origin: 50% 72%;
   transition:
     left 520ms var(--ease-out),
@@ -195,7 +203,13 @@ function onKeydown(event: KeyboardEvent): void {
 
   &:hover:not(:disabled):not([data-dragging="true"]) {
     z-index: 8;
-    transform: translate(-50%, -54%) rotate(var(--piece-rotation)) scale(calc(var(--piece-scale) * 1.06));
+    transform:
+      translate(
+        calc(-50% + var(--separation-x)),
+        calc(-54% + var(--separation-y))
+      )
+      rotate(var(--piece-rotation))
+      scale(calc(var(--piece-scale) * 1.06));
     filter: drop-shadow(0 10px 12px rgb(78 87 126 / 19%));
   }
 
@@ -206,63 +220,46 @@ function onKeydown(event: KeyboardEvent): void {
     outline-offset: 2px;
   }
 
-  &[data-blocked="true"] {
-    cursor: default;
-    filter: saturate(0.58) brightness(0.9);
-  }
-
-  &[data-blocked="true"][data-revealed="true"] {
-    opacity: 0.68;
-  }
-
-  &__blocked {
-    position: absolute;
-    right: 8px;
-    bottom: 9px;
-    display: grid;
-    width: 18px;
-    height: 18px;
-    padding: 0;
-    place-items: center;
-    border: 1px solid rgb(255 255 255 / 72%);
-    border-radius: 999px;
-    color: #46516b;
-    background: rgb(245 247 253 / 86%);
-    box-shadow: 0 2px 7px rgb(41 52 77 / 12%);
-
-    &::before,
-    &::after {
-      position: absolute;
-      width: 7px;
-      height: 9px;
-      border: 1.5px solid #59647d;
-      border-radius: 50%;
-      content: "";
-    }
-
-    &::before {
-      top: 3px;
-      left: 4px;
-      transform: rotate(-28deg);
-    }
-
-    &::after {
-      right: 4px;
-      bottom: 3px;
-      border-color: #7d87a0;
-      transform: rotate(28deg);
-    }
+  &[data-slipping="true"]:not([data-dragging="true"]) {
+    animation: fish-nearby-slip 380ms var(--ease-out);
   }
 
   &[data-dragging="true"] {
     z-index: 20;
     cursor: grabbing;
     transform:
-      translate(calc(-50% + var(--drag-x)), calc(-50% + var(--drag-y)))
+      translate(
+        calc(-50% + var(--separation-x) + var(--drag-x)),
+        calc(-50% + var(--separation-y) + var(--drag-y))
+      )
       rotate(var(--piece-rotation))
       scale(calc(var(--piece-scale) * 1.06));
     filter: drop-shadow(0 13px 14px rgb(57 70 112 / 24%));
     transition: none;
+  }
+}
+
+@keyframes fish-nearby-slip {
+  0%,
+  100% {
+    transform:
+      translate(
+        calc(-50% + var(--separation-x)),
+        calc(-50% + var(--separation-y))
+      )
+      rotate(var(--piece-rotation))
+      scale(var(--piece-scale));
+  }
+
+  52% {
+    transform:
+      translate(
+        calc(-50% + var(--separation-x) + var(--slip-x)),
+        calc(-50% + var(--separation-y) + 10px)
+      )
+      rotate(calc(var(--piece-rotation) + var(--slip-rotation)))
+      scale(calc(var(--piece-scale) * 0.98));
+    filter: drop-shadow(0 6px 7px rgb(57 70 112 / 16%));
   }
 }
 
@@ -276,6 +273,7 @@ function onKeydown(event: KeyboardEvent): void {
 @media (prefers-reduced-motion: reduce) {
   .fish-piece {
     transition: none;
+    animation: none !important;
   }
 }
 </style>

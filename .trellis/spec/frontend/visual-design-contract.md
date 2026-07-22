@@ -17,7 +17,8 @@ pile/tray composition, quiet controls, reward motion, or responsive layout.
 
 ```text
 ui/assets/ambient/wallpaper.webp
-ui/assets/fish/fish-{whale,koi,sardine,puffer,goldfish,clownfish,angelfish,betta}.png
+ui/assets/fish/fish-{whale,koi,sardine,puffer,goldfish,clownfish,angelfish,betta}.webp
+ui/assets/cat/cat-{idle,eating,full,lying,sleeping}.webp
 ui/assets/ambient/plant-{pot,foliage,flowering,fruiting,mature}.webp
 ui/assets/ambient/plant-stage-{bud,lily-of-the-valley,pomegranate,peony}.webp
 public/favicon.{ico,png variants}
@@ -42,9 +43,11 @@ wallpaper containing interactive objects.
   grouped positions. Reveal, focus, and drag projection never alter canonical
   coordinates or blocker relationships.
 - Fish are visually unidentifiable outside the local spotlight. Revealed
-  blocked pieces use reduced saturation/brightness plus a quiet pair of
-  overlapping outlines, but never gain pointer input. Focused and dragged
-  pieces retain recognizable silhouettes outside the light.
+  pieces remain fully actionable at every layer. A revealed stack quietly fans
+  apart to expose distinct pointer targets; removing one may make directly
+  related neighbors slide a few pixels sideways and down before settling.
+  Neither motion changes canonical positions. Focused and dragged pieces retain
+  recognizable silhouettes outside the light.
 - Plant begins as an empty ceramic pot. Generated foliage reveals slowly at
   clear milestones `0,100,300,600,1000,1800,3000,5000,8000`, with no numeric
   label. Stage changes use both clear count and elapsed plant age: flowering
@@ -72,7 +75,9 @@ wallpaper containing interactive objects.
   nearly transparent; occupied slots restore full readability.
 - The felt cat stays visible as a desktop companion. Search travel may move it
   beside one fish without covering that fish's target; its current bounds are
-  also the pointer/touch feed drop region. Only one compact, translucent speech
+  also the pointer/touch feed drop region. On arrival, a steady warm local beam
+  reveals the guarded fish independently from the movable pointer spotlight.
+  Only one compact, translucent speech
   bubble is shown, and it never captures input or becomes a persistent HUD.
 - At `<=620px`, the same normalized field reprojects inside safe bounds and
   touch scanning replaces hover assumptions. No viewport may gain horizontal
@@ -80,7 +85,7 @@ wallpaper containing interactive objects.
   pointer-transparent above revealed fish so neither blocks fish input.
 - The compact field projection compresses only rendered vertical coordinates.
   Spotlight hit testing applies its inverse and cat guard placement applies the
-  same forward transform; blocker geometry and persisted anchors stay canonical.
+  same forward transform; overlap geometry and persisted anchors stay canonical.
 
 ## 4. Validation & Error Matrix
 
@@ -116,7 +121,8 @@ wallpaper containing interactive objects.
    lower-right hierarchy;
 2. capture `320x568`, `390x844`, `768x1024`, and `1440x900`;
 3. inspect hidden idle, pointer/touch/keyboard reveal, afterglow, retained
-   focus/drag, blocked, bubble clear, growing, flowering, fruiting, mature,
+   focus/drag, stacked lower selection and settling, bubble clear, growing,
+   flowering, fruiting, mature,
    full-tray recovery, away, and reduced-motion states;
 4. validate tab title `小鱼`, whale favicon legibility, console cleanliness, and no
    horizontal overflow;

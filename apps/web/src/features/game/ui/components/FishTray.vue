@@ -25,7 +25,7 @@ function clearStyle(index: number): Record<string, string | number> {
   const shift = clearingTargetSlot.value - index;
   return {
     "--clear-shift-percent": `${shift * 89.3}%`,
-    "--clear-shift-gap": `${shift * 5}px`,
+    "--clear-shift-gap": `${shift * 3}px`,
     "--clear-z": 4 + Math.abs(shift),
   };
 }
@@ -76,21 +76,22 @@ function clearStyle(index: number): Record<string, string | number> {
 .fish-tray {
   position: absolute;
   z-index: 8;
-  right: clamp(42px, 4vw, 72px);
-  bottom: 24px;
+  right: clamp(84px, 12vw, 176px);
+  bottom: var(--scene-tray-bottom, 24px);
   display: grid;
-  width: min(390px, calc(100vw - 28px));
-  min-height: 58px;
-  padding: 7px 9px;
+  width: min(560px, calc(100vw - 32px));
+  min-height: var(--scene-tray-height, 68px);
+  padding: 14px 9px;
   margin: 0;
   grid-template-columns: repeat(7, 1fr);
-  gap: 5px;
-  border: 1px solid rgb(255 255 255 / 52%);
-  border-radius: 22px;
-  background: rgb(241 244 253 / 38%);
+  gap: 3px;
+  border: 2px solid rgb(255 255 255 / 68%);
+  border-radius: 999px;
+  background: rgb(208 216 241 / 26%);
   box-shadow:
-    inset 0 1px rgb(255 255 255 / 62%),
-    0 14px 30px rgb(58 69 105 / 11%);
+    inset 0 3px 3px rgb(255 255 255 / 76%),
+    inset 0 -3px 5px rgb(60 72 114 / 14%),
+    0 5px 8px rgb(58 69 105 / 9%);
   list-style: none;
   backdrop-filter: blur(9px);
   transition:
@@ -99,8 +100,11 @@ function clearStyle(index: number): Record<string, string | number> {
     opacity 180ms ease;
 
   &[data-empty="true"] {
-    opacity: 0.14;
-    box-shadow: inset 0 1px rgb(255 255 255 / 44%);
+    opacity: 0.92;
+    box-shadow:
+      inset 0 3px 3px rgb(255 255 255 / 72%),
+      inset 0 -3px 5px rgb(60 72 114 / 13%),
+      0 5px 8px rgb(58 69 105 / 8%);
   }
 
   &[data-feedback="clear"],
@@ -120,10 +124,13 @@ function clearStyle(index: number): Record<string, string | number> {
     min-width: 0;
     aspect-ratio: 1;
     place-items: center;
-    border: 1px solid rgb(92 105 143 / 10%);
-    border-radius: 14px;
-    background: rgb(255 255 255 / 25%);
-    box-shadow: inset 0 2px 5px rgb(71 82 119 / 5%);
+    border: 2px solid rgb(255 255 255 / 56%);
+    border-radius: 50%;
+    background: rgb(148 163 211 / 21%);
+    box-shadow:
+      inset 0 3px 6px rgb(56 68 110 / 14%),
+      inset 0 -2px 3px rgb(255 255 255 / 52%),
+      0 1px 2px rgb(255 255 255 / 28%);
 
     img {
       position: relative;
@@ -233,8 +240,10 @@ function clearStyle(index: number): Record<string, string | number> {
 @media (max-width: 620px) {
   .fish-tray {
     right: 50%;
-    bottom: 12px;
+    bottom: var(--scene-tray-bottom, 12px);
+    width: calc(100vw - 24px);
     min-height: 52px;
+    padding: 8px 6px;
     transform: translateX(50%);
 
     &[data-feedback="recovery"] {

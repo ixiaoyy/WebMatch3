@@ -110,9 +110,8 @@ const TEMPLATES: readonly PieceTemplate[] = Object.freeze([
 export const MAX_PIECE_COUNT = TEMPLATES.length;
 
 const HIT_WIDTH = 0.2;
-// The rendered fish target is about 86px tall inside the 300px pile surface.
-// Keep the canonical hit geometry aligned with that visual footprint so a
-// vertically covered fish cannot remain selectable through its lower half.
+// Keep legacy overlap metadata aligned with the rendered fish footprint so
+// stacked neighbors fan apart and settle as one visually coherent group.
 const HIT_HEIGHT = 0.29;
 const BLOCKED_OVERLAP_RATIO = 0.28;
 
@@ -291,7 +290,7 @@ export function getBlockerIds(
 export function getSelectablePieces(
   pieces: readonly PilePiece[],
 ): readonly PilePiece[] {
-  return pieces.filter((piece) => getBlockerIds(pieces, piece.id).length === 0);
+  return pieces;
 }
 
 export function hasQuickMatch(pieces: readonly PilePiece[]): boolean {
@@ -325,20 +324,4 @@ export function returnTrayPiecesToPile(
       blockerIds: [],
     };
   });
-}
-
-export function exposePieceForRecovery(
-  pieces: readonly PilePiece[],
-  pieceId: string,
-  random: RandomSource,
-): readonly PilePiece[] {
-  return pieces.map((piece) => piece.id === pieceId
-    ? {
-        ...piece,
-        pile: jitterPoint({ x: 0.5, y: 0.18 }, random, 0.008),
-        spread: jitterPoint({ x: 0.5, y: 0.12 }, random, 0.008),
-        layer: 2,
-        blockerIds: [],
-      }
-    : piece);
 }

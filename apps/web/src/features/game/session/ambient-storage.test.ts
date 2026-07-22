@@ -128,7 +128,9 @@ describe("ambient snapshot storage", () => {
         ...fresh,
         pet: { guardedPieceId: blockedTarget.id },
       };
-      expect(parseAmbientSnapshot(blockedGuard)?.pet.guardedPieceId).toBeNull();
+      expect(parseAmbientSnapshot(blockedGuard)?.pet.guardedPieceId).toBe(
+        blockedTarget.id,
+      );
     }
 
     let fullGame = fresh.game;

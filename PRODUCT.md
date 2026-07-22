@@ -51,7 +51,8 @@ in a work browser, but materially rich when the player touches it.
 7. **Rules stay testable.** Occlusion, selection, clearing, recovery, and
    generation remain pure and independent from Vue and browser services.
 8. **The cat collaborates, not competes.** Activating the cat asks it to find
-   one hidden legal fish. Feeding is a separate action: drag a fish onto the
+   one hidden legal fish; when it arrives, it immediately keeps an independent
+   guide light on that fish. Feeding is a separate action: drag a fish onto the
    cat, or use `F` from a focused fish; any species may be fed up to the
    current three-fish capacity.
 
@@ -70,7 +71,8 @@ in a work browser, but materially rich when the player touches it.
 
 - Support pointer, touch, and full keyboard play with visible focus.
 - Use species, silhouette, and accessible names to identify all eight fish kinds.
-- Keep blocked state perceivable without color and expose it semantically.
+- Keep overlapping fish individually actionable whenever their visible target
+  can be reached, including through keyboard navigation.
 - Maintain at least 44 px effective targets and fit 320 px without horizontal
   scrolling.
 - Preserve all state feedback under `prefers-reduced-motion`; hover may enrich

@@ -75,8 +75,8 @@ const actionLabel = computed(() => {
 <style scoped lang="scss">
 .cat-companion {
   position: relative;
-  width: var(--cat-companion-width, clamp(132px, 13vw, 184px));
-  height: clamp(150px, 16vw, 220px);
+  width: var(--cat-companion-width, clamp(320px, 35vw, 500px));
+  height: clamp(370px, 40vw, 560px);
   padding: 0;
   border: 0;
   margin: 0;

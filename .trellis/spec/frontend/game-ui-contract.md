@@ -48,18 +48,22 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
   one normalized light; touch release keeps a brief afterglow.
 - Fish outside the light are visually hidden and cannot intercept pointer
   input. The actually focused fish and an active dragged fish stay visible;
-  blocked or globally disabled fish remain unavailable even while revealed.
+  every revealed fish remains actionable unless the whole field is disabled.
 - Native piece buttons provide 44px-or-larger targets. Tab and assistive
   technology retain a direct semantic action path that does not require
-  discovering visual coordinates. Blocked pieces are disabled and have a
-  text-free, non-color overlap cue plus an accessible covering label.
+  discovering visual coordinates. Layer overlap never removes a fish from the
+  pointer or keyboard action path. Revealed overlap groups fan apart just
+  enough to expose distinct pointer targets, then return to canonical render
+  positions when the light leaves.
 - When the search surface itself is focused, arrows move the light and
   Enter/Space selects the nearest revealed selectable fish. Focused piece
   buttons retain directional navigation and `F` feeding.
 - The cat is a native button whose pointer, touch, Enter, and Space activation
   requests search help only; it never toggles feeding or chooses a personality
-  reaction. Awake search travels to one eligible target and guards it until
-  that exact fish is selected, fed, or invalidated.
+  reaction. Awake search travels to one eligible target; on arrival, an
+  independent guide light immediately reveals that fish while the cat guards
+  it until the exact fish is selected, fed, or invalidated. Pointer spotlight
+  movement does not dismiss or relocate the guide light.
 - Pointer and touch feeding use one Pointer Events drag path from a selectable
   fish to the cat's current bounds. Canonical state changes only on a valid
   drop; failed/rejected drops restore the fish. Keyboard users focus a fish and
@@ -82,11 +86,13 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
   and attention loss using `web-match3:ambient-state`. The obsolete
   `web-match3:progress` key is not read or deleted.
 - Light coordinates, afterglow handles, focus, pointer capture, and drag motion
-  are component-local state and never enter an ambient snapshot. Away and
-  unmount clear them without changing canonical game state.
+  are component-local state and never enter an ambient snapshot. Removing a
+  stacked fish may briefly settle its directly related neighbors, but that
+  motion never changes canonical coordinates. Away and unmount clear all of
+  these projections without changing canonical game state.
 - Version-three parsing accepts an omitted legacy `pet` projection and
-  normalizes it to home. Only an existing, selectable guard target is restored;
-  malformed, stale, blocked, or full-cat targets default home without rejecting
+  normalizes it to home. Only an existing guard target is restored; malformed,
+  stale, or full-cat targets default home without rejecting
   the otherwise valid game snapshot.
 - A clear persists canonical state immediately but may expose the pre-clear
   tray as an ephemeral 620ms preview. The exact three pieces first travel into
@@ -126,10 +132,10 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
 |---|---|
 | Pointer leaves and no focus remains | clear the transient light; canonical state remains unchanged |
 | Touch search ends | keep a brief local afterglow, then hide fish outside retained focus/drag targets |
-| Keyboard focus enters the field | expose the semantic path; focused fish stays visible and blockers stay unavailable |
+| Keyboard focus enters the field | expose the semantic path; focused fish stays visible and every remaining fish is reachable |
 | Fish is dropped on the cat or focused fish receives `F` below capacity | remove it from the pile, persist feed count, update cat pose |
 | Fish drag ends outside the cat or feed is rejected | restore visual position; canonical pile/tray unchanged |
-| Awake cat is activated with an eligible target | look, travel, guard that target, show one brief bubble |
+| Awake cat is activated with an eligible target | look, travel, immediately light and guard that target on arrival, show one brief bubble |
 | Guarded target is selected or fed | return cat home and clear the guard |
 | Feed credit completes one/two tray fish | animate only that short group, consume credits once, no plant clear |
 | Cat already has three feeds | keep feed mode off and announce that the cat is full |
@@ -172,7 +178,8 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
    and quota failure;
 4. browser checks at `320x568`, `390x844`, `768x1024`, and `1440x900` for no
    horizontal overflow, pointer/touch reveal, afterglow, retained focus and
-   drag visibility, keyboard and semantic selection, blocked hit gating, tray
+   drag visibility, keyboard and semantic selection, lower-overlap selection,
+   nearby settling motion, tray
    clear, plant growth, persistence, and no console errors;
 5. reduced-motion and supported/unsupported/rejected PiP paths.
 6. mixed-species feeding, short-group settlement without a clear callback,

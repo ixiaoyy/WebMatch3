@@ -50,12 +50,6 @@ export interface MissingSelection {
   readonly state: AmbientGameState;
 }
 
-export interface BlockedSelection {
-  readonly kind: "blocked";
-  readonly state: AmbientGameState;
-  readonly blockerIds: readonly string[];
-}
-
 export interface MovedSelection {
   readonly kind: "moved";
   readonly state: AmbientGameState;
@@ -86,7 +80,6 @@ export interface RecoveryNeededSelection {
 
 export type SelectionResult =
   | MissingSelection
-  | BlockedSelection
   | MovedSelection
   | ClearedSelection
   | SettledSelection
@@ -111,12 +104,6 @@ export interface FeedMissingResult {
   readonly state: AmbientGameState;
 }
 
-export interface FeedBlockedResult {
-  readonly kind: "blocked";
-  readonly state: AmbientGameState;
-  readonly blockerIds: readonly string[];
-}
-
 export interface FeedFullResult {
   readonly kind: "full";
   readonly state: AmbientGameState;
@@ -125,5 +112,4 @@ export interface FeedFullResult {
 export type FeedResult =
   | FedFishResult
   | FeedMissingResult
-  | FeedBlockedResult
   | FeedFullResult;
