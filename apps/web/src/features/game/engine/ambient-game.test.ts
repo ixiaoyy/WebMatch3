@@ -36,6 +36,27 @@ describe("ambient fish engine", () => {
     expect(hasQuickMatch(state.pieces)).toBe(true);
   });
 
+  it("deals three distinct fish kinds into every spatial group", () => {
+    for (let level = 1; level <= 8; level += 1) {
+      const seed = 80 + level;
+      const state = createLevelState(level, 0, 1, createSeededRandom(seed));
+      const repeated = createLevelState(level, 0, 1, createSeededRandom(seed));
+
+      expect(repeated).toEqual(state);
+      for (let offset = 0; offset < state.pieces.length; offset += 3) {
+        const kinds = state.pieces
+          .slice(offset, offset + 3)
+          .map((piece) => piece.kind);
+        expect(new Set(kinds).size).toBe(3);
+      }
+      for (const kind of FISH_KINDS) {
+        expect(
+          state.pieces.filter((piece) => piece.kind === kind).length % 3,
+        ).toBe(0);
+      }
+    }
+  });
+
   it("allows lower overlaps to be selected while retaining overlap metadata", () => {
     const state = createInitialState(createSeededRandom(7));
     const blocked = state.pieces.find(
@@ -240,16 +261,14 @@ describe("ambient fish engine", () => {
 
       while (state.level === level) {
         const selectable = getSelectablePieces(state.pieces);
-        const highestLayer = Math.max(...state.pieces.map((piece) => piece.layer));
-        const exposedLayer = selectable.filter((piece) => piece.layer === highestLayer);
-        const matching = exposedLayer.find(
-          (piece) => exposedLayer.filter(
+        const matching = selectable.find(
+          (piece) => selectable.filter(
             (candidate) => candidate.kind === piece.kind,
           ).length >= 3,
         );
         expect(matching).toBeDefined();
         if (!matching) break;
-        const triple = exposedLayer
+        const triple = selectable
           .filter((piece) => piece.kind === matching.kind)
           .slice(0, 3);
 

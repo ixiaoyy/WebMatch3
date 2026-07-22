@@ -180,6 +180,56 @@ function createGroupLayers(
   return layers;
 }
 
+function createKindSchedule(
+  activeKinds: readonly FishKind[],
+  groupCount: number,
+  kindOffset: number,
+): readonly FishKind[] {
+  // Build complete matching triples first, then deal them across spatial groups.
+  const remaining = new Map(activeKinds.map((kind) => [kind, 0]));
+  for (let groupIndex = 0; groupIndex < groupCount; groupIndex += 1) {
+    const kind = activeKinds[(kindOffset + groupIndex) % activeKinds.length];
+    remaining.set(kind, (remaining.get(kind) ?? 0) + 3);
+  }
+
+  const kindIndexes = new Map(activeKinds.map((kind, index) => [kind, index]));
+  const schedule: FishKind[] = [];
+  for (let groupIndex = 0; groupIndex < groupCount; groupIndex += 1) {
+    const priorityStart = (kindOffset + groupIndex) % activeKinds.length;
+    const groupKinds = activeKinds
+      .filter((kind) => (remaining.get(kind) ?? 0) > 0)
+      .sort((left, right) => {
+        const countDifference =
+          (remaining.get(right) ?? 0) - (remaining.get(left) ?? 0);
+        if (countDifference !== 0) return countDifference;
+
+        const leftPriority =
+          ((kindIndexes.get(left) ?? 0) - priorityStart + activeKinds.length) %
+          activeKinds.length;
+        const rightPriority =
+          ((kindIndexes.get(right) ?? 0) - priorityStart + activeKinds.length) %
+          activeKinds.length;
+        return leftPriority - rightPriority;
+      })
+      .slice(0, 3);
+
+    if (groupKinds.length !== 3) {
+      throw new RangeError("Unable to distribute three distinct fish kinds per group.");
+    }
+
+    for (const kind of groupKinds) {
+      schedule.push(kind);
+      remaining.set(kind, (remaining.get(kind) ?? 0) - 1);
+    }
+  }
+
+  if ([...remaining.values()].some((count) => count !== 0)) {
+    throw new RangeError("Unable to distribute the complete fish kind schedule.");
+  }
+
+  return schedule;
+}
+
 export function createLevelState(
   level: number,
   clearCount: number,
@@ -197,14 +247,14 @@ export function createLevelState(
   });
   const activeKinds = FISH_KINDS.slice(0, config.kindCount);
   const kindOffset = sampleIndex(random, activeKinds.length);
+  const kindSchedule = createKindSchedule(activeKinds, groupCount, kindOffset);
   const pieces = Array.from({ length: config.pieceCount }, (_, offset) => {
     const groupIndex = Math.floor(offset / 3);
-    const kind = activeKinds[(kindOffset + groupIndex) % activeKinds.length];
     const template = TEMPLATES[(nextPieceId + offset - 1) % TEMPLATES.length];
     const memberIndex = offset % 3;
     return createPiece(
       nextPieceId + offset,
-      kind,
+      kindSchedule[offset],
       template,
       random,
       groupLayers[groupIndex],
