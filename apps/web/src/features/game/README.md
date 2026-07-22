@@ -22,6 +22,12 @@ so resize and Picture-in-Picture never rewrite canonical positions.
 
 Pointer movement, touch scanning, and keyboard arrows reveal nearby fish.
 Enter/Space selects a revealed or semantically focused fish into the tray.
+An untouched first field runs one interruptible, controller-timed visual lesson:
+the initial light finds a cross-layer match, those fish lift, and the first tray
+slot responds. Any input or attention handoff cancels it, and no tutorial state
+is persisted. The same controller feedback projection coordinates origin tuck,
+tray landing, feed acceptance/rejection, clear versus settlement, level arrival,
+and loss; only afterglow, drag return, and nearby slip remain component-local.
 Activating the cat only asks it to find, light, and guard one hidden fish;
 feeding stays separate through pointer-captured drag-to-cat or the focused
 fish `F` shortcut. Up to three fish of any species may be fed, and one or two

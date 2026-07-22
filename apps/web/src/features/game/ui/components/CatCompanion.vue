@@ -11,6 +11,7 @@ const props = defineProps<{
   full: boolean;
   dropHover: boolean;
   loss: boolean;
+  feedResponse: "idle" | "accepted" | "rejected";
 }>();
 const emit = defineEmits<{ activate: [] }>();
 const presentation = computed(() => getCatPresentation(props.pose));
@@ -37,6 +38,7 @@ const actionLabel = computed(() => {
     :data-travel-phase="travelPhase"
     :data-drop-hover="dropHover"
     :data-loss="loss"
+    :data-feed-response="feedResponse"
     :aria-label="actionLabel"
     :aria-disabled="full || loss"
     :disabled="loss"
@@ -99,6 +101,28 @@ const actionLabel = computed(() => {
   &[data-drop-hover="true"] {
     filter: drop-shadow(0 0 13px rgb(255 208 136 / 64%));
     transform: scale(1.035);
+  }
+
+  &[data-travel-phase="looking"] &__image {
+    filter: drop-shadow(0 9px 8px rgb(57 70 112 / 16%)) brightness(1.04);
+    transform: translateY(-2px);
+  }
+
+  &[data-travel-phase="guarding"] &__image {
+    filter: drop-shadow(0 0 15px rgb(255 224 153 / 32%));
+  }
+
+  &[data-feed-response="accepted"] &__image {
+    animation: cat-feed-accepted 220ms var(--ease-out) both;
+  }
+
+  &[data-feed-response="rejected"] {
+    outline: 2px solid rgb(161 105 112 / 30%);
+    outline-offset: -8px;
+  }
+
+  &[data-feed-response="rejected"] &__image {
+    animation: cat-feed-rejected 220ms var(--ease-out) both;
   }
 
   &[data-loss="true"] &__image {
@@ -186,6 +210,16 @@ const actionLabel = computed(() => {
   72% { transform: translateY(2px); filter: saturate(0.78); }
 }
 
+@keyframes cat-feed-accepted {
+  0%, 100% { transform: none; }
+  52% { transform: translateY(3px) scale(0.985); filter: brightness(1.08); }
+}
+
+@keyframes cat-feed-rejected {
+  0%, 100% { transform: none; }
+  50% { transform: translateX(-3px) rotate(-1deg); filter: saturate(0.78); }
+}
+
 .cat-pose-enter-active,
 .cat-pose-leave-active,
 .cat-sleep-mark-enter-active,
@@ -240,6 +274,10 @@ const actionLabel = computed(() => {
 
   .cat-companion__image {
     animation: none !important;
+  }
+
+  .cat-companion[data-feed-response="accepted"] {
+    filter: drop-shadow(0 0 10px rgb(255 208 136 / 42%));
   }
 }
 </style>

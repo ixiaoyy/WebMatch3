@@ -1,12 +1,93 @@
 import { describe, expect, it } from "vitest";
 
+import { createInitialState, createSeededRandom } from "../engine";
 import {
   getCatPresentation,
   getGrowthPercent,
+  getIntroTargetIds,
   getFishPresentation,
   getPlantStage,
   getPlantStagePresentation,
+  getTrayPressure,
+  projectGameFeedback,
+  shouldStartIntro,
 } from "./game-ui";
+
+describe("interaction feedback projection", () => {
+  it("distinguishes tray risk without turning ordinary occupancy into warning", () => {
+    expect([0, 1, 4].map(getTrayPressure)).toEqual(["calm", "calm", "calm"]);
+    expect(getTrayPressure(5)).toBe("caution");
+    expect(getTrayPressure(6)).toBe("critical");
+    expect(getTrayPressure(7)).toBe("lost");
+  });
+
+  it("keeps settle separate from plant clear and only locks terminal transitions", () => {
+    expect(projectGameFeedback("clear")).toMatchObject({
+      celebratesPlant: true,
+      locksInput: false,
+    });
+    expect(projectGameFeedback("settle")).toMatchObject({
+      celebratesPlant: false,
+      locksInput: false,
+    });
+    expect(projectGameFeedback("level")).toMatchObject({
+      levelArriving: true,
+      locksInput: true,
+    });
+    expect(projectGameFeedback("loss")).toMatchObject({
+      loss: true,
+      locksInput: true,
+    });
+    expect(projectGameFeedback("feed").catFeedResponse).toBe("accepted");
+    expect(projectGameFeedback("feed-rejected").catFeedResponse).toBe("rejected");
+  });
+
+  it("targets one cross-layer match and starts only from untouched state", () => {
+    const game = createInitialState(createSeededRandom(38));
+    const targetIds = getIntroTargetIds(game.pieces);
+    const targets = game.pieces.filter((piece) => targetIds.includes(piece.id));
+
+    expect(targetIds).toHaveLength(3);
+    expect(new Set(targets.map((piece) => piece.kind)).size).toBe(1);
+    expect(new Set(targets.map((piece) => piece.layer)).size).toBeGreaterThan(1);
+    expect(shouldStartIntro(game, null)).toBe(true);
+    expect(shouldStartIntro({ ...game, clearCount: 1 }, null)).toBe(false);
+    expect(shouldStartIntro({
+      ...game,
+      tray: [{ id: "used", kind: "whale" }],
+    }, null)).toBe(false);
+    expect(shouldStartIntro({
+      ...game,
+      fed: [{ id: "fed", kind: "koi", settled: false }],
+    }, null)).toBe(false);
+    expect(shouldStartIntro({ ...game, level: 2 }, null)).toBe(false);
+    expect(shouldStartIntro({ ...game, nextPieceId: game.nextPieceId + 36 }, null))
+      .toBe(false);
+    expect(shouldStartIntro(game, targetIds[0])).toBe(false);
+  });
+
+  it("selects a cross-layer intro triple for every validated initial seed", () => {
+    for (let seed = 1; seed <= 64; seed += 1) {
+      const game = createInitialState(createSeededRandom(seed));
+      const targetIds = getIntroTargetIds(game.pieces);
+      const targets = targetIds.map((pieceId) =>
+        game.pieces.find((piece) => piece.id === pieceId)
+      );
+
+      expect(targets, `seed ${seed} has three intro targets`).toHaveLength(3);
+      expect(targets.every(Boolean), `seed ${seed} resolves every target`).toBe(true);
+      expect(
+        new Set(targets.map((piece) => piece?.kind)).size,
+        `seed ${seed} uses one fish kind`,
+      ).toBe(1);
+      expect(
+        new Set(targets.map((piece) => piece?.layer)).size,
+        `seed ${seed} spans layers`,
+      ).toBeGreaterThan(1);
+      expect(shouldStartIntro(game, null)).toBe(true);
+    }
+  });
+});
 
 describe("felt fish presentation", () => {
   it("maps every registered kind to one distinct asset and descriptive label", () => {

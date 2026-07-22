@@ -32,10 +32,191 @@ function controlledTimers() {
       }
     },
   };
-  return { callbacks, delays, timers };
+  function runDelay(delay: number): void {
+    const index = delays.indexOf(delay);
+    if (index < 0) return;
+    const [callback] = callbacks.splice(index, 1);
+    delays.splice(index, 1);
+    callback?.();
+  }
+  return { callbacks, delays, runDelay, timers };
 }
 
 describe("ambient controller", () => {
+  it("runs one non-blocking intro sequence for a pristine initial state", () => {
+    const { delays, runDelay, timers } = controlledTimers();
+    const controller = createAmbientController({
+      random: createSeededRandom(40),
+      storage: null,
+      timers,
+    });
+
+    expect(controller.feedback.value).toBe("intro");
+    expect(controller.introPhase.value).toBe("scan");
+    expect(controller.introTargetIds.value).toHaveLength(3);
+    expect(controller.canSelect.value).toBe(true);
+    expect(delays).toEqual([520]);
+
+    runDelay(520);
+    expect(controller.introPhase.value).toBe("targets");
+    expect(delays).toEqual([620]);
+    runDelay(620);
+    expect(controller.introPhase.value).toBe("tray");
+    runDelay(620);
+
+    expect(controller.feedback.value).toBe("idle");
+    expect(controller.introPhase.value).toBe("idle");
+    expect(delays).toEqual([]);
+    controller.dispose();
+  });
+
+  it("cancels intro on takeover, away, and disposal without replaying it", () => {
+    const directTimers = controlledTimers();
+    const direct = createAmbientController({
+      random: createSeededRandom(41),
+      storage: null,
+      timers: directTimers.timers,
+    });
+    direct.takeOverIntro();
+    expect(direct.feedback.value).toBe("idle");
+    expect(directTimers.delays).not.toContain(520);
+    direct.dispose();
+
+    const awayTimers = controlledTimers();
+    const away = createAmbientController({
+      random: createSeededRandom(42),
+      storage: null,
+      timers: awayTimers.timers,
+    });
+    away.setAway(true);
+    expect(away.feedback.value).toBe("idle");
+    expect(awayTimers.callbacks).toHaveLength(0);
+    away.setAway(false);
+    expect(away.feedback.value).toBe("idle");
+    expect(awayTimers.delays).not.toContain(520);
+    away.dispose();
+
+    const disposeTimers = controlledTimers();
+    const disposed = createAmbientController({
+      random: createSeededRandom(43),
+      storage: null,
+      timers: disposeTimers.timers,
+    });
+    disposed.dispose();
+    expect(disposeTimers.callbacks).toHaveLength(0);
+    expect(disposed.introPhase.value).toBe("idle");
+  });
+
+  it("lets selection, feeding, and cat search take over the intro immediately", () => {
+    const selection = createAmbientController({
+      random: createSeededRandom(44),
+      storage: null,
+    });
+    const selectedId = selection.introTargetIds.value[0];
+    selection.activate(selectedId);
+    expect(selection.feedback.value).toBe("select");
+    expect(selection.game.value.pieces.some((piece) => piece.id === selectedId)).toBe(false);
+    selection.dispose();
+
+    const feeding = createAmbientController({
+      random: createSeededRandom(45),
+      storage: null,
+    });
+    const fedId = feeding.introTargetIds.value[0];
+    feeding.feedToCat(fedId);
+    expect(feeding.feedback.value).toBe("feed");
+    expect(feeding.game.value.fed.at(-1)?.id).toBe(fedId);
+    feeding.dispose();
+
+    const searching = createAmbientController({
+      random: createSeededRandom(46),
+      storage: null,
+    });
+    searching.requestCatSearch();
+    expect(searching.feedback.value).toBe("idle");
+    expect(searching.catTravelPhase.value).toBe("looking");
+    searching.dispose();
+  });
+
+  it("replays only an untouched refresh and skips operated restored states", () => {
+    const untouchedStorage = memoryStorage();
+    const untouched = createAmbientController({
+      random: createSeededRandom(47),
+      storage: untouchedStorage,
+    });
+    untouched.dispose();
+    const replayed = createAmbientController({
+      random: createSeededRandom(48),
+      storage: untouchedStorage,
+    });
+    expect(replayed.feedback.value).toBe("intro");
+    replayed.dispose();
+
+    const operatedStorage = memoryStorage();
+    const operated = createAmbientController({
+      random: createSeededRandom(49),
+      storage: operatedStorage,
+    });
+    operated.activate(operated.introTargetIds.value[0]);
+    operated.dispose();
+    const restored = createAmbientController({
+      random: createSeededRandom(50),
+      storage: operatedStorage,
+    });
+    expect(restored.feedback.value).toBe("idle");
+    expect(restored.introPhase.value).toBe("idle");
+    restored.dispose();
+  });
+
+  it("replaces direct feedback instead of running competing feedback timers", () => {
+    const { delays, runDelay, timers } = controlledTimers();
+    const controller = createAmbientController({
+      random: createSeededRandom(39),
+      storage: null,
+      timers,
+    });
+    controller.rejectFeed();
+    expect(controller.feedback.value).toBe("feed-rejected");
+    controller.activate(controller.selectablePieces.value[0].id);
+    expect(controller.feedback.value).toBe("select");
+    expect(delays.filter((delay) => delay === 220)).toHaveLength(1);
+    runDelay(220);
+    expect(controller.feedback.value).toBe("idle");
+    controller.dispose();
+  });
+
+  it("ignores cancelled feedback callbacks that arrive after a newer action", () => {
+    const scheduled: Array<{ callback: () => void; delay: number }> = [];
+    const timers: TimerApi = {
+      schedule(callback, delay) {
+        scheduled.push({ callback, delay });
+        return callback;
+      },
+      cancel() {
+        // Model a callback that was already queued when cancellation occurred.
+      },
+    };
+    const controller = createAmbientController({
+      random: createSeededRandom(37),
+      storage: null,
+      timers,
+    });
+
+    controller.takeOverIntro();
+    controller.rejectFeed();
+    const rejected = scheduled.find(({ delay }) => delay === 220)?.callback;
+    controller.activate(controller.selectablePieces.value[0].id);
+    const selected = scheduled.filter(({ delay }) => delay === 220).at(-1)?.callback;
+
+    scheduled.find(({ delay }) => delay === 520)?.callback();
+    rejected?.();
+    expect(controller.feedback.value).toBe("select");
+
+    selected?.();
+    expect(controller.feedback.value).toBe("idle");
+    controller.dispose();
+  });
+
   it("selects, persists, and emits clear feedback", () => {
     const onClear = vi.fn();
     const controller = createAmbientController({
@@ -62,8 +243,8 @@ describe("ambient controller", () => {
     controller.dispose();
   });
 
-  it("keeps the cleared trio visible until the bubble feedback settles", () => {
-    const { callbacks, timers } = controlledTimers();
+  it("keeps the cleared trio visible until feedback settles or a new action takes over", () => {
+    const { runDelay, timers } = controlledTimers();
     const controller = createAmbientController({
       random: createSeededRandom(51),
       storage: null,
@@ -88,17 +269,21 @@ describe("ambient controller", () => {
       triple.map((piece) => piece.id),
     );
 
-    callbacks.shift()?.();
+    const stableState = controller.game.value;
+    controller.rejectFeed();
 
     expect(controller.trayPreview.value).toBeNull();
     expect(controller.clearingPieceIds.value).toEqual([]);
+    expect(controller.game.value).toBe(stableState);
+    expect(controller.feedback.value).toBe("feed-rejected");
+    runDelay(220);
     expect(controller.feedback.value).toBe("idle");
     controller.dispose();
   });
 
   it("feeds different fish and plays the full-to-sleeping pose sequence", () => {
     const onClear = vi.fn();
-    const { callbacks, timers } = controlledTimers();
+    const { runDelay, timers } = controlledTimers();
     const controller = createAmbientController({
       random: createSeededRandom(52),
       storage: null,
@@ -140,10 +325,9 @@ describe("ambient controller", () => {
     expect(controller.guardedPiece.value).toBeNull();
     expect(controller.status.value).toBe("小猫已经吃饱，正在休息，现在不能帮忙寻鱼。");
 
-    callbacks.shift()?.();
+    runDelay(520);
     expect(controller.catPose.value).toBe("lying");
-    callbacks.shift()?.();
-    callbacks.shift()?.();
+    runDelay(520);
     expect(controller.catPose.value).toBe("sleeping");
     controller.dispose();
   });
@@ -260,6 +444,7 @@ describe("ambient controller", () => {
       timers,
     });
 
+    controller.takeOverIntro();
     controller.startReactions();
     expect(callbacks).toHaveLength(1);
     controller.setAway(true);

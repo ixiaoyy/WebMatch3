@@ -8,7 +8,7 @@ import {
   type PilePiece,
   type Point,
 } from "../../engine";
-import type { FocusDirection } from "../game-ui";
+import type { FocusDirection, GameFeedback, IntroPhase } from "../game-ui";
 import {
   findNearestRevealedPiece,
   getRevealedPieceIds,
@@ -30,6 +30,9 @@ const props = defineProps<{
   away: boolean;
   projection: FieldProjection;
   guidedPieceId: string | null;
+  feedback: GameFeedback;
+  introPhase: IntroPhase;
+  introTargetIds: readonly string[];
 }>();
 
 const emit = defineEmits<{
@@ -63,10 +66,11 @@ const guidedPiece = computed(() =>
 const guidedLight = computed(() => guidedPiece.value?.pile ?? null);
 const revealedPieceIds = computed(() => {
   if (props.away) return new Set<string>();
+  if (props.transitioning) return new Set(props.pieces.map((piece) => piece.id));
 
   const revealed = new Set(getRevealedPieceIds(
     props.pieces,
-    light.value,
+    props.introPhase === "idle" ? light.value : INITIAL_DISCOVERY_POINT,
     [activeFocusedId.value, draggedPieceId.value],
   ));
   if (guidedLight.value) {
@@ -120,7 +124,9 @@ const separationOffsets = computed(() => {
   return offsets;
 });
 const projectedLight = computed(() => projectFieldPoint(
-  light.value ?? INITIAL_DISCOVERY_POINT,
+  props.introPhase === "idle"
+    ? light.value ?? INITIAL_DISCOVERY_POINT
+    : INITIAL_DISCOVERY_POINT,
   props.projection,
 ));
 const guidedSpotlightStyle = computed(() => {
@@ -424,6 +430,8 @@ onBeforeUnmount(() => {
     :data-spotlight="spotlightMode"
     :data-transitioning="transitioning"
     :data-loss="loss"
+    :data-feedback="feedback"
+    :data-intro="introPhase"
     :style="{
       '--light-x': projectedLight.x,
       '--light-y': projectedLight.y,
@@ -455,25 +463,31 @@ onBeforeUnmount(() => {
       <span class="fish-field__spotlight-lens" />
     </div>
 
-    <FishPiece
-      v-for="piece in pieces"
-      :key="piece.id"
-      :piece="piece"
-      :position="projectFieldPoint(piece.pile, projection)"
-      :revealed="revealedPieceIds.has(piece.id)"
-      :feedable="feedable"
-      :disabled="disabled"
-      :separation="separationOffsets.get(piece.id) ?? { x: 0, y: 0 }"
-      :slip-direction="slipDirections.get(piece.id) ?? 0"
-      :tab-index="piece.id === focusedId ? 0 : -1"
-      @activate="onActivate"
-      @feed="onFeed"
-      @focus="revealFocusedPiece"
-      @navigate="navigate"
-      @drag-start="onDragStart"
-      @drag-move="onDragMove"
-      @drag-end="onDragEnd"
-    />
+    <TransitionGroup name="fish-field-piece">
+      <FishPiece
+        v-for="piece in pieces"
+        :key="piece.id"
+        :piece="piece"
+        :position="projectFieldPoint(piece.pile, projection)"
+        :revealed="revealedPieceIds.has(piece.id)"
+        :feedable="feedable"
+        :disabled="disabled"
+        :separation="separationOffsets.get(piece.id) ?? { x: 0, y: 0 }"
+        :slip-direction="slipDirections.get(piece.id) ?? 0"
+        :intro-target="
+          introPhase === 'targets' && introTargetIds.includes(piece.id)
+        "
+        :arriving="transitioning"
+        :tab-index="piece.id === focusedId ? 0 : -1"
+        @activate="onActivate"
+        @feed="onFeed"
+        @focus="revealFocusedPiece"
+        @navigate="navigate"
+        @drag-start="onDragStart"
+        @drag-move="onDragMove"
+        @drag-end="onDragEnd"
+      />
+    </TransitionGroup>
   </section>
 </template>
 
@@ -494,10 +508,6 @@ onBeforeUnmount(() => {
   &:focus-visible {
     outline: 2px solid rgb(60 85 126 / 38%);
     outline-offset: -5px;
-  }
-
-  &[data-transitioning="true"] {
-    animation: fish-level-arrive 620ms var(--ease-out) both;
   }
 
   &[data-loss="true"] {
@@ -584,6 +594,16 @@ onBeforeUnmount(() => {
     opacity: 1;
   }
 
+  &[data-intro="scan"] &__spotlight--pointer,
+  &[data-intro="targets"] &__spotlight--pointer,
+  &[data-intro="tray"] &__spotlight--pointer {
+    opacity: 1;
+  }
+
+  &[data-intro="scan"] &__spotlight--pointer {
+    animation: intro-spotlight-arrive 520ms var(--ease-out) both;
+  }
+
   &[data-spotlight="afterglow"] &__spotlight--pointer {
     opacity: 0.72;
     transition-duration: 420ms;
@@ -595,6 +615,16 @@ onBeforeUnmount(() => {
       inset 0 0 28px rgb(255 238 176 / 22%),
       0 0 20px rgb(255 223 148 / 18%);
   }
+}
+
+.fish-field[data-feedback="select"] :deep(.fish-field-piece-leave-active),
+.fish-field[data-feedback="feed"] :deep(.fish-field-piece-leave-active) {
+  pointer-events: none;
+  animation: fish-origin-tuck 220ms var(--ease-out) both;
+}
+
+.fish-field[data-feedback="feed"] :deep(.fish-field-piece-leave-active) {
+  filter: brightness(1.1) drop-shadow(0 8px 10px rgb(255 207 132 / 28%));
 }
 
 @media (max-width: 620px) {
@@ -622,20 +652,36 @@ onBeforeUnmount(() => {
   }
 }
 
-@keyframes fish-level-arrive {
+@keyframes intro-spotlight-arrive {
+  0% { opacity: 0; transform: translate(-7%, 5%); }
+  100% { opacity: 1; transform: none; }
+}
+
+@keyframes fish-origin-tuck {
   0% {
-    opacity: 0.48;
-    filter: blur(2px) saturate(0.82);
+    opacity: 1;
+    transform:
+      translate(
+        calc(-50% + var(--separation-x)),
+        calc(-50% + var(--separation-y) + var(--layer-lift))
+      )
+      rotate(var(--piece-rotation))
+      scale(var(--piece-scale));
   }
 
   100% {
-    opacity: 1;
-    filter: none;
+    opacity: 0;
+    transform:
+      translate(
+        calc(-50% + var(--separation-x)),
+        calc(-50% + var(--separation-y) + var(--layer-lift) + 6px)
+      )
+      rotate(var(--piece-rotation))
+      scale(var(--piece-scale-tuck));
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .fish-field[data-transitioning="true"],
   .fish-field[data-loss="true"] {
     animation: none;
   }
@@ -646,6 +692,12 @@ onBeforeUnmount(() => {
 
   .fish-field__spotlight {
     transition: none;
+    animation: none !important;
+  }
+
+  .fish-field :deep(.fish-field-piece-leave-active) {
+    animation: none !important;
+    opacity: 0;
   }
 }
 

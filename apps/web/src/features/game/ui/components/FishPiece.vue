@@ -13,6 +13,8 @@ const props = defineProps<{
   disabled: boolean;
   separation: Point;
   slipDirection: -1 | 0 | 1;
+  introTarget: boolean;
+  arriving: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -113,8 +115,11 @@ function onKeydown(event: KeyboardEvent): void {
     :data-piece-id="piece.id"
     :data-kind="piece.kind"
     :data-revealed="revealed"
+    :data-layer="piece.layer"
     :data-dragging="dragging"
     :data-slipping="slipDirection !== 0"
+    :data-intro-target="introTarget"
+    :data-arriving="arriving"
     :disabled="disabled"
     :tabindex="tabIndex"
     :aria-label="label"
@@ -124,7 +129,14 @@ function onKeydown(event: KeyboardEvent): void {
       '--pile-y': position.y,
       '--piece-rotation': `${piece.rotation}deg`,
       '--piece-scale': piece.scale,
+      '--piece-scale-tuck': piece.scale * 0.72,
+      '--piece-scale-intro': piece.scale * 1.035,
+      '--piece-scale-arrive': piece.scale * 0.96,
       '--piece-layer': piece.layer,
+      '--layer-lift': `${piece.layer * -3}px`,
+      '--layer-shadow-y': `${7 + piece.layer * 3}px`,
+      '--layer-shadow-blur': `${7 + piece.layer * 2}px`,
+      '--layer-delay': `${piece.layer * 70}ms`,
       '--separation-x': `${separation.x}px`,
       '--separation-y': `${separation.y}px`,
       '--drag-x': `${dragX}px`,
@@ -171,7 +183,7 @@ function onKeydown(event: KeyboardEvent): void {
   transform:
     translate(
       calc(-50% + var(--separation-x)),
-      calc(-50% + var(--separation-y))
+      calc(-50% + var(--separation-y) + var(--layer-lift))
     )
     rotate(var(--piece-rotation))
     scale(var(--piece-scale));
@@ -180,12 +192,16 @@ function onKeydown(event: KeyboardEvent): void {
     left 520ms var(--ease-out),
     top 520ms var(--ease-out),
     transform 220ms var(--ease-out),
-    filter 220ms ease,
-    opacity 220ms ease;
+    filter 220ms var(--ease-out),
+    opacity 220ms var(--ease-out);
 
   &[data-revealed="true"],
   &[data-dragging="true"] {
     opacity: 1;
+    filter: drop-shadow(
+      0 var(--layer-shadow-y) var(--layer-shadow-blur)
+      rgb(57 70 112 / 18%)
+    );
   }
 
   &[data-revealed="true"]:not(:disabled),
@@ -206,7 +222,7 @@ function onKeydown(event: KeyboardEvent): void {
     transform:
       translate(
         calc(-50% + var(--separation-x)),
-        calc(-54% + var(--separation-y))
+        calc(-54% + var(--separation-y) + var(--layer-lift))
       )
       rotate(var(--piece-rotation))
       scale(calc(var(--piece-scale) * 1.06));
@@ -224,18 +240,76 @@ function onKeydown(event: KeyboardEvent): void {
     animation: fish-nearby-slip 380ms var(--ease-out);
   }
 
+  &[data-intro-target="true"]:not([data-dragging="true"]) {
+    animation: fish-intro-lift 620ms var(--ease-out) both;
+    animation-delay: var(--layer-delay);
+  }
+
+  &[data-arriving="true"] {
+    animation: fish-layer-arrive 540ms var(--ease-out) both;
+    animation-delay: var(--layer-delay);
+  }
+
   &[data-dragging="true"] {
     z-index: 20;
     cursor: grabbing;
     transform:
       translate(
         calc(-50% + var(--separation-x) + var(--drag-x)),
-        calc(-50% + var(--separation-y) + var(--drag-y))
+        calc(-50% + var(--separation-y) + var(--layer-lift) + var(--drag-y))
       )
       rotate(var(--piece-rotation))
       scale(calc(var(--piece-scale) * 1.06));
     filter: drop-shadow(0 13px 14px rgb(57 70 112 / 24%));
     transition: none;
+  }
+}
+
+@keyframes fish-intro-lift {
+  0%, 100% {
+    transform:
+      translate(
+        calc(-50% + var(--separation-x)),
+        calc(-50% + var(--separation-y) + var(--layer-lift))
+      )
+      rotate(var(--piece-rotation))
+      scale(var(--piece-scale));
+    filter: drop-shadow(0 var(--layer-shadow-y) 8px rgb(57 70 112 / 18%));
+  }
+
+  48% {
+    transform:
+      translate(
+        calc(-50% + var(--separation-x)),
+        calc(-58% + var(--separation-y) + var(--layer-lift))
+      )
+      rotate(var(--piece-rotation))
+      scale(var(--piece-scale-intro));
+    filter: drop-shadow(0 14px 14px rgb(85 84 130 / 28%)) brightness(1.06);
+  }
+}
+
+@keyframes fish-layer-arrive {
+  0% {
+    transform:
+      translate(
+        calc(-50% + var(--separation-x)),
+        calc(-50% + var(--separation-y) + var(--layer-lift) - 12px)
+      )
+      rotate(var(--piece-rotation))
+      scale(var(--piece-scale-arrive));
+    filter: blur(1.5px);
+  }
+
+  100% {
+    transform:
+      translate(
+        calc(-50% + var(--separation-x)),
+        calc(-50% + var(--separation-y) + var(--layer-lift))
+      )
+      rotate(var(--piece-rotation))
+      scale(var(--piece-scale));
+    filter: drop-shadow(0 var(--layer-shadow-y) 8px rgb(57 70 112 / 18%));
   }
 }
 
@@ -245,7 +319,7 @@ function onKeydown(event: KeyboardEvent): void {
     transform:
       translate(
         calc(-50% + var(--separation-x)),
-        calc(-50% + var(--separation-y))
+        calc(-50% + var(--separation-y) + var(--layer-lift))
       )
       rotate(var(--piece-rotation))
       scale(var(--piece-scale));
@@ -255,7 +329,7 @@ function onKeydown(event: KeyboardEvent): void {
     transform:
       translate(
         calc(-50% + var(--separation-x) + var(--slip-x)),
-        calc(-50% + var(--separation-y) + 10px)
+        calc(-50% + var(--separation-y) + var(--layer-lift) + 10px)
       )
       rotate(calc(var(--piece-rotation) + var(--slip-rotation)))
       scale(calc(var(--piece-scale) * 0.98));
@@ -274,6 +348,11 @@ function onKeydown(event: KeyboardEvent): void {
   .fish-piece {
     transition: none;
     animation: none !important;
+  }
+
+  .fish-piece[data-intro-target="true"] {
+    filter: drop-shadow(0 var(--layer-shadow-y) 10px rgb(85 84 130 / 26%))
+      brightness(1.04);
   }
 }
 </style>

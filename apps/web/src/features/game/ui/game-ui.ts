@@ -1,4 +1,11 @@
-import type { FishKind } from "../engine";
+import {
+  DISCOVERY_RADIUS_X,
+  DISCOVERY_RADIUS_Y,
+  INITIAL_DISCOVERY_POINT,
+  type AmbientGameState,
+  type FishKind,
+  type PilePiece,
+} from "../engine";
 
 import catEatingUrl from "./assets/cat/cat-eating.webp";
 import catFullUrl from "./assets/cat/cat-full.webp";
@@ -21,7 +28,26 @@ import plantStagePomegranateUrl from "./assets/ambient/plant-stage-pomegranate.w
 export type FocusDirection = "up" | "right" | "down" | "left";
 export type PlantStage = "growing" | "flowering" | "fruiting" | "mature";
 export type CatPose = "idle" | "eating" | "full" | "lying" | "sleeping";
-export type GameFeedback = "idle" | "clear" | "settle" | "loss" | "level";
+export type IntroPhase = "idle" | "scan" | "targets" | "tray";
+export type TrayPressure = "calm" | "caution" | "critical" | "lost";
+export type GameFeedback =
+  | "idle"
+  | "intro"
+  | "select"
+  | "feed"
+  | "feed-rejected"
+  | "clear"
+  | "settle"
+  | "loss"
+  | "level";
+
+export interface GameFeedbackProjection {
+  readonly locksInput: boolean;
+  readonly celebratesPlant: boolean;
+  readonly levelArriving: boolean;
+  readonly loss: boolean;
+  readonly catFeedResponse: "idle" | "accepted" | "rejected";
+}
 
 export interface FishPresentation {
   readonly label: string;
@@ -74,6 +100,67 @@ export function getPlantStagePresentation(stage: PlantStage): PlantStagePresenta
 
 export function getCatPresentation(pose: CatPose): CatPresentation {
   return CAT_PRESENTATIONS[pose];
+}
+
+export function getTrayPressure(pieceCount: number): TrayPressure {
+  if (pieceCount >= 7) return "lost";
+  if (pieceCount === 6) return "critical";
+  if (pieceCount === 5) return "caution";
+  return "calm";
+}
+
+export function projectGameFeedback(
+  feedback: GameFeedback,
+): GameFeedbackProjection {
+  return {
+    locksInput: feedback === "loss" || feedback === "level",
+    celebratesPlant: feedback === "clear",
+    levelArriving: feedback === "level",
+    loss: feedback === "loss",
+    catFeedResponse: feedback === "feed"
+      ? "accepted"
+      : feedback === "feed-rejected" ? "rejected" : "idle",
+  };
+}
+
+export function getIntroTargetIds(
+  pieces: readonly PilePiece[],
+): readonly string[] {
+  const candidatesByKind = new Map<FishKind, PilePiece[]>();
+  for (const piece of pieces) {
+    const distance = Math.hypot(
+      (piece.pile.x - INITIAL_DISCOVERY_POINT.x) / DISCOVERY_RADIUS_X,
+      (piece.pile.y - INITIAL_DISCOVERY_POINT.y) / DISCOVERY_RADIUS_Y,
+    );
+    if (distance > 1) continue;
+    const candidates = candidatesByKind.get(piece.kind) ?? [];
+    candidates.push(piece);
+    candidatesByKind.set(piece.kind, candidates);
+  }
+  for (const candidates of candidatesByKind.values()) {
+    const first = candidates[0];
+    if (!first || candidates.length < 3) continue;
+    const crossLayer = candidates.find((piece) => piece.layer !== first.layer);
+    if (!crossLayer) continue;
+    const third = candidates.find((piece) =>
+      piece.id !== first.id && piece.id !== crossLayer.id
+    );
+    if (third) return [first.id, crossLayer.id, third.id];
+  }
+  return [];
+}
+
+export function shouldStartIntro(
+  game: AmbientGameState,
+  guardedPieceId: string | null,
+): boolean {
+  return game.level === 1 &&
+    game.clearCount === 0 &&
+    game.tray.length === 0 &&
+    game.fed.length === 0 &&
+    guardedPieceId === null &&
+    game.nextPieceId === game.pieces.length + 1 &&
+    getIntroTargetIds(game.pieces).length === 3;
 }
 
 export function getGrowthPercent(clearCount: number): number {

@@ -18,8 +18,12 @@ import {
 } from "../session/ambient-storage";
 import {
   getFishPresentation,
+  getIntroTargetIds,
+  projectGameFeedback,
+  shouldStartIntro,
   type CatPose,
   type GameFeedback,
+  type IntroPhase,
 } from "./game-ui";
 import {
   chooseCatReaction,
@@ -47,6 +51,10 @@ const CAT_ACTIVATION_THROTTLE = 800;
 const CAT_BUBBLE_DURATION = 2_400;
 const CAT_AUTO_REACTION_MIN_DELAY = 45_000;
 const CAT_AUTO_REACTION_JITTER = 30_000;
+const DIRECT_FEEDBACK_DURATION = 220;
+const INTRO_SCAN_DURATION = 520;
+const INTRO_TARGET_DURATION = 620;
+const INTRO_TRAY_DURATION = 620;
 const LOSS_FEEDBACK_DURATION = 1_200;
 
 const browserTimers: TimerApi = {
@@ -70,6 +78,8 @@ export function createAmbientController(
   const soundEnabled = ref(initial.preferences.soundEnabled);
   const status = ref("小鱼藏在桌面上。移动指针、触摸或方向键寻找它们。");
   const feedback = ref<GameFeedback>("idle");
+  const introPhase = ref<IntroPhase>("idle");
+  const introTargetIds = shallowRef(getIntroTargetIds(initial.game.pieces));
   const catPose = ref<CatPose>(
     initial.game.fed.length === 0
       ? "idle"
@@ -95,16 +105,16 @@ export function createAmbientController(
   let reactionsStarted = false;
   let wakeAfterSleep = false;
   let generation = 0;
+  let feedbackSequence = 0;
 
   const selectablePieces = computed(() => getSelectablePieces(game.value.pieces));
   const plantAgeDays = computed(() => Math.max(
     0,
     Math.floor((currentTime.value - initial.plant.plantedAt) / 86_400_000),
   ));
+  const feedbackProjection = computed(() => projectGameFeedback(feedback.value));
   const canSelect = computed(
-    () => !isAway.value &&
-      feedback.value !== "loss" &&
-      feedback.value !== "level",
+    () => !isAway.value && !feedbackProjection.value.locksInput,
   );
   const guardedPiece = computed(() =>
     game.value.pieces.find((piece) => piece.id === guardedPieceId.value) ?? null,
@@ -133,10 +143,52 @@ export function createAmbientController(
   }
 
   function clearFeedbackTimer(): void {
+    feedbackSequence += 1;
     if (feedbackHandle !== null) {
       timers.cancel(feedbackHandle);
       feedbackHandle = null;
     }
+  }
+
+  function takeOverIntro(): void {
+    if (feedback.value !== "intro") return;
+    clearFeedbackTimer();
+    introPhase.value = "idle";
+    feedback.value = "idle";
+    status.value = "小鱼藏在桌面上。移动指针、触摸或方向键寻找它们。";
+  }
+
+  function scheduleIntroStep(delay: number, next: () => void): void {
+    const token = generation;
+    const sequence = feedbackSequence;
+    feedbackHandle = timers.schedule(() => {
+      if (sequence !== feedbackSequence) return;
+      feedbackHandle = null;
+      if (token !== generation || isAway.value || feedback.value !== "intro") {
+        return;
+      }
+      next();
+    }, delay);
+  }
+
+  function startIntro(): void {
+    if (!shouldStartIntro(initial.game, initial.pet.guardedPieceId)) return;
+    feedback.value = "intro";
+    introPhase.value = "scan";
+    status.value = "一道柔和的光正扫向附近的小鱼。";
+    scheduleIntroStep(INTRO_SCAN_DURATION, () => {
+      introPhase.value = "targets";
+      status.value = "光里的三条同类小鱼轻轻抬起。";
+      scheduleIntroStep(INTRO_TARGET_DURATION, () => {
+        introPhase.value = "tray";
+        status.value = "托盘的第一格正在等待一条小鱼。";
+        scheduleIntroStep(INTRO_TRAY_DURATION, () => {
+          introPhase.value = "idle";
+          feedback.value = "idle";
+          status.value = "小鱼藏在桌面上。移动指针、触摸或方向键寻找它们。";
+        });
+      });
+    });
   }
 
   function clearCatPoseTimer(): void {
@@ -313,6 +365,7 @@ export function createAmbientController(
   }
 
   function requestCatSearch(): void {
+    takeOverIntro();
     if (isAway.value || feedback.value === "loss") return;
     const activatedAt = now();
     if (activatedAt - lastCatActivationAt < CAT_ACTIVATION_THROTTLE) return;
@@ -362,32 +415,46 @@ export function createAmbientController(
     clearingPieceIds.value = [];
   }
 
+  function interruptFeedback(): void {
+    if (feedback.value !== "idle") {
+      clearFeedbackTimer();
+      introPhase.value = "idle";
+      feedback.value = "idle";
+    }
+    clearTrayFeedback();
+  }
+
   function settleFeedback(
     kind: Exclude<GameFeedback, "idle">,
     delay: number,
   ): void {
     clearFeedbackTimer();
+    introPhase.value = "idle";
     const token = generation;
+    const sequence = feedbackSequence;
     feedback.value = kind;
     feedbackHandle = timers.schedule(() => {
-      if (token === generation && !isAway.value) {
-        feedback.value = "idle";
-        clearTrayFeedback();
-        if (kind === "loss") {
-          catPose.value = "idle";
-          status.value = "新的第一局已经排好，可以继续寻找小鱼。";
-          scheduleCatAutoReaction();
-        }
-      }
+      if (sequence !== feedbackSequence) return;
       feedbackHandle = null;
+      if (token !== generation || isAway.value) return;
+      feedback.value = "idle";
+      clearTrayFeedback();
+      if (kind === "loss") {
+        catPose.value = "idle";
+        status.value = "新的第一局已经排好，可以继续寻找小鱼。";
+        scheduleCatAutoReaction();
+      }
     }, delay);
   }
 
   function feedToCat(pieceId: string): void {
+    takeOverIntro();
     if (!canSelect.value) return;
+    interruptFeedback();
     if (!catCanEat.value) {
       status.value = "小猫正在休息，现在不能再喂。";
       showCatReaction(catPose.value === "sleeping" ? "sleeping" : "full");
+      settleFeedback("feed-rejected", DIRECT_FEEDBACK_DURATION);
       return;
     }
     const previousFeedCount = game.value.fed.length;
@@ -396,6 +463,7 @@ export function createAmbientController(
     if (result.kind === "full") {
       status.value = "小猫已经吃饱了，不能再喂。";
       showCatReaction(catPose.value === "sleeping" ? "sleeping" : "full");
+      settleFeedback("feed-rejected", DIRECT_FEEDBACK_DURATION);
       return;
     }
     const feedCount = previousFeedCount + 1;
@@ -421,17 +489,16 @@ export function createAmbientController(
     persist();
     if (result.settled.length > 0) {
       settleFeedback(result.levelAdvanced ? "level" : "settle", 620);
+    } else {
+      settleFeedback("feed", DIRECT_FEEDBACK_DURATION);
     }
   }
 
   function activate(pieceId: string): void {
+    takeOverIntro();
     if (!canSelect.value) return;
     currentTime.value = now();
-    if (feedback.value === "clear" || feedback.value === "settle") {
-      clearFeedbackTimer();
-      clearTrayFeedback();
-      feedback.value = "idle";
-    }
+    interruptFeedback();
     const result = selectPiece(game.value, pieceId, random);
     if (result.kind === "missing") return;
 
@@ -492,15 +559,27 @@ export function createAmbientController(
 
     status.value = `${getFishPresentation(result.selected.kind).label}滑进了托盘。`;
     persist();
+    settleFeedback("select", DIRECT_FEEDBACK_DURATION);
+  }
+
+  function rejectFeed(): void {
+    takeOverIntro();
+    if (!canSelect.value) return;
+    interruptFeedback();
+    status.value = "没有放到小猫身上，小鱼回到了原位。";
+    showCatReaction("unavailable");
+    settleFeedback("feed-rejected", DIRECT_FEEDBACK_DURATION);
   }
 
   function setSoundEnabled(enabled: boolean): void {
+    takeOverIntro();
     soundEnabled.value = enabled;
     status.value = enabled ? "清除声音已开启。" : "声音已关闭。";
     persist();
   }
 
   function setAway(away: boolean): void {
+    if (away) takeOverIntro();
     if (isAway.value === away) return;
     isAway.value = away;
     currentTime.value = now();
@@ -532,6 +611,7 @@ export function createAmbientController(
   }
 
   function dispose(): void {
+    takeOverIntro();
     generation += 1;
     clearFeedbackTimer();
     clearCatPoseTimer();
@@ -542,11 +622,16 @@ export function createAmbientController(
     persist();
   }
 
+  startIntro();
+
   return {
     game,
     soundEnabled,
     status,
     feedback,
+    feedbackProjection,
+    introPhase,
+    introTargetIds,
     catPose,
     catReaction,
     guardedPiece,
@@ -561,7 +646,9 @@ export function createAmbientController(
     catCanEat,
     activate,
     feedToCat,
+    rejectFeed,
     requestCatSearch,
+    takeOverIntro,
     startReactions,
     setSoundEnabled,
     setAway,

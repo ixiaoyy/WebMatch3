@@ -17,6 +17,12 @@ interface AmbientControllerOptions {
   onClear?: () => void;
 }
 
+type GameFeedback =
+  | "idle" | "intro" | "select" | "feed" | "feed-rejected"
+  | "clear" | "settle" | "level" | "loss";
+
+type IntroPhase = "idle" | "scan" | "targets" | "tray";
+
 createAmbientController(options?: AmbientControllerOptions): AmbientController
 
 interface AmbientSnapshotV3 {
@@ -55,6 +61,20 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
   pointer or keyboard action path. Revealed overlap groups fan apart just
   enough to expose distinct pointer targets, then return to canonical render
   positions when the light leaves.
+- A pristine level-one state (`clearCount === 0`, empty tray/feed history, no
+  guard, and untouched monotonic IDs) begins one non-blocking controller-owned
+  intro. One serial `TimerApi` handle advances `scan -> targets -> tray -> idle`:
+  the light visits `INITIAL_DISCOVERY_POINT`, the cross-layer discoverable
+  triple lifts briefly, and tray slot one responds. Pointer/touch/keyboard
+  input, selection, feeding, cat search, PiP activation, away, or disposal
+  cancels it immediately. Refresh may replay only while canonical state remains
+  untouched; snapshots never gain intro fields.
+- Controller feedback is one mutually exclusive projection. Direct `select`,
+  `feed`, and `feed-rejected` feedback lasts about 220ms; `clear`, `settle`, and
+  `level` use the existing 620ms reward window; `loss` remains 1.2s. Components
+  consume this projection and do not start competing cross-component timers.
+  FishField may still own pointer afterglow, drag return, and nearby slip timers
+  because those projections never cross its boundary.
 - When the search surface itself is focused, arrows move the light and
   Enter/Space selects the nearest revealed selectable fish. Focused piece
   buttons retain directional navigation and `F` feeding.
@@ -78,6 +98,12 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
 - A feed-credit settlement may animate the one or two removed tray fish but
   uses `settle` feedback, never invokes the clear callback, never celebrates
   the plant, and never changes `clearCount`.
+- Revealed fish use their visual layer to vary lift and shadow without changing
+  hit targets. Normal selection leaves a short origin-tuck transition and the
+  entering tray image lands with restrained compression. Five tray entries use
+  a static caution treatment; six add a low-frequency stronger pressure cue;
+  seven remains the existing loss sequence. Settle uses a cooler tray response
+  and never triggers the plant celebration reserved for a true clear.
 - Cat bubbles are short, pointer-transparent, single-instance status text.
   Explicit reactions replace the current bubble; low-frequency automatic idle
   reactions never select, reveal, or approach fish. Reaction and travel timers
@@ -135,6 +161,8 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
 | Condition | Required outcome |
 |---|---|
 | Pointer leaves and no focus remains | clear the transient light; canonical state remains unchanged |
+| Pristine initial state loads | run the interruptible scan/targets/tray intro without locking input or persisting tutorial state |
+| Any input or attention/PiP handoff during intro | cancel the intro timer and continue that action immediately; do not replay in the same controller |
 | Touch search ends | keep a brief local afterglow, then hide fish outside retained focus/drag targets |
 | Keyboard focus enters the field | expose the semantic path; focused fish stays visible and every remaining fish is reachable |
 | Fish is dropped on the cat or focused fish receives `F` below capacity | remove it from the pile, persist feed count, update cat pose |
@@ -154,7 +182,7 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
 | Storage access/write throws | continue in memory; write returns `false` |
 | PiP API unavailable | render no small-window button or warning |
 | PiP request rejects/closes | keep or restore the same surface and state |
-| Reduced motion | near-instant projection/state changes with full semantics |
+| Reduced motion | remove travel/pulse animation while retaining spotlight, layer shadow, tray pressure, feed response, and transition state semantics |
 
 ## 5. Good / Base / Bad Cases
 
@@ -189,6 +217,12 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
 5. reduced-motion and supported/unsupported/rejected PiP paths.
 6. mixed-species feeding, short-group settlement without a clear callback,
    persisted feed credits, and full-to-lying-to-sleeping pose timing.
+7. pristine intro eligibility and serial timing, every takeover path, away and
+   disposal cancellation, untouched-refresh replay, operated-state suppression,
+   and mutual replacement of direct feedback.
+8. pure projections for cross-layer intro targets, tray pressure boundaries,
+   clear-versus-settle plant response, direct feed acceptance/rejection, and
+   loss/level input locking.
 
 Run focused tests first, then one `pnpm ci:web`.
 

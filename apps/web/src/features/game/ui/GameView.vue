@@ -101,7 +101,7 @@ function onFishDragEnd(
   if (accepted) {
     game.feedToCat(pieceId);
   } else {
-    game.status.value = "没有放到小猫身上，小鱼回到了原位。";
+    game.rejectFeed();
   }
 }
 
@@ -148,6 +148,7 @@ function toggleSound(): void {
 }
 
 async function togglePip(): Promise<void> {
+  game.takeOverIntro();
   if (pip.opened) {
     pip.close();
     return;
@@ -204,8 +205,13 @@ onBeforeUnmount(() => {
         :class="{ 'ambient-surface--in-pip': pipOpen }"
         :data-away="game.isAway.value"
         :data-feedback="game.feedback.value"
+        :data-intro="game.introPhase.value"
         :style="{ '--wallpaper-url': `url(${wallpaperUrl})` }"
         aria-label="毛毡小鱼桌面"
+        @pointerdown.capture="game.takeOverIntro"
+        @pointermove.capture="game.takeOverIntro"
+        @focusin.capture="game.takeOverIntro"
+        @keydown.capture="game.takeOverIntro"
       >
         <QuietControls
           :sound-enabled="game.soundEnabled.value"
@@ -218,7 +224,7 @@ onBeforeUnmount(() => {
         <GrowingPlant
           :clear-count="game.game.value.clearCount"
           :age-days="game.plantAgeDays.value"
-          :celebrating="game.feedback.value === 'clear'"
+          :celebrating="game.feedbackProjection.value.celebratesPlant"
         />
 
         <div
@@ -234,7 +240,8 @@ onBeforeUnmount(() => {
             :travel-phase="game.catTravelPhase.value"
             :full="game.game.value.fed.length >= 3 || game.catIsResting.value"
             :drop-hover="catDropHover"
-            :loss="game.feedback.value === 'loss'"
+            :loss="game.feedbackProjection.value.loss"
+            :feed-response="game.feedbackProjection.value.catFeedResponse"
             @activate="game.requestCatSearch"
           />
         </div>
@@ -244,11 +251,14 @@ onBeforeUnmount(() => {
           :pieces="game.game.value.pieces"
           :feedable="game.catCanEat.value"
           :disabled="!game.canSelect.value"
-          :transitioning="game.feedback.value === 'level'"
-          :loss="game.feedback.value === 'loss'"
+          :transitioning="game.feedbackProjection.value.levelArriving"
+          :loss="game.feedbackProjection.value.loss"
           :away="game.isAway.value"
           :projection="fieldProjection"
           :guided-piece-id="catGuidedPieceId"
+          :feedback="game.feedback.value"
+          :intro-phase="game.introPhase.value"
+          :intro-target-ids="game.introTargetIds.value"
           @activate="game.activate"
           @feed="game.feedToCat"
           @revealed-change="onRevealedChange"
@@ -261,6 +271,7 @@ onBeforeUnmount(() => {
           :pieces="game.trayPreview.value ?? game.game.value.tray"
           :feedback="game.feedback.value"
           :clearing-piece-ids="game.clearingPieceIds.value"
+          :intro-tray="game.introPhase.value === 'tray'"
         />
 
         <p class="visually-hidden" aria-live="polite" aria-atomic="true">

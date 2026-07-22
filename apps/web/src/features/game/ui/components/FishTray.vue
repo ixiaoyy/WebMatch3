@@ -2,13 +2,20 @@
 import { computed } from "vue";
 
 import type { TrayPiece } from "../../engine";
-import { getFishPresentation, type GameFeedback } from "../game-ui";
+import {
+  getFishPresentation,
+  getTrayPressure,
+  type GameFeedback,
+} from "../game-ui";
 
 const props = defineProps<{
   pieces: readonly TrayPiece[];
   feedback: GameFeedback;
   clearingPieceIds: readonly string[];
+  introTray: boolean;
 }>();
+
+const pressure = computed(() => getTrayPressure(props.pieces.length));
 
 function isClearing(piece: TrayPiece | undefined): boolean {
   return piece ? props.clearingPieceIds.includes(piece.id) : false;
@@ -35,6 +42,8 @@ function clearStyle(index: number): Record<string, string | number> {
   <ol
     class="fish-tray"
     :data-feedback="feedback"
+    :data-pressure="pressure"
+    :data-intro-tray="introTray"
     :data-empty="pieces.length === 0"
     aria-label="小鱼托盘"
   >
@@ -45,13 +54,16 @@ function clearStyle(index: number): Record<string, string | number> {
       :data-clearing="isClearing(pieces[index - 1])"
       :style="clearStyle(index)"
     >
-      <img
-        v-if="pieces[index - 1]"
-        :src="getFishPresentation(pieces[index - 1].kind).assetUrl"
-        :alt="getFishPresentation(pieces[index - 1].kind).label"
-        width="512"
-        height="512"
-      />
+      <Transition name="tray-piece">
+        <img
+          v-if="pieces[index - 1]"
+          :key="pieces[index - 1].id"
+          :src="getFishPresentation(pieces[index - 1].kind).assetUrl"
+          :alt="getFishPresentation(pieces[index - 1].kind).label"
+          width="512"
+          height="512"
+        />
+      </Transition>
       <span
         v-if="isClearing(pieces[index - 1]) && index === clearingTargetSlot"
         class="fish-tray__bubble fish-tray__bubble--one"
@@ -112,6 +124,29 @@ function clearStyle(index: number): Record<string, string | number> {
     box-shadow:
       0 0 0 6px rgb(180 148 241 / 12%),
       0 16px 34px rgb(91 74 141 / 15%);
+  }
+
+  &[data-feedback="settle"] {
+    border-color: rgb(149 177 207 / 68%);
+    box-shadow:
+      inset 0 3px 3px rgb(255 255 255 / 72%),
+      0 0 0 5px rgb(139 180 208 / 10%),
+      0 12px 24px rgb(72 103 135 / 13%);
+  }
+
+  &[data-pressure="caution"] {
+    border-color: rgb(197 166 139 / 62%);
+    box-shadow:
+      inset 0 -4px 7px rgb(121 88 76 / 14%),
+      0 7px 14px rgb(91 71 75 / 12%);
+  }
+
+  &[data-pressure="critical"] {
+    border-color: rgb(183 125 128 / 68%);
+    box-shadow:
+      inset 0 -5px 8px rgb(111 62 72 / 18%),
+      0 8px 18px rgb(111 62 72 / 15%);
+    animation: tray-critical-pressure 2.4s var(--ease-out) infinite;
   }
 
   &[data-feedback="loss"] {
@@ -189,6 +224,12 @@ function clearStyle(index: number): Record<string, string | number> {
       height: 7px;
       animation-delay: 330ms;
     }
+  }
+
+  &[data-intro-tray="true"] .fish-tray__slot:first-child {
+    border-color: rgb(255 244 199 / 76%);
+    background: rgb(255 250 226 / 38%);
+    animation: tray-intro-breathe 620ms var(--ease-out) both;
   }
 }
 
@@ -274,6 +315,7 @@ function clearStyle(index: number): Record<string, string | number> {
 @media (prefers-reduced-motion: reduce) {
   .fish-tray {
     transition: none;
+    animation: none !important;
 
     &[data-feedback="loss"] {
       animation: none;
@@ -290,5 +332,38 @@ function clearStyle(index: number): Record<string, string | number> {
   .fish-tray__bubble {
     display: none;
   }
+
+  .fish-tray[data-pressure="critical"] {
+    outline: 2px solid rgb(158 104 111 / 24%);
+    outline-offset: 2px;
+  }
+
+  .fish-tray[data-intro-tray="true"] .fish-tray__slot:first-child,
+  .tray-piece-enter-active {
+    animation: none;
+  }
+}
+
+.tray-piece-enter-active {
+  animation: tray-piece-land 220ms var(--ease-out) both;
+}
+
+@keyframes tray-piece-land {
+  0% { opacity: 0; transform: translateY(-7px) scale(0.82); }
+  62% { opacity: 1; transform: translateY(2px) scale(1.04, 0.96); }
+  100% { transform: none; }
+}
+
+@keyframes tray-intro-breathe {
+  0%, 100% { transform: scale(1); }
+  50% {
+    transform: scale(0.95);
+    box-shadow: inset 0 0 0 5px rgb(255 242 190 / 18%);
+  }
+}
+
+@keyframes tray-critical-pressure {
+  0%, 78%, 100% { filter: none; }
+  88% { filter: brightness(0.96) saturate(1.08); }
 }
 </style>

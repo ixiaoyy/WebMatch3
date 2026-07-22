@@ -53,6 +53,16 @@ wallpaper containing interactive objects.
   related neighbors slide a few pixels sideways and down before settling.
   Neither motion changes canonical positions. Focused and dragged pieces retain
   recognizable silhouettes outside the light.
+- Interaction motion uses one quiet exponential ease-out language: direct
+  selection, tray landing, and feed acceptance/rejection take `150-250ms`;
+  intro, clear, settle, plant response, and level arrival take `480-700ms`.
+  Do not add spring motion, casino particles, or full-screen flashes. Reduced
+  motion keeps static light, outline, shadow, color, and pressure states while
+  removing travel and pulse animation; content is usable before animation ends.
+- The first untouched scene demonstrates the loop without visible copy or an
+  input lock: the spotlight scans to the initial discoverable match, its three
+  targets lift with layer-aware timing, then the first empty tray slot responds.
+  Any real input immediately owns the scene.
 - Plant begins as an empty ceramic pot. Generated foliage reveals continuously
   from the first clear: clear `1` reaches 4%, the first field's 12 clears reach
   18%, and later nodes `100,300,600,1000,1800,3000,5000,8000` preserve the
@@ -80,6 +90,11 @@ wallpaper containing interactive objects.
   stay low-opacity until hover/focus, become slightly clearer on touch-only
   surfaces, and preserve 44px-or-larger targets. The empty tray is present but
   nearly transparent; occupied slots restore full readability.
+- At five entries the tray gains a static warm caution edge. At six entries it
+  adds a slower, stronger pressure cue; reduced motion replaces the pulse with
+  a fixed outline. A normal clear uses the lavender reward and plant response,
+  while feed-credit settlement uses a cooler tray treatment without plant
+  celebration.
 - The felt cat stays visible as a desktop companion. Search travel may move it
   beside one fish without covering that fish's target; its current bounds are
   also the pointer/touch feed drop region. On arrival, a steady warm local beam
