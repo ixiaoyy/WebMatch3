@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/frontend/game-ui-contract.md", "reason": "Owns projection, attention, input, target size, and single-surface PiP invariants."}
+{"file": ".trellis/spec/frontend/visual-design-contract.md", "reason": "Owns responsive composition, reduced motion, and compact visual QA."}
+{"file": ".trellis/spec/frontend/directory-structure.md", "reason": "Keeps the scheduler with its single UI owner instead of speculative shared architecture."}
+{"file": ".trellis/tasks/07-23-ambient-fish-optimization-roadmap/research/proposal-audit.md", "reason": "Records the verified resize/PiP defect and excluded scope."}

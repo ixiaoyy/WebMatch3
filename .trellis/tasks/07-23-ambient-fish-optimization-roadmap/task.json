@@ -1,0 +1,34 @@
+{
+  "id": "ambient-fish-optimization-roadmap",
+  "name": "ambient-fish-optimization-roadmap",
+  "title": "Ambient Fish focused optimization roadmap",
+  "description": "Evidence-backed roadmap for compact PiP responsiveness and spatial accessibility; stale or unsupported optimization proposals are explicitly deferred.",
+  "status": "planning",
+  "dev_type": null,
+  "scope": "planning-only parent for two independently verifiable web UI children",
+  "package": "web",
+  "priority": "P0",
+  "creator": "webmatch3",
+  "assignee": "webmatch3",
+  "createdAt": "2026-07-23",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "07-23-compact-pip-resize",
+    "07-23-spatial-accessibility-labels"
+  ],
+  "parent": null,
+  "relatedFiles": [
+    "PRODUCT.md",
+    "apps/web/src/features/game/ui/GameView.vue",
+    "apps/web/src/features/game/ui/components/FishField.vue",
+    "apps/web/src/features/game/ui/components/FishPiece.vue"
+  ],
+  "notes": "The parent has no direct implementation work. Start the compact PiP child first after artifact review.",
+  "meta": {}
+}

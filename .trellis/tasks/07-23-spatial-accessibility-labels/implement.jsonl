@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/frontend/game-ui-contract.md", "reason": "Owns semantic actionability, keyboard paths, and UI projection boundaries."}
+{"file": ".trellis/spec/frontend/game-engine-contract.md", "reason": "Owns blocker metadata and the rule that geometry stays in the engine."}
+{"file": ".trellis/spec/frontend/directory-structure.md", "reason": "Keeps localized presentation in the existing game UI module."}
+{"file": ".trellis/tasks/07-23-ambient-fish-optimization-roadmap/research/proposal-audit.md", "reason": "Records why overlap wording must not imply disabled selection."}

@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend final quality checklist."}
+{"file": ".trellis/spec/frontend/game-ui-contract.md", "reason": "Checks PiP identity, lifecycle, keyboard, and projection invariants."}
+{"file": ".trellis/spec/frontend/visual-design-contract.md", "reason": "Checks responsive screenshots, target sizing, and reduced motion."}
+{"file": ".trellis/tasks/07-23-ambient-fish-optimization-roadmap/research/proposal-audit.md", "reason": "Prevents performance and product scope drift during review."}

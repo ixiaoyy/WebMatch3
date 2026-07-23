@@ -1,0 +1,31 @@
+{
+  "id": "spatial-accessibility-labels",
+  "name": "spatial-accessibility-labels",
+  "title": "Spatial accessibility labels",
+  "description": "Add truthful fish layer and overlap context to accessible names without implying overlap blocks selection.",
+  "status": "planning",
+  "dev_type": null,
+  "scope": "apps/web fish semantic label projection and focused accessibility tests",
+  "package": "web",
+  "priority": "P1",
+  "creator": "webmatch3",
+  "assignee": "webmatch3",
+  "createdAt": "2026-07-23",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "07-23-ambient-fish-optimization-roadmap",
+  "relatedFiles": [
+    "apps/web/src/features/game/ui/components/FishField.vue",
+    "apps/web/src/features/game/ui/components/FishPiece.vue",
+    "apps/web/src/features/game/ui/game-ui.ts",
+    "apps/web/src/features/game/engine/pile.ts"
+  ],
+  "notes": "Second implementation child. Overlap is descriptive metadata; every remaining fish stays actionable.",
+  "meta": {}
+}

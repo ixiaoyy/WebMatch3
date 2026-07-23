@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend final quality checklist."}
+{"file": ".trellis/spec/frontend/game-ui-contract.md", "reason": "Checks truthful accessible names and unchanged action paths."}
+{"file": ".trellis/spec/frontend/game-engine-contract.md", "reason": "Checks overlap derivation against canonical engine metadata."}
+{"file": ".trellis/tasks/07-23-ambient-fish-optimization-roadmap/research/proposal-audit.md", "reason": "Audit baseline for scope and semantics."}

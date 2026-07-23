@@ -1,0 +1,30 @@
+{
+  "id": "compact-pip-resize",
+  "name": "compact-pip-resize",
+  "title": "Compact PiP and resize scheduling",
+  "description": "Make the single mounted Ambient Fish surface usable in compact Document PiP and coalesce ResizeObserver projection updates per frame.",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": "apps/web compact PiP composition, resize projection scheduling, focused tests, and responsive QA",
+  "package": "web",
+  "priority": "P0",
+  "creator": "webmatch3",
+  "assignee": "webmatch3",
+  "createdAt": "2026-07-23",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "07-23-ambient-fish-optimization-roadmap",
+  "relatedFiles": [
+    "apps/web/src/features/game/ui/GameView.vue",
+    "apps/web/src/features/game/ui/spotlight.ts",
+    "apps/web/src/features/game/ui/document-pip.ts"
+  ],
+  "notes": "First implementation child. Keep canonical game coordinates and the single-mounted-surface PiP model unchanged.",
+  "meta": {}
+}
