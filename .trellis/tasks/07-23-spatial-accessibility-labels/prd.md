@@ -46,16 +46,16 @@ or snapshots.
 
 ## Acceptance Criteria
 
-- [ ] AC1: A top piece announces its species, one-based layer, zero higher
+- [x] AC1: A top piece announces its species, one-based layer, zero higher
       overlaps, and current actions.
-- [ ] AC2: A lower piece with one or multiple higher overlaps announces the
+- [x] AC2: A lower piece with one or multiple higher overlaps announces the
       correct count without implying it cannot be selected.
-- [ ] AC3: Removing an overlapping piece updates the lower piece's accessible
+- [x] AC3: Removing an overlapping piece updates the lower piece's accessible
       name on the next render.
-- [ ] AC4: Feedable and resting-cat action guidance remains correct.
-- [ ] AC5: Pointer, Tab/arrow navigation, Enter/Space selection, and `F` feeding
+- [x] AC4: Feedable and resting-cat action guidance remains correct.
+- [x] AC5: Pointer, Tab/arrow navigation, Enter/Space selection, and `F` feeding
       behavior are unchanged.
-- [ ] AC6: Focused unit/component tests and one final `pnpm ci:web` pass.
+- [x] AC6: Focused unit/component tests and one final `pnpm ci:web` pass.
 
 ## Out of Scope
 

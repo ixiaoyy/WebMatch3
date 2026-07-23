@@ -3,7 +3,7 @@
   "name": "spatial-accessibility-labels",
   "title": "Spatial accessibility labels",
   "description": "Add truthful fish layer and overlap context to accessible names without implying overlap blocks selection.",
-  "status": "planning",
+  "status": "in_progress",
   "dev_type": null,
   "scope": "apps/web fish semantic label projection and focused accessibility tests",
   "package": "web",
