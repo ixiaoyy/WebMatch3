@@ -257,7 +257,8 @@ onBeforeUnmount(() => {
             :drop-hover="catDropHover"
             :loss="game.feedbackProjection.value.loss"
             :feed-response="game.feedbackProjection.value.catFeedResponse"
-            @activate="game.requestCatSearch"
+            @pet="game.petCat"
+            @search="game.requestCatSearch"
           />
         </div>
 
@@ -326,6 +327,9 @@ onBeforeUnmount(() => {
   --scene-plant-base: calc(
     var(--scene-companion-base) + clamp(60px, 6vh, 88px)
   );
+  --plant-right: clamp(24px, 5vw, 76px);
+  --plant-width: clamp(196px, 20vw, 286px);
+  --cat-plant-overlap: clamp(24px, 3vw, 42px);
 
   overflow: hidden;
   transition: filter 240ms ease;
@@ -356,7 +360,8 @@ onBeforeUnmount(() => {
   position: absolute;
   z-index: 7;
   left: calc(
-    100% - clamp(110px, 12vw, 168px) - var(--cat-companion-width)
+    100% - var(--plant-right) - var(--plant-width) -
+      var(--cat-companion-width) + var(--cat-plant-overlap)
   );
   bottom: var(--scene-companion-base);
   transition:
@@ -385,12 +390,18 @@ onBeforeUnmount(() => {
     --scene-tray-height: 52px;
     --scene-vignette-gap: 12px;
     --scene-plant-base: calc(var(--scene-companion-base) + 34px);
+    --plant-right: 4px;
+    --plant-width: 108px;
+    --cat-plant-overlap: 8px;
   }
 
   .cat-companion-slot {
     --cat-companion-width: 118px;
 
-    left: calc(100% - 104px - var(--cat-companion-width));
+    left: calc(
+      100% - var(--plant-right) - var(--plant-width) -
+        var(--cat-companion-width) + var(--cat-plant-overlap)
+    );
     bottom: var(--scene-companion-base);
 
     &[data-away-from-home="true"] {
@@ -422,6 +433,7 @@ onBeforeUnmount(() => {
     --plant-right: 84px;
     --plant-width: 56px;
     --plant-height: 86px;
+    --cat-plant-overlap: 4px;
     --fish-tray-side-inset: 16px;
     --fish-tray-padding: 6px 4px;
     --quiet-controls-top: 8px;
@@ -438,9 +450,11 @@ onBeforeUnmount(() => {
   .ambient-surface .cat-companion-slot {
     --cat-companion-width: 76px;
 
-    right: 6px;
     bottom: var(--scene-companion-base);
-    left: auto;
+    left: calc(
+      100% - var(--plant-right) - var(--plant-width) -
+        var(--cat-companion-width) + var(--cat-plant-overlap)
+    );
 
     &[data-away-from-home="true"] {
       right: auto;

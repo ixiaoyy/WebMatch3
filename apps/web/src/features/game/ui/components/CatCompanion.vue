@@ -1,5 +1,11 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import {
+  computed,
+  nextTick,
+  onBeforeUnmount,
+  ref,
+  watch,
+} from "vue";
 
 import { getCatPresentation, type CatPose } from "../game-ui";
 import type { CatReaction, CatTravelPhase } from "../cat-reactions";
@@ -13,71 +19,257 @@ const props = defineProps<{
   loss: boolean;
   feedResponse: "idle" | "accepted" | "rejected";
 }>();
-const emit = defineEmits<{ activate: [] }>();
+const emit = defineEmits<{ pet: []; search: [] }>();
+const root = ref<HTMLElement | null>(null);
+const trigger = ref<HTMLButtonElement | null>(null);
+const petAction = ref<HTMLButtonElement | null>(null);
+const searchAction = ref<HTMLButtonElement | null>(null);
+const interactionOpen = ref(false);
+let interactionDocument: Document | null = null;
+let focusRestoreWindow: Window | null = null;
+let focusRestoreFrame: number | null = null;
+
 const presentation = computed(() => getCatPresentation(props.pose));
 const actionLabel = computed(() => {
   if (props.loss) {
     return `${presentation.value.label}，托盘已经装满，小鱼正在重新布置`;
   }
+  if (props.travelPhase === "looking" || props.travelPhase === "travelling") {
+    return `${presentation.value.label}，正在帮你寻找小鱼`;
+  }
   if (props.full) {
-    return `${presentation.value.label}，已经吃饱，正在休息，暂时不能寻鱼或喂食`;
+    return `${presentation.value.label}，已经吃饱，正在休息；点击打开互动选项`;
   }
   if (props.travelPhase === "guarding") {
     return `${presentation.value.label}，正守着找到的小鱼；也可以把小鱼拖到这里喂食`;
   }
-  return `${presentation.value.label}，点击请它寻找小鱼；也可以把小鱼拖到这里喂食`;
+  return `${presentation.value.label}，点击打开互动选项；也可以把小鱼拖到这里喂食`;
+});
+
+function detachInteractionListeners(): void {
+  interactionDocument?.removeEventListener(
+    "pointerdown",
+    onDocumentPointerDown,
+  );
+  interactionDocument?.removeEventListener("keydown", onDocumentKeyDown);
+  interactionDocument = null;
+}
+
+function cancelScheduledFocus(): void {
+  if (focusRestoreWindow && focusRestoreFrame !== null) {
+    focusRestoreWindow.cancelAnimationFrame(focusRestoreFrame);
+  }
+  focusRestoreWindow = null;
+  focusRestoreFrame = null;
+}
+
+function scheduleTriggerFocus(): void {
+  cancelScheduledFocus();
+  void nextTick(() => {
+    const frameWindow = trigger.value?.ownerDocument.defaultView;
+    if (!frameWindow) {
+      trigger.value?.focus();
+      return;
+    }
+    focusRestoreWindow = frameWindow;
+    focusRestoreFrame = frameWindow.requestAnimationFrame(() => {
+      focusRestoreWindow = null;
+      focusRestoreFrame = null;
+      trigger.value?.focus();
+    });
+  });
+}
+
+function closeInteraction(restoreFocus: boolean): void {
+  if (!interactionOpen.value) return;
+  interactionOpen.value = false;
+  detachInteractionListeners();
+  if (restoreFocus) scheduleTriggerFocus();
+}
+
+function onDocumentPointerDown(event: PointerEvent): void {
+  if (root.value?.contains(event.target as Node)) return;
+  closeInteraction(true);
+}
+
+function onDocumentKeyDown(event: KeyboardEvent): void {
+  if (event.key !== "Escape" || !interactionOpen.value) return;
+  event.preventDefault();
+  event.stopPropagation();
+  closeInteraction(true);
+}
+
+function openInteraction(): void {
+  if (props.travelPhase !== "home" || props.loss) return;
+  cancelScheduledFocus();
+  interactionOpen.value = true;
+  void nextTick(() => {
+    const nextDocument = root.value?.ownerDocument ?? null;
+    if (interactionDocument !== nextDocument) {
+      detachInteractionListeners();
+      interactionDocument = nextDocument;
+      interactionDocument?.addEventListener(
+        "pointerdown",
+        onDocumentPointerDown,
+      );
+      interactionDocument?.addEventListener("keydown", onDocumentKeyDown);
+    }
+    petAction.value?.focus();
+  });
+}
+
+function toggleInteraction(): void {
+  if (props.travelPhase !== "home") return;
+  if (interactionOpen.value) {
+    closeInteraction(true);
+  } else {
+    openInteraction();
+  }
+}
+
+function choosePet(): void {
+  closeInteraction(true);
+  emit("pet");
+}
+
+function chooseSearch(): void {
+  closeInteraction(true);
+  emit("search");
+}
+
+function onFocusOut(event: FocusEvent): void {
+  if (!interactionOpen.value) return;
+  const nextTarget = event.relatedTarget as Node | null;
+  if (nextTarget && root.value?.contains(nextTarget)) return;
+  closeInteraction(false);
+}
+
+function onMenuKeyDown(event: KeyboardEvent): void {
+  const actions = [petAction.value, searchAction.value].filter(
+    (action): action is HTMLButtonElement => action !== null,
+  );
+  if (actions.length === 0) return;
+  const currentIndex = actions.indexOf(
+    event.target as HTMLButtonElement,
+  );
+  let nextIndex: number | null = null;
+  if (event.key === "ArrowRight" || event.key === "ArrowDown") {
+    nextIndex = (currentIndex + 1) % actions.length;
+  } else if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
+    nextIndex = (currentIndex - 1 + actions.length) % actions.length;
+  } else if (event.key === "Home") {
+    nextIndex = 0;
+  } else if (event.key === "End") {
+    nextIndex = actions.length - 1;
+  }
+  if (nextIndex === null) return;
+  event.preventDefault();
+  actions[nextIndex]?.focus();
+}
+
+watch(
+  () => [props.travelPhase, props.loss] as const,
+  ([travelPhase, loss]) => {
+    if (travelPhase !== "home" || loss) closeInteraction(false);
+  },
+);
+
+onBeforeUnmount(() => {
+  detachInteractionListeners();
+  cancelScheduledFocus();
 });
 </script>
 
 <template>
-  <button
+  <div
+    ref="root"
     class="cat-companion"
-    type="button"
     :data-pose="pose"
     :data-reaction="reaction?.motion"
     :data-travel-phase="travelPhase"
     :data-drop-hover="dropHover"
     :data-loss="loss"
     :data-feed-response="feedResponse"
-    :aria-label="actionLabel"
-    :aria-disabled="full || loss"
-    :disabled="loss"
-    @click="emit('activate')"
+    :data-interaction-open="interactionOpen"
+    @focusout="onFocusOut"
   >
-    <Transition name="cat-pose" mode="out-in">
-      <img
-        :key="pose"
-        class="cat-companion__image"
-        :src="presentation.assetUrl"
-        alt=""
-        width="1402"
-        height="1254"
-        draggable="false"
-      />
-    </Transition>
+    <button
+      ref="trigger"
+      class="cat-companion__trigger"
+      type="button"
+      :aria-label="actionLabel"
+      :aria-haspopup="travelPhase === 'home' ? 'menu' : undefined"
+      :aria-expanded="travelPhase === 'home' ? interactionOpen : undefined"
+      :aria-controls="travelPhase === 'home' ? 'cat-interaction-menu' : undefined"
+      :aria-disabled="travelPhase !== 'home' || loss"
+      :disabled="loss"
+      @click="toggleInteraction"
+    >
+      <Transition name="cat-pose" mode="out-in">
+        <img
+          :key="pose"
+          class="cat-companion__image"
+          :src="presentation.assetUrl"
+          alt=""
+          width="1402"
+          height="1254"
+          draggable="false"
+        />
+      </Transition>
 
-    <Transition name="cat-sleep-mark">
-      <span
-        v-if="pose === 'sleeping'"
-        class="cat-companion__sleep-mark"
-        aria-hidden="true"
-      >
-        ZZZ
-      </span>
-    </Transition>
+      <Transition name="cat-sleep-mark">
+        <span
+          v-if="pose === 'sleeping'"
+          class="cat-companion__sleep-mark"
+          aria-hidden="true"
+        >
+          ZZZ
+        </span>
+      </Transition>
 
-    <Transition name="cat-bubble" mode="out-in">
-      <span
-        v-if="reaction"
-        :key="reaction.id"
-        class="cat-companion__bubble"
-        role="status"
-        aria-live="polite"
+      <Transition name="cat-bubble" mode="out-in">
+        <span
+          v-if="reaction"
+          :key="reaction.id"
+          class="cat-companion__bubble"
+          role="status"
+          aria-live="polite"
+        >
+          {{ reaction.text }}
+        </span>
+      </Transition>
+    </button>
+
+    <Transition name="cat-menu">
+      <div
+        v-if="interactionOpen"
+        id="cat-interaction-menu"
+        class="cat-companion__menu"
+        role="menu"
+        aria-label="和小猫互动"
+        @keydown="onMenuKeyDown"
       >
-        {{ reaction.text }}
-      </span>
+        <button
+          ref="petAction"
+          class="cat-companion__menu-action"
+          type="button"
+          role="menuitem"
+          @click="choosePet"
+        >
+          摸一下
+        </button>
+        <button
+          ref="searchAction"
+          class="cat-companion__menu-action"
+          type="button"
+          role="menuitem"
+          @click="chooseSearch"
+        >
+          帮我抓鱼
+        </button>
+      </div>
     </Transition>
-  </button>
+  </div>
 </template>
 
 <style scoped lang="scss">
@@ -85,15 +277,22 @@ const actionLabel = computed(() => {
   position: relative;
   width: var(--cat-companion-width, clamp(320px, 35vw, 500px));
   height: var(--cat-companion-height, clamp(370px, 40vw, 560px));
-  padding: 0;
-  border: 0;
-  margin: 0;
-  border-radius: 42%;
-  background: transparent;
-  cursor: pointer;
   isolation: isolate;
 
-  &:focus-visible {
+  &__trigger {
+    position: relative;
+    display: block;
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    border: 0;
+    margin: 0;
+    border-radius: 42%;
+    background: transparent;
+    cursor: pointer;
+  }
+
+  &__trigger:focus-visible {
     outline: 3px solid var(--focus);
     outline-offset: 4px;
   }
@@ -172,6 +371,57 @@ const actionLabel = computed(() => {
     pointer-events: none;
     transform: translateX(-50%);
     backdrop-filter: blur(7px);
+  }
+
+  &__menu {
+    position: absolute;
+    z-index: 5;
+    top: 10%;
+    left: 50%;
+    display: flex;
+    width: max-content;
+    max-width: calc(100vw - 24px);
+    padding: 6px;
+    gap: 5px;
+    border: 1px solid rgb(255 255 255 / 76%);
+    border-radius: 18px 18px 18px 7px;
+    background: rgb(249 248 250 / 91%);
+    transform: translateX(-50%);
+    backdrop-filter: blur(9px);
+  }
+
+  &__menu-action {
+    min-width: 80px;
+    min-height: 44px;
+    padding: 8px 11px;
+    border: 1px solid rgb(111 121 158 / 18%);
+    border-radius: 13px;
+    color: #48516d;
+    background: rgb(238 239 249 / 78%);
+    font: inherit;
+    font-size: 14px;
+    font-weight: 680;
+    line-height: 1;
+    white-space: nowrap;
+    cursor: pointer;
+    transition:
+      border-color 150ms ease,
+      background-color 150ms ease,
+      transform 180ms var(--ease-out);
+
+    &:hover {
+      border-color: rgb(111 121 158 / 30%);
+      background: rgb(245 243 251 / 96%);
+    }
+
+    &:active {
+      transform: translateY(1px);
+    }
+
+    &:focus-visible {
+      outline: 3px solid var(--focus);
+      outline-offset: 2px;
+    }
   }
 
   &[data-reaction="look"] &__image {
@@ -255,10 +505,33 @@ const actionLabel = computed(() => {
   transform: translateX(-50%) translateY(3px) scale(0.96);
 }
 
+.cat-menu-enter-active,
+.cat-menu-leave-active {
+  transition: opacity 150ms ease, transform 180ms var(--ease-out);
+}
+
+.cat-menu-enter-from,
+.cat-menu-leave-to {
+  opacity: 0;
+  transform: translateX(-50%) translateY(3px);
+}
+
 @media (max-width: 620px) {
   .cat-companion {
     width: var(--cat-companion-width, 118px);
     height: var(--cat-companion-height, 142px);
+
+    &__menu {
+      top: auto;
+      bottom: calc(100% - 14px);
+      padding: 5px;
+      gap: 4px;
+    }
+
+    &__menu-action {
+      min-width: 76px;
+      padding-inline: 9px;
+    }
   }
 }
 
@@ -268,12 +541,18 @@ const actionLabel = computed(() => {
   .cat-sleep-mark-enter-active,
   .cat-sleep-mark-leave-active,
   .cat-bubble-enter-active,
-  .cat-bubble-leave-active {
+  .cat-bubble-leave-active,
+  .cat-menu-enter-active,
+  .cat-menu-leave-active {
     transition: none;
   }
 
   .cat-companion__image {
     animation: none !important;
+  }
+
+  .cat-companion__menu-action {
+    transition: none;
   }
 
   .cat-companion[data-feed-response="accepted"] {

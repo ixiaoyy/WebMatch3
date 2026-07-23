@@ -25,6 +25,11 @@ type IntroPhase = "idle" | "scan" | "targets" | "tray";
 
 createAmbientController(options?: AmbientControllerOptions): AmbientController
 
+interface AmbientController {
+  petCat(): void;
+  requestCatSearch(): void;
+}
+
 createFieldProjectionScheduler(
   commit: (projection: FieldProjection) => void,
   scheduleFrame: (callback: () => void) => () => void,
@@ -110,12 +115,21 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
 - When the search surface itself is focused, arrows move the light and
   Enter/Space selects the nearest revealed selectable fish. Focused piece
   buttons retain directional navigation and `F` feeding.
-- The cat is a native button whose pointer, touch, Enter, and Space activation
-  requests search help only; it never toggles feeding or chooses a personality
-  reaction. Awake search travels to one eligible target; on arrival, an
-  independent guide light immediately reveals that fish while the cat guards
-  it until the exact fish is selected, fed, or invalidated. Pointer spotlight
-  movement does not dismiss or relocate the guide light.
+- The home cat is a native button whose pointer, touch, Enter, and Space
+  activation opens one component-local menu with `摸一下` and `帮我抓鱼`.
+  Activation alone never selects a target. `摸一下` calls `petCat`, replaces the
+  current transient reaction/status, keeps the cat home, and never changes or
+  persists canonical game state. Only `帮我抓鱼` calls `requestCatSearch`.
+  Awake search travels to one eligible target; on arrival, an independent guide
+  light immediately reveals that fish while the cat guards it until the exact
+  fish is selected, fed, or invalidated. Pointer spotlight movement does not
+  dismiss or relocate the guide light.
+- The interaction menu focuses its first action, supports arrow/Home/End
+  navigation, closes on Escape or outside pointer activation, and restores
+  focus to the cat. Its document listeners resolve from the component root's
+  current `ownerDocument`, so moving the existing surface into Picture-in-
+  Picture cannot leave listeners attached to the opener. Menu state, focus,
+  DOM nodes, and scheduled focus restoration never enter the snapshot.
 - Pointer and touch feeding use one Pointer Events drag path from a selectable
   fish to the cat's current bounds. Canonical state changes only on a valid
   drop; failed/rejected drops restore the fish. Keyboard users focus a fish and
@@ -136,10 +150,12 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
   a static caution treatment; six add a low-frequency stronger pressure cue;
   seven remains the existing loss sequence. Settle uses a cooler tray response
   and never triggers the plant celebration reserved for a true clear.
-- Cat bubbles are short, pointer-transparent, single-instance status text.
-  Explicit reactions replace the current bubble; low-frequency automatic idle
-  reactions never select, reveal, or approach fish. Reaction and travel timers
-  pause while away without replaying missed automatic reactions.
+- Cat reaction bubbles are short, pointer-transparent, single-instance status
+  text. The separate interaction menu is actionable but remains transient and
+  is never a persistent HUD. Explicit reactions replace the current bubble;
+  low-frequency automatic idle reactions never select, reveal, or approach
+  fish. Reaction and travel timers pause while away without replaying missed
+  automatic reactions.
 - Stable state persists after selection, clear, loss restart, preference change,
   and attention loss using `web-match3:ambient-state`. The obsolete
   `web-match3:progress` key is not read or deleted.
@@ -205,7 +221,10 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
 | An overlapping upper fish leaves the canonical pieces | recompute the shared count map and update every affected lower fish name on the next render |
 | Fish is dropped on the cat or focused fish receives `F` below capacity | remove it from the pile, persist feed count, update cat pose |
 | Fish drag ends outside the cat or feed is rejected | restore visual position; canonical pile/tray unchanged |
-| Awake cat is activated with an eligible target | look, travel, immediately light and guard that target on arrival, show one brief bubble |
+| Home cat is activated | open the pet/search menu, focus `摸一下`, keep travel phase home, and do not choose a guard target |
+| `摸一下` is chosen | close the menu, restore cat focus, show one affectionate reaction/status, and perform no storage write |
+| `帮我抓鱼` is chosen with an eligible target | close the menu, look, travel, immediately light and guard that target on arrival |
+| Escape or outside pointer activation closes the cat menu | remove the menu and its current-document listeners, then restore focus to the cat |
 | Guarded target is selected or fed | return cat home and clear the guard |
 | Feed credit completes one/two tray fish | animate only that short group, consume credits once, no plant clear |
 | Cat already has three feeds | keep feed mode off and announce that the cat is full |
@@ -232,7 +251,11 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
 - Good: hiding the opener does not pause an active PiP surface.
 - Good: reveal state derives from canonical coordinates but remains entirely
   local to `FishField.vue`.
+- Good: activating the home cat reveals intent first; only the explicit search
+  action starts looking or creates a guard target.
 - Bad: a hidden fish keeps a pointer hit box or light coordinates are saved.
+- Bad: the cat trigger calls `requestCatSearch` directly or pet/menu state is
+  added to the persisted snapshot.
 - Bad: a component calls `localStorage` or computes blockers itself.
 - Bad: hover state, timers, focus, DOM nodes, or audio objects enter snapshots.
 - Bad: a second Vue mount is created for the small window.
@@ -270,6 +293,11 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
    one-based layers, feedable/resting action wording, and current-piece
    reprojection after an upper fish leaves; browser-check the resulting names
    and unchanged arrow/F action paths.
+10. cat interaction regressions: direct activation stays home, petting replaces
+    transient feedback without persistence, and explicit search retains all
+    rejection/travel/guard rules; browser-check first-action focus, arrow
+    navigation, Escape/outside dismissal, focus restoration, and PiP document
+    movement.
 
 Run focused tests first, then one `pnpm ci:web`.
 
@@ -317,4 +345,17 @@ const label = getFishAccessibleLabel({
   higherOverlapCount: overlapCounts.get(piece.id) ?? 0,
   feedable,
 });
+```
+
+Cat intent follows the same explicit boundary:
+
+```vue
+<!-- Wrong: a casual touch starts search immediately. -->
+<CatCompanion @activate="game.requestCatSearch" />
+
+<!-- Correct: the component collects intent; the controller owns each action. -->
+<CatCompanion
+  @pet="game.petCat"
+  @search="game.requestCatSearch"
+/>
 ```

@@ -28,10 +28,11 @@ slot responds. Any input or attention handoff cancels it, and no tutorial state
 is persisted. The same controller feedback projection coordinates origin tuck,
 tray landing, feed acceptance/rejection, clear versus settlement, level arrival,
 and loss; only afterglow, drag return, and nearby slip remain component-local.
-Activating the cat only asks it to find, light, and guard one hidden fish;
-feeding stays separate through pointer-captured drag-to-cat or the focused
-fish `F` shortcut. Up to three fish of any species may be fed, and one or two
-matching tray fish may use those feed credits to complete and disappear.
+Activating the home cat opens explicit pet and search actions. Petting produces
+only transient affection; choosing search asks it to find, light, and guard one
+hidden fish. Feeding stays separate through pointer-captured drag-to-cat or the
+focused fish `F` shortcut. Up to three fish of any species may be fed, and one
+or two matching tray fish may use those feed credits to complete and disappear.
 
 Each level is constructed from complete kind triples dealt across distinct
 three-kind spatial groups. Balanced visual layers never gate selection, so the

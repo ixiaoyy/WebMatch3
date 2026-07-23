@@ -101,6 +101,7 @@ export function createAmbientController(
   let catReactionRemaining = 0;
   let catReactionStartedAt = 0;
   let lastCatReactionId: string | null = null;
+  let petReactionSequence = 0;
   let lastCatActivationAt = Number.NEGATIVE_INFINITY;
   let reactionsStarted = false;
   let wakeAfterSleep = false;
@@ -410,6 +411,29 @@ export function createAmbientController(
     scheduleCatTravelling(320);
   }
 
+  function petCat(): void {
+    takeOverIntro();
+    if (
+      isAway.value ||
+      feedback.value === "loss" ||
+      catTravelPhase.value !== "home"
+    ) {
+      return;
+    }
+    petReactionSequence += 1;
+    const next: CatReaction = {
+      id: `pet-purr-${petReactionSequence}`,
+      text: "呼噜～",
+      motion: "purr",
+    };
+    lastCatReactionId = next.id;
+    catReaction.value = next;
+    status.value = catPose.value === "sleeping"
+      ? "小猫在睡梦里轻轻呼噜了一声。"
+      : "小猫眯起眼睛，轻轻蹭了蹭你的手。";
+    if (!isAway.value) scheduleCatReactionDismiss(CAT_BUBBLE_DURATION);
+  }
+
   function clearTrayFeedback(): void {
     trayPreview.value = null;
     clearingPieceIds.value = [];
@@ -647,6 +671,7 @@ export function createAmbientController(
     activate,
     feedToCat,
     rejectFeed,
+    petCat,
     requestCatSearch,
     takeOverIntro,
     startReactions,

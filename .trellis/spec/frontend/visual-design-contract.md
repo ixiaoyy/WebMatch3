@@ -95,12 +95,18 @@ wallpaper containing interactive objects.
   a fixed outline. A normal clear uses the lavender reward and plant response,
   while feed-credit settlement uses a cooler tray treatment without plant
   celebration.
-- The felt cat stays visible as a desktop companion. Search travel may move it
-  beside one fish without covering that fish's target; its current bounds are
-  also the pointer/touch feed drop region. On arrival, a steady warm local beam
-  reveals the guarded fish independently from the movable pointer spotlight.
-  Only one compact, translucent speech
-  bubble is shown, and it never captures input or becomes a persistent HUD.
+- The felt cat stays visible beside the plant pot in its home state. Cat and
+  plant use shared responsive position/width variables so desktop, mobile, and
+  compact compositions keep them adjacent without covering the tray. Search
+  travel may move the cat beside one fish without covering that fish's target;
+  its current bounds are also the pointer/touch feed drop region. On arrival, a
+  steady warm local beam reveals the guarded fish independently from the
+  movable pointer spotlight.
+- Home interaction uses one compact translucent two-action menu anchored to the
+  cat. Each action remains at least 44px from the first rendered frame; menu
+  entrance may fade or translate but must not scale the targets below that
+  minimum. It fits inside `320x240` and remains distinct from the one
+  pointer-transparent reaction bubble. Neither becomes a persistent HUD.
 - At `<=620px`, the same normalized field reprojects inside safe bounds and
   touch scanning replaces hover assumptions. No viewport may gain horizontal
   overflow. The cat clears the centered tray vertically, while the plant stays
@@ -125,6 +131,7 @@ wallpaper containing interactive objects.
 | Controls compete with scene | reduce opacity/weight, retain focus visibility |
 | 320px viewport | safe full-surface field, readable tray, 44px targets, no overflow |
 | `320x240` compact surface | full surface, controls, cat, plant cue, and tray remain visible with no scroll overflow |
+| Cat interaction menu opens | keep both actions inside the viewport at 44px or larger, with the home cat still legible beside the pot |
 | Reduced motion | instant/near-instant projection and feedback, no lost state |
 | Clear reaches a plant stage before its day gate | remain in the previous stage |
 | Stage mark is shown | exactly one flower, correct species and increasing size, no visible copy |
@@ -138,7 +145,10 @@ wallpaper containing interactive objects.
 - Base: the hidden fish field, cat, pot, and tray remain searchable and usable
   before any growth.
 - Good: contact shadows ground objects without introducing a board surface.
+- Good: the home cat and pot read as one lower-right vignette, and the transient
+  action menu remains subordinate to them.
 - Bad: every object receives glow, continuous bobbing, or saturated particles.
+- Bad: menu animation scales a 44px action below its minimum hit target.
 - Bad: the tray expands into a dashboard or the pile becomes a rectangular
   tile matrix.
 
@@ -149,11 +159,12 @@ wallpaper containing interactive objects.
    lower-right hierarchy;
 2. capture `320x240`, `320x568`, `390x844`, `768x1024`, and `1440x900`;
 3. inspect hidden idle, pointer/touch/keyboard reveal, afterglow, retained
-   focus/drag, stacked lower selection and settling, bubble clear, growing,
-   flowering, fruiting, mature,
+   focus/drag, stacked lower selection and settling, cat menu open, pet
+   reaction, bubble clear, growing, flowering, fruiting, mature,
    full-tray loss, away, and reduced-motion states;
-4. validate tab title `小鱼`, whale favicon legibility, console cleanliness, and no
-   horizontal overflow;
+4. validate the home cat/pot relationship and 44px menu actions at every
+   captured viewport, plus tab title `小鱼`, whale favicon legibility, console
+   cleanliness, and no horizontal overflow;
 5. run UI tests and `pnpm ci:web` after visual fixes.
 
 ## 7. Wrong vs Correct
@@ -180,6 +191,18 @@ This recreates a board and fakes the primary bitmap material in CSS.
 .fish-piece[data-revealed="true"]:not(:disabled) {
   opacity: 1;
   pointer-events: auto;
+}
+
+.cat-companion__menu-action {
+  min-height: 44px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cat-menu-enter-active,
+  .cat-menu-leave-active,
+  .cat-companion__menu-action {
+    transition: none;
+  }
 }
 ```
 

@@ -51,11 +51,12 @@ in a work browser, but materially rich when the player touches it.
    a numeric level HUD.
 7. **Rules stay testable.** Occlusion, selection, clearing, loss restart, and
    generation remain pure and independent from Vue and browser services.
-8. **The cat collaborates, not competes.** Activating the cat asks it to find
-   one hidden legal fish; when it arrives, it immediately keeps an independent
-   guide light on that fish. Feeding is a separate action: drag a fish onto the
-   cat, or use `F` from a focused fish; any species may be fed up to the
-   current three-fish capacity.
+8. **The cat collaborates, not competes.** Activating the cat opens two explicit
+   interactions: pet it for transient affection, or ask it to find one hidden
+   legal fish. Search keeps an independent guide light on the fish after the
+   cat arrives. Feeding remains separate: drag a fish onto the cat, or use `F`
+   from a focused fish; any species may be fed up to the current three-fish
+   capacity.
 
 ## Anti-references
 

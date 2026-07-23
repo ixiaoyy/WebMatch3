@@ -138,6 +138,43 @@ describe("ambient controller", () => {
     searching.dispose();
   });
 
+  it("pets the cat without searching, changing game state, or persisting", () => {
+    const setItem = vi.fn();
+    const { delays, timers } = controlledTimers();
+    const controller = createAmbientController({
+      random: createSeededRandom(72),
+      storage: {
+        getItem: () => null,
+        setItem,
+      },
+      timers,
+    });
+    const gameBeforePet = controller.game.value;
+
+    controller.petCat();
+
+    expect(controller.introPhase.value).toBe("idle");
+    expect(controller.game.value).toBe(gameBeforePet);
+    expect(controller.catTravelPhase.value).toBe("home");
+    expect(controller.guardedPiece.value).toBeNull();
+    expect(controller.catReaction.value).toMatchObject({
+      text: "呼噜～",
+      motion: "purr",
+    });
+    expect(controller.status.value).toBe(
+      "小猫眯起眼睛，轻轻蹭了蹭你的手。",
+    );
+    expect(delays).toEqual([2_400]);
+    expect(setItem).not.toHaveBeenCalled();
+
+    const firstReactionId = controller.catReaction.value?.id;
+    controller.petCat();
+    expect(controller.catReaction.value?.id).not.toBe(firstReactionId);
+    expect(delays).toEqual([2_400]);
+    expect(setItem).not.toHaveBeenCalled();
+    controller.dispose();
+  });
+
   it("replays only an untouched refresh and skips operated restored states", () => {
     const untouchedStorage = memoryStorage();
     const untouched = createAmbientController({
