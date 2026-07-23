@@ -49,8 +49,10 @@ body {
 }
 
 .document-pip-body {
-  min-width: 320px;
-  min-height: 430px;
+  min-width: 0;
+  min-height: 0;
+  width: 100vw;
+  height: 100vh;
   overflow: hidden;
   background: var(--scene-sky);
 }

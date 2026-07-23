@@ -105,6 +105,11 @@ wallpaper containing interactive objects.
   touch scanning replaces hover assumptions. No viewport may gain horizontal
   overflow. The cat clears the centered tray vertically, while the plant stays
   pointer-transparent above revealed fish so neither blocks fish input.
+- At `<=620px × <=430px`, use the compact-surface variables rather than a
+  minimum-height canvas: retain 44px-or-larger controls with 14px labels,
+  reduce the cat and plant footprints, keep the tray fully visible, and fit the
+  complete surface without horizontal or vertical overflow. Apply the same
+  composition to a normal narrow window and Document PiP.
 - The compact field projection compresses only rendered vertical coordinates.
   Spotlight hit testing applies its inverse and cat guard placement applies the
   same forward transform; overlap geometry and persisted anchors stay canonical.
@@ -119,6 +124,7 @@ wallpaper containing interactive objects.
 | Field resembles rows/cells | replace authored positions; hiding borders is insufficient |
 | Controls compete with scene | reduce opacity/weight, retain focus visibility |
 | 320px viewport | safe full-surface field, readable tray, 44px targets, no overflow |
+| `320x240` compact surface | full surface, controls, cat, plant cue, and tray remain visible with no scroll overflow |
 | Reduced motion | instant/near-instant projection and feedback, no lost state |
 | Clear reaches a plant stage before its day gate | remain in the previous stage |
 | Stage mark is shown | exactly one flower, correct species and increasing size, no visible copy |
@@ -141,7 +147,7 @@ wallpaper containing interactive objects.
 1. compare the supplied reference and `1440x900` prototype in one combined
    image; inspect light direction, negative space, horizon, material, and
    lower-right hierarchy;
-2. capture `320x568`, `390x844`, `768x1024`, and `1440x900`;
+2. capture `320x240`, `320x568`, `390x844`, `768x1024`, and `1440x900`;
 3. inspect hidden idle, pointer/touch/keyboard reveal, afterglow, retained
    focus/drag, stacked lower selection and settling, bubble clear, growing,
    flowering, fruiting, mature,

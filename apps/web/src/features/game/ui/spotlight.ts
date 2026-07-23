@@ -16,6 +16,13 @@ export interface FieldProjection {
   readonly height: number;
 }
 
+export interface FieldProjectionScheduler {
+  schedule(surfaceWidth: number, surfaceHeight: number): void;
+  cancel(): void;
+}
+
+type ScheduleFrame = (callback: () => void) => () => void;
+
 export const FULL_FIELD_PROJECTION: FieldProjection = Object.freeze({
   left: 0,
   top: 0,
@@ -47,6 +54,40 @@ export function getFieldProjection(
   return surfaceWidth < surfaceHeight * 1.05
     ? PORTRAIT_FIELD_PROJECTION
     : LANDSCAPE_FIELD_PROJECTION;
+}
+
+export function createFieldProjectionScheduler(
+  commit: (projection: FieldProjection) => void,
+  scheduleFrame: ScheduleFrame,
+): FieldProjectionScheduler {
+  let latestSize: { width: number; height: number } | null = null;
+  let cancelPendingFrame: (() => void) | null = null;
+
+  function flush(): void {
+    cancelPendingFrame = null;
+    const size = latestSize;
+    latestSize = null;
+    if (!size) return;
+    commit(getFieldProjection(size.width, size.height));
+  }
+
+  return {
+    schedule(surfaceWidth, surfaceHeight) {
+      if (
+        !Number.isFinite(surfaceWidth) ||
+        !Number.isFinite(surfaceHeight) ||
+        surfaceWidth <= 0 ||
+        surfaceHeight <= 0
+      ) return;
+      latestSize = { width: surfaceWidth, height: surfaceHeight };
+      cancelPendingFrame ??= scheduleFrame(flush);
+    },
+    cancel() {
+      cancelPendingFrame?.();
+      cancelPendingFrame = null;
+      latestSize = null;
+    },
+  };
 }
 
 export function projectFieldPoint(

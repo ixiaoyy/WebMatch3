@@ -69,10 +69,10 @@ const stageAssets: Readonly<Record<PlantStage, string>> = {
 .growing-plant {
   position: absolute;
   z-index: 4;
-  right: clamp(24px, 5vw, 76px);
+  right: var(--plant-right, clamp(24px, 5vw, 76px));
   bottom: var(--scene-plant-base, 260px);
-  width: clamp(196px, 20vw, 286px);
-  height: clamp(258px, 27vw, 372px);
+  width: var(--plant-width, clamp(196px, 20vw, 286px));
+  height: var(--plant-height, clamp(258px, 27vw, 372px));
   margin: 0;
   pointer-events: none;
   transform-origin: 50% 100%;
@@ -190,10 +190,10 @@ const stageAssets: Readonly<Record<PlantStage, string>> = {
 
 @media (max-width: 620px) {
   .growing-plant {
-    right: 4px;
+    right: var(--plant-right, 4px);
     bottom: var(--scene-plant-base, 110px);
-    width: 108px;
-    height: 166px;
+    width: var(--plant-width, 108px);
+    height: var(--plant-height, 166px);
     opacity: 0.96;
 
     &__stage-mark {

@@ -5,12 +5,14 @@ import {
   FULL_FIELD_PROJECTION,
   LANDSCAPE_FIELD_PROJECTION,
   PORTRAIT_FIELD_PROJECTION,
+  createFieldProjectionScheduler,
   findNearestRevealedPiece,
   getFieldProjection,
   getRevealedPieceIds,
   moveSpotlight,
   projectFieldPoint,
   unprojectFieldPoint,
+  type FieldProjection,
 } from "./spotlight";
 
 const pieces: readonly PilePiece[] = [
@@ -81,5 +83,41 @@ describe("spotlight projection", () => {
     const restored = unprojectFieldPoint(projected, compact);
     expect(restored.x).toBeCloseTo(canonical.x);
     expect(restored.y).toBeCloseTo(canonical.y);
+  });
+
+  it("coalesces resize projection commits and cancels pending work", () => {
+    const frames = new Map<number, () => void>();
+    const cancelled: number[] = [];
+    const projections: FieldProjection[] = [];
+    let nextFrameId = 1;
+    const scheduler = createFieldProjectionScheduler(
+      (projection) => projections.push(projection),
+      (callback) => {
+        const frameId = nextFrameId;
+        nextFrameId += 1;
+        frames.set(frameId, callback);
+        return () => {
+          cancelled.push(frameId);
+          frames.delete(frameId);
+        };
+      },
+    );
+
+    scheduler.schedule(320, 568);
+    scheduler.schedule(430, 560);
+    scheduler.schedule(Number.NaN, 240);
+
+    expect(frames.size).toBe(1);
+    expect(projections).toEqual([]);
+    frames.get(1)?.();
+    frames.delete(1);
+    expect(projections).toEqual([getFieldProjection(430, 560)]);
+
+    scheduler.schedule(320, 240);
+    expect(frames.size).toBe(1);
+    scheduler.cancel();
+    expect(frames.size).toBe(0);
+    expect(cancelled).toEqual([2]);
+    expect(projections).toHaveLength(1);
   });
 });

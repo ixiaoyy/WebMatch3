@@ -25,6 +25,11 @@ type IntroPhase = "idle" | "scan" | "targets" | "tray";
 
 createAmbientController(options?: AmbientControllerOptions): AmbientController
 
+createFieldProjectionScheduler(
+  commit: (projection: FieldProjection) => void,
+  scheduleFrame: (callback: () => void) => () => void,
+): FieldProjectionScheduler
+
 interface AmbientSnapshotV3 {
   readonly version: 3;
   readonly game: AmbientGameState;
@@ -49,6 +54,12 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
   reserves the lower companion/tray area. Pointer coordinates use the inverse
   projection, and cat guard travel uses the same forward projection, so resize
   and Picture-in-Picture never regenerate or persist alternate fish positions.
+- ResizeObserver deliveries are coalesced into at most one field-projection
+  commit per animation frame, using the latest finite non-zero dimensions.
+  Frame scheduling uses the movable surface's current
+  `ownerDocument.defaultView`, not always the opener window, because an active
+  PiP surface must not depend on a hidden opener's throttled frame queue.
+  Unmount cancels pending frame work.
 - A UI-local spotlight owns only `inactive`, `searching`, `afterglow`, and
   `dragging` state. Pointer movement, touch scanning, and keyboard arrows move
   one normalized light; touch release keeps a brief afterglow.
@@ -155,6 +166,10 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
 - Away styling is owned by the movable surface rather than its opener-page
   ancestor, so animation pause and reduced-attention contrast remain effective
   after the same DOM subtree enters Picture-in-Picture.
+- PiP documents and surfaces must not impose a fixed minimum height. Narrow
+  surfaces at `<=620px × <=430px` share one compact composition for controls,
+  cat, plant, and tray so an ordinary narrow window and the same-sized PiP
+  window cannot drift.
 
 ## 4. Validation & Error Matrix
 
@@ -182,6 +197,9 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
 | Storage access/write throws | continue in memory; write returns `false` |
 | PiP API unavailable | render no small-window button or warning |
 | PiP request rejects/closes | keep or restore the same surface and state |
+| Multiple resize deliveries before one frame | commit one projection from the latest valid dimensions |
+| Surface moves into PiP before resize scheduling | request the frame from the surface's current window |
+| `320x240` narrow surface | use the compact composition, preserve 44px controls, and create no horizontal or vertical overflow |
 | Reduced motion | remove travel/pulse animation while retaining spotlight, layer shadow, tray pressure, feed response, and transition state semantics |
 
 ## 5. Good / Base / Bad Cases
@@ -215,6 +233,8 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
    nearby settling motion, tray
    clear, plant growth, persistence, and no console errors;
 5. reduced-motion and supported/unsupported/rejected PiP paths.
+   Include resize-delivery coalescing, latest-size wins, pending-frame
+   cancellation, and a `320x240` compact-surface browser check.
 6. mixed-species feeding, short-group settlement without a clear callback,
    persisted feed credits, and full-to-lying-to-sleeping pose timing.
 7. pristine intro eligibility and serial timing, every takeover path, away and
@@ -242,6 +262,16 @@ This trusts corrupt data and forks canonical state across two Vue mounts.
 ```ts
 const snapshot = loadAmbientSnapshot(resolveBrowserStorage(), random);
 pipDocument.body.append(existingSurface);
+
+const scheduler = createFieldProjectionScheduler(
+  commitLatestProjection,
+  (callback) => {
+    const surfaceWindow = surface.ownerDocument.defaultView ?? window;
+    const frameId = surfaceWindow.requestAnimationFrame(callback);
+    return () => surfaceWindow.cancelAnimationFrame(frameId);
+  },
+);
 ```
 
 Validation stays at the session boundary and PiP moves one mounted subtree.
+Projection work follows that subtree's current window and remains cancellable.

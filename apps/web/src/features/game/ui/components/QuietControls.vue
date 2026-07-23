@@ -21,10 +21,10 @@ const emit = defineEmits<{
 .quiet-controls {
   position: absolute;
   z-index: 12;
-  top: max(16px, env(safe-area-inset-top));
-  right: max(18px, env(safe-area-inset-right));
+  top: max(var(--quiet-controls-top, 16px), env(safe-area-inset-top));
+  right: max(var(--quiet-controls-right, 18px), env(safe-area-inset-right));
   display: flex;
-  gap: 8px;
+  gap: var(--quiet-controls-gap, 8px);
   opacity: 0.56;
   transition: opacity 160ms ease;
 
@@ -34,15 +34,15 @@ const emit = defineEmits<{
   }
 
   button {
-    min-width: 64px;
-    min-height: 48px;
-    padding: 9px 15px;
+    min-width: var(--quiet-control-min-width, 64px);
+    min-height: var(--quiet-control-min-height, 48px);
+    padding: var(--quiet-control-padding, 9px 15px);
     border: 1px solid var(--quiet-line);
     border-radius: 999px;
     color: var(--ink-muted);
     background: var(--quiet-surface-strong);
     box-shadow: 0 6px 8px rgb(57 70 112 / 8%);
-    font-size: 14px;
+    font-size: var(--quiet-control-font-size, 14px);
     font-weight: 680;
     cursor: pointer;
     backdrop-filter: blur(10px);

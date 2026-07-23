@@ -12,8 +12,10 @@ import { createDocumentPipController } from "./document-pip";
 import { createClearSound } from "./sound";
 import {
   FULL_FIELD_PROJECTION,
+  createFieldProjectionScheduler,
   getFieldProjection,
   projectFieldPoint,
+  type FieldProjectionScheduler,
 } from "./spotlight";
 
 const surface = ref<HTMLElement | null>(null);
@@ -31,6 +33,7 @@ const fieldProjection = ref(
 );
 const clearSound = createClearSound();
 let surfaceObserver: ResizeObserver | null = null;
+let projectionScheduler: FieldProjectionScheduler | null = null;
 const game = createAmbientController({
   onClear: () => {
     if (game.soundEnabled.value) clearSound.play();
@@ -164,10 +167,20 @@ onMounted(() => {
   window.addEventListener("blur", updateMainAttention);
   updateMainAttention();
   game.startReactions();
+  projectionScheduler = createFieldProjectionScheduler(
+    (projection) => {
+      fieldProjection.value = projection;
+    },
+    (callback) => {
+      const frameWindow = surface.value?.ownerDocument.defaultView ?? window;
+      const frameId = frameWindow.requestAnimationFrame(() => callback());
+      return () => frameWindow.cancelAnimationFrame(frameId);
+    },
+  );
   if (surface.value && typeof ResizeObserver !== "undefined") {
     surfaceObserver = new ResizeObserver(([entry]) => {
       if (!entry) return;
-      fieldProjection.value = getFieldProjection(
+      projectionScheduler?.schedule(
         entry.contentRect.width,
         entry.contentRect.height,
       );
@@ -186,6 +199,8 @@ onBeforeUnmount(() => {
   activePipWindow.value?.removeEventListener("blur", onPipBlur);
   surfaceObserver?.disconnect();
   surfaceObserver = null;
+  projectionScheduler?.cancel();
+  projectionScheduler = null;
   pip.close();
   clearSound.dispose();
   game.dispose();
@@ -319,7 +334,7 @@ onBeforeUnmount(() => {
     position: relative;
     width: 100vw;
     height: 100vh;
-    min-height: 430px;
+    min-height: 0;
     background:
       linear-gradient(90deg, rgb(210 218 241 / 8%), rgb(190 202 238 / 12%)),
       var(--wallpaper-url) center / cover no-repeat;
@@ -391,9 +406,52 @@ onBeforeUnmount(() => {
 
 }
 
-@media (max-height: 620px) and (orientation: landscape) {
-  .ambient-surface {
+@media (min-width: 621px) and (max-height: 620px) and (orientation: landscape) {
+  .ambient-surface:not(.ambient-surface--in-pip) {
     min-height: 620px;
+  }
+}
+
+@media (max-width: 620px) and (max-height: 430px) {
+  .ambient-surface {
+    --scene-tray-bottom: 6px;
+    --scene-tray-height: 48px;
+    --scene-vignette-gap: 2px;
+    --scene-plant-base: var(--scene-companion-base);
+    --cat-companion-height: 88px;
+    --plant-right: 84px;
+    --plant-width: 56px;
+    --plant-height: 86px;
+    --fish-tray-side-inset: 16px;
+    --fish-tray-padding: 6px 4px;
+    --quiet-controls-top: 8px;
+    --quiet-controls-right: 8px;
+    --quiet-controls-gap: 6px;
+    --quiet-control-min-width: 64px;
+    --quiet-control-min-height: 44px;
+    --quiet-control-padding: 7px 10px;
+    --quiet-control-font-size: 14px;
+
+    min-height: 0;
+  }
+
+  .ambient-surface .cat-companion-slot {
+    --cat-companion-width: 76px;
+
+    right: 6px;
+    bottom: var(--scene-companion-base);
+    left: auto;
+
+    &[data-away-from-home="true"] {
+      right: auto;
+      left: clamp(16px, var(--cat-guard-left), calc(100% - 16px));
+      bottom: var(--cat-guard-bottom);
+      transform: translate(calc(-100% - 12px), 45%);
+    }
+
+    &[data-away-from-home="true"][data-guard-side="right"] {
+      transform: translate(12px, 45%);
+    }
   }
 }
 

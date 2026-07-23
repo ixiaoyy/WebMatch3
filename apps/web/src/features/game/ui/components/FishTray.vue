@@ -294,9 +294,9 @@ function clearStyle(index: number): Record<string, string | number> {
   .fish-tray {
     right: 50%;
     bottom: var(--scene-tray-bottom, 12px);
-    width: calc(100vw - 24px);
-    min-height: 52px;
-    padding: 8px 6px;
+    width: calc(100vw - var(--fish-tray-side-inset, 24px));
+    min-height: var(--scene-tray-height, 52px);
+    padding: var(--fish-tray-padding, 8px 6px);
     transform: translateX(50%);
 
     &[data-feedback="loss"] {

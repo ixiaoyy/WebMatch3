@@ -84,7 +84,7 @@ const actionLabel = computed(() => {
 .cat-companion {
   position: relative;
   width: var(--cat-companion-width, clamp(320px, 35vw, 500px));
-  height: clamp(370px, 40vw, 560px);
+  height: var(--cat-companion-height, clamp(370px, 40vw, 560px));
   padding: 0;
   border: 0;
   margin: 0;
@@ -258,7 +258,7 @@ const actionLabel = computed(() => {
 @media (max-width: 620px) {
   .cat-companion {
     width: var(--cat-companion-width, 118px);
-    height: 142px;
+    height: var(--cat-companion-height, 142px);
   }
 }
 
