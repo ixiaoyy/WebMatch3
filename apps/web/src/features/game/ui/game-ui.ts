@@ -1,6 +1,7 @@
 import {
   DISCOVERY_RADIUS_X,
   DISCOVERY_RADIUS_Y,
+  getBlockerIds,
   INITIAL_DISCOVERY_POINT,
   type AmbientGameState,
   type FishKind,
@@ -54,6 +55,13 @@ export interface FishPresentation {
   readonly assetUrl: string;
 }
 
+export interface FishAccessibleLabelOptions {
+  readonly kind: FishKind;
+  readonly layer: number;
+  readonly higherOverlapCount: number;
+  readonly feedable: boolean;
+}
+
 export interface PlantStagePresentation {
   readonly label: string;
   readonly assetUrl: string;
@@ -92,6 +100,30 @@ const CAT_PRESENTATIONS: Readonly<Record<CatPose, CatPresentation>> = {
 
 export function getFishPresentation(kind: FishKind): FishPresentation {
   return PRESENTATIONS[kind];
+}
+
+export function getFishAccessibleLabel({
+  kind,
+  layer,
+  higherOverlapCount,
+  feedable,
+}: FishAccessibleLabelOptions): string {
+  const overlapLabel = higherOverlapCount === 0
+    ? "上方没有小鱼重叠"
+    : `上方有${higherOverlapCount}条小鱼重叠`;
+  const actionLabel = feedable
+    ? "Enter或空格放入托盘，按F喂给小猫"
+    : "Enter或空格放入托盘；小猫正在休息，按F可听取提示";
+  return `${getFishPresentation(kind).label}，第${layer + 1}层，${overlapLabel}；${actionLabel}`;
+}
+
+export function getHigherOverlapCounts(
+  pieces: readonly PilePiece[],
+): ReadonlyMap<string, number> {
+  return new Map(pieces.map((piece) => [
+    piece.id,
+    getBlockerIds(pieces, piece.id).length,
+  ]));
 }
 
 export function getPlantStagePresentation(stage: PlantStage): PlantStagePresentation {

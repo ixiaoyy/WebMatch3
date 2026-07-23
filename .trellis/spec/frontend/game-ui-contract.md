@@ -30,6 +30,19 @@ createFieldProjectionScheduler(
   scheduleFrame: (callback: () => void) => () => void,
 ): FieldProjectionScheduler
 
+interface FishAccessibleLabelOptions {
+  readonly kind: FishKind;
+  readonly layer: number;
+  readonly higherOverlapCount: number;
+  readonly feedable: boolean;
+}
+
+getHigherOverlapCounts(
+  pieces: readonly PilePiece[],
+): ReadonlyMap<string, number>
+
+getFishAccessibleLabel(options: FishAccessibleLabelOptions): string
+
 interface AmbientSnapshotV3 {
   readonly version: 3;
   readonly game: AmbientGameState;
@@ -72,6 +85,14 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
   pointer or keyboard action path. Revealed overlap groups fan apart just
   enough to expose distinct pointer targets, then return to canonical render
   positions when the light leaves.
+- Each native fish button exposes its descriptive species, one-based visual
+  layer, current number of higher-layer overlaps, and current Enter/Space/F
+  guidance in one accessible name. Zero overlaps use explicit "none" wording;
+  positive counts describe overlap without saying blocked or unavailable.
+  `FishField` derives one count map from the current canonical pieces and
+  `FishPiece` only formats the supplied value, so removing an upper fish updates
+  lower names without adding geometry scans to each button. Chinese prose
+  remains UI-only and never enters engine pieces or snapshots.
 - A pristine level-one state (`clearCount === 0`, empty tray/feed history, no
   guard, and untouched monotonic IDs) begins one non-blocking controller-owned
   intro. One serial `TimerApi` handle advances `scan -> targets -> tray -> idle`:
@@ -180,6 +201,8 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
 | Any input or attention/PiP handoff during intro | cancel the intro timer and continue that action immediately; do not replay in the same controller |
 | Touch search ends | keep a brief local afterglow, then hide fish outside retained focus/drag targets |
 | Keyboard focus enters the field | expose the semantic path; focused fish stays visible and every remaining fish is reachable |
+| Current fish has zero/one/multiple higher overlaps | accessible name reports its one-based layer and the exact current overlap count without changing actionability |
+| An overlapping upper fish leaves the canonical pieces | recompute the shared count map and update every affected lower fish name on the next render |
 | Fish is dropped on the cat or focused fish receives `F` below capacity | remove it from the pile, persist feed count, update cat pose |
 | Fish drag ends outside the cat or feed is rejected | restore visual position; canonical pile/tray unchanged |
 | Awake cat is activated with an eligible target | look, travel, immediately light and guard that target on arrival, show one brief bubble |
@@ -243,6 +266,10 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
 8. pure projections for cross-layer intro targets, tray pressure boundaries,
    clear-versus-settle plant response, direct feed acceptance/rejection, and
    loss/level input locking.
+9. pure fish accessible-name projections for zero/one/multiple overlaps,
+   one-based layers, feedable/resting action wording, and current-piece
+   reprojection after an upper fish leaves; browser-check the resulting names
+   and unchanged arrow/F action paths.
 
 Run focused tests first, then one `pnpm ci:web`.
 
@@ -275,3 +302,19 @@ const scheduler = createFieldProjectionScheduler(
 
 Validation stays at the session boundary and PiP moves one mounted subtree.
 Projection work follows that subtree's current window and remains cancellable.
+
+Spatial labels follow the same UI boundary:
+
+```ts
+// Wrong: visual overlap silently changes the game action path.
+const disabled = getBlockerIds(pieces, piece.id).length > 0;
+
+// Correct: derive current facts once, then describe them without disabling.
+const overlapCounts = getHigherOverlapCounts(pieces);
+const label = getFishAccessibleLabel({
+  kind: piece.kind,
+  layer: piece.layer,
+  higherOverlapCount: overlapCounts.get(piece.id) ?? 0,
+  feedable,
+});
+```

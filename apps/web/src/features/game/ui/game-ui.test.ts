@@ -1,9 +1,15 @@
 import { describe, expect, it } from "vitest";
 
-import { createInitialState, createSeededRandom } from "../engine";
 import {
+  createInitialState,
+  createSeededRandom,
+  getBlockerIds,
+} from "../engine";
+import {
+  getFishAccessibleLabel,
   getCatPresentation,
   getGrowthPercent,
+  getHigherOverlapCounts,
   getIntroTargetIds,
   getFishPresentation,
   getPlantStage,
@@ -12,6 +18,65 @@ import {
   projectGameFeedback,
   shouldStartIntro,
 } from "./game-ui";
+
+describe("fish spatial accessibility", () => {
+  it("describes one-based layer, higher overlaps, and the current actions", () => {
+    expect(getFishAccessibleLabel({
+      kind: "koi",
+      layer: 2,
+      higherOverlapCount: 0,
+      feedable: true,
+    })).toBe(
+      "白红毛毡锦鲤，第3层，上方没有小鱼重叠；Enter或空格放入托盘，按F喂给小猫",
+    );
+    expect(getFishAccessibleLabel({
+      kind: "whale",
+      layer: 0,
+      higherOverlapCount: 1,
+      feedable: false,
+    })).toBe(
+      "蓝色毛毡鲸鱼，第1层，上方有1条小鱼重叠；Enter或空格放入托盘；小猫正在休息，按F可听取提示",
+    );
+    expect(getFishAccessibleLabel({
+      kind: "betta",
+      layer: 1,
+      higherOverlapCount: 2,
+      feedable: true,
+    })).toContain("第2层，上方有2条小鱼重叠");
+  });
+
+  it("reprojects overlap counts from the current remaining pieces", () => {
+    const pieces = createInitialState(createSeededRandom(38)).pieces;
+    const lowerPiece = pieces.find(
+      (piece) => getBlockerIds(pieces, piece.id).length > 0,
+    );
+    expect(lowerPiece).toBeDefined();
+    if (!lowerPiece) return;
+
+    const blockerId = getBlockerIds(pieces, lowerPiece.id)[0];
+    expect(blockerId).toBeDefined();
+    if (!blockerId) return;
+
+    const before = getHigherOverlapCounts(pieces);
+    const remainingPieces = pieces.filter((piece) => piece.id !== blockerId);
+    const after = getHigherOverlapCounts(remainingPieces);
+
+    expect(after.get(lowerPiece.id)).toBe(
+      (before.get(lowerPiece.id) ?? 0) - 1,
+    );
+    expect(getFishAccessibleLabel({
+      kind: lowerPiece.kind,
+      layer: lowerPiece.layer,
+      higherOverlapCount: after.get(lowerPiece.id) ?? 0,
+      feedable: true,
+    })).not.toBe(getFishAccessibleLabel({
+      kind: lowerPiece.kind,
+      layer: lowerPiece.layer,
+      higherOverlapCount: before.get(lowerPiece.id) ?? 0,
+      feedable: true,
+    }));
+  });
+});
 
 describe("interaction feedback projection", () => {
   it("distinguishes tray risk without turning ordinary occupancy into warning", () => {

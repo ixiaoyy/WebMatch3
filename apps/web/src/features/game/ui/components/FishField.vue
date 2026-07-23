@@ -8,7 +8,12 @@ import {
   type PilePiece,
   type Point,
 } from "../../engine";
-import type { FocusDirection, GameFeedback, IntroPhase } from "../game-ui";
+import {
+  getHigherOverlapCounts,
+  type FocusDirection,
+  type GameFeedback,
+  type IntroPhase,
+} from "../game-ui";
 import {
   findNearestRevealedPiece,
   getRevealedPieceIds,
@@ -58,6 +63,7 @@ let afterglowHandle: ReturnType<typeof setTimeout> | null = null;
 let slipHandle: ReturnType<typeof setTimeout> | null = null;
 
 const selectable = computed(() => getSelectablePieces(props.pieces));
+const higherOverlapCounts = computed(() => getHigherOverlapCounts(props.pieces));
 const guidedPiece = computed(() =>
   props.away || !props.guidedPieceId
     ? null
@@ -471,6 +477,7 @@ onBeforeUnmount(() => {
         :position="projectFieldPoint(piece.pile, projection)"
         :revealed="revealedPieceIds.has(piece.id)"
         :feedable="feedable"
+        :higher-overlap-count="higherOverlapCounts.get(piece.id) ?? 0"
         :disabled="disabled"
         :separation="separationOffsets.get(piece.id) ?? { x: 0, y: 0 }"
         :slip-direction="slipDirections.get(piece.id) ?? 0"

@@ -2,13 +2,14 @@
 import { computed, ref } from "vue";
 
 import type { PilePiece, Point } from "../../engine";
-import { getFishPresentation } from "../game-ui";
+import { getFishAccessibleLabel, getFishPresentation } from "../game-ui";
 
 const props = defineProps<{
   piece: PilePiece;
   position: Point;
   revealed: boolean;
   feedable: boolean;
+  higherOverlapCount: number;
   tabIndex: number;
   disabled: boolean;
   separation: Point;
@@ -35,11 +36,12 @@ let pointerStart = { x: 0, y: 0 };
 let suppressClick = false;
 
 const presentation = computed(() => getFishPresentation(props.piece.kind));
-const label = computed(() =>
-  props.feedable
-    ? `${presentation.value.label}，Enter或空格放入托盘，按F喂给小猫`
-    : `${presentation.value.label}，Enter或空格放入托盘；小猫正在休息，按F可听取提示`,
-);
+const label = computed(() => getFishAccessibleLabel({
+  kind: props.piece.kind,
+  layer: props.piece.layer,
+  higherOverlapCount: props.higherOverlapCount,
+  feedable: props.feedable,
+}));
 
 function onPointerDown(event: PointerEvent): void {
   if (event.button !== 0) return;
