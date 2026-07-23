@@ -53,14 +53,14 @@ reliability tasks.
 
 ## Acceptance Criteria
 
-- [ ] AC1: Both child tasks have testable PRDs and reviewed technical plans.
-- [ ] AC2: The compact PiP child is ordered before the accessibility child.
-- [ ] AC3: Every accepted, deferred, and rejected proposal is traceable to
+- [x] AC1: Both child tasks have testable PRDs and reviewed technical plans.
+- [x] AC2: The compact PiP child is ordered before the accessibility child.
+- [x] AC3: Every accepted, deferred, and rejected proposal is traceable to
       inspected code, product text, tests, or build output.
-- [ ] AC4: Neither child changes engine solvability, persisted snapshot schema,
+- [x] AC4: Neither child changes engine solvability, persisted snapshot schema,
       PWA configuration, or the default-muted one-shot sound contract.
-- [ ] AC5: Each child passes its focused checks and one final `pnpm ci:web`.
-- [ ] AC6: Final integration review confirms the same canonical game survives
+- [x] AC5: Each child passes its focused checks and one final `pnpm ci:web`.
+- [x] AC6: Final integration review confirms the same canonical game survives
       resize, PiP handoff, keyboard navigation, and screen-reader naming.
 
 ## Out of Scope
