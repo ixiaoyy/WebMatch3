@@ -8,6 +8,7 @@ import {
 
 export type SpotlightMode = "inactive" | "searching" | "afterglow" | "dragging";
 export type SpotlightDirection = "up" | "right" | "down" | "left";
+export const POINTER_DRAG_THRESHOLD = 7;
 
 export interface FieldProjection {
   readonly left: number;
@@ -108,6 +109,14 @@ export function unprojectFieldPoint(
     x: Math.min(1, Math.max(0, (point.x - projection.left) / projection.width)),
     y: Math.min(1, Math.max(0, (point.y - projection.top) / projection.height)),
   };
+}
+
+export function isPointerTap(
+  start: Point,
+  current: Point,
+  threshold = POINTER_DRAG_THRESHOLD,
+): boolean {
+  return Math.hypot(current.x - start.x, current.y - start.y) < threshold;
 }
 
 export function getRevealedPieceIds(

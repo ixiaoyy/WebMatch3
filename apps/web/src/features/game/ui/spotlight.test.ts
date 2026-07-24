@@ -9,6 +9,7 @@ import {
   findNearestRevealedPiece,
   getFieldProjection,
   getRevealedPieceIds,
+  isPointerTap,
   moveSpotlight,
   projectFieldPoint,
   unprojectFieldPoint,
@@ -55,6 +56,17 @@ describe("spotlight projection", () => {
       { x: 0.85, y: 0.8 },
       ["near"],
     )).toEqual(new Set(["near", "far"]));
+  });
+
+  it("retains only the exact guided fish when no pointer light is active", () => {
+    expect(getRevealedPieceIds(pieces, null, ["near"])).toEqual(
+      new Set(["near"]),
+    );
+  });
+
+  it("distinguishes a tap from a drag using the shared movement threshold", () => {
+    expect(isPointerTap({ x: 10, y: 10 }, { x: 14, y: 14 })).toBe(true);
+    expect(isPointerTap({ x: 10, y: 10 }, { x: 17, y: 10 })).toBe(false);
   });
 
   it("moves and clamps the keyboard light", () => {

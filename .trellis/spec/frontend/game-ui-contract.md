@@ -94,7 +94,10 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
   Unmount cancels pending frame work.
 - A UI-local spotlight owns only `inactive`, `searching`, `afterglow`, and
   `dragging` state. Pointer movement, touch scanning, and keyboard arrows move
-  one normalized light; touch release keeps a brief afterglow.
+  one normalized light. A coarse-pointer gesture below the shared 7px drag
+  threshold is a tap: release selects the nearest fish revealed by that
+  pointer light, then keeps a brief afterglow. Crossing the threshold is a
+  scan and release never selects; pointer cancellation also never selects.
 - Fish outside the light are visually hidden and cannot intercept pointer
   input. The actually focused fish and an active dragged fish stay visible;
   every revealed fish remains actionable unless the whole field is disabled.
@@ -137,9 +140,11 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
   current transient reaction/status, keeps the cat home, and never changes or
   persists canonical game state. Only `帮我抓鱼` calls `requestCatSearch`.
   Awake search travels to one eligible target; on arrival, an independent guide
-  light immediately reveals that fish while the cat guards it until the exact
-  fish is selected, fed, or invalidated. Pointer spotlight movement does not
-  dismiss or relocate the guide light.
+  light immediately retains only that exact fish in the revealed set; nearby
+  fish inside the guide beam's visual radius remain hidden and pointer-
+  transparent. The cat guards until the exact fish is selected, fed, or
+  invalidated. Pointer spotlight movement does not dismiss or relocate the
+  guide light.
 - The interaction menu focuses its first action, supports arrow/Home/End
   navigation, closes on Escape or outside pointer activation, and restores
   focus to the cat. Its document listeners resolve from the component root's
@@ -248,7 +253,8 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
 | Pointer leaves and no focus remains | clear the transient light; canonical state remains unchanged |
 | Pristine initial state loads | run the interruptible scan/targets/tray intro without locking input or persisting tutorial state |
 | Any input or attention/PiP handoff during intro | cancel the intro timer and continue that action immediately; do not replay in the same controller |
-| Touch search ends | keep a brief local afterglow, then hide fish outside retained focus/drag targets |
+| Touch tap ends below 7px travel | select the nearest fish revealed by that pointer light once, keep a brief afterglow, then hide non-retained fish |
+| Touch scan crosses 7px or receives `pointercancel` | keep a brief local afterglow without selecting, then hide fish outside retained focus/drag targets |
 | Keyboard focus enters the field | expose the semantic path; focused fish stays visible and every remaining fish is reachable |
 | Current fish has zero/one/multiple higher overlaps | accessible name reports its one-based layer and the exact current overlap count without changing actionability |
 | An overlapping upper fish leaves the canonical pieces | recompute the shared count map and update every affected lower fish name on the next render |
@@ -257,6 +263,7 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
 | Home cat is activated | open the pet/search menu, focus `摸一下`, keep travel phase home, and do not choose a guard target |
 | `摸一下` is chosen | close the menu, restore cat focus, show one affectionate reaction/status, and perform no storage write |
 | `帮我抓鱼` is chosen with an eligible target | close the menu, look, travel, immediately light and guard that target on arrival |
+| Guide beam overlaps multiple canonical fish | reveal and enable only the guarded target; keep every neighbor hidden unless the independent pointer light reveals it |
 | Escape or outside pointer activation closes the cat menu | remove the menu and its current-document listeners, then restore focus to the cat |
 | Guarded target is selected or fed | return cat home and clear the guard |
 | Feed credit completes one/two tray fish | animate only that short group, consume credits once, no plant clear |
@@ -337,12 +344,17 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
     transient feedback without persistence, and explicit search retains all
     rejection/travel/guard rules; browser-check first-action focus, arrow
     navigation, Escape/outside dismissal, focus restoration, and PiP document
-    movement.
+    movement. Assert the guide retains only the exact guarded ID even when
+    canonical neighbors fall inside the guide beam's visual radius.
 11. controller-entry regressions: a valid level/tray/feed/guard snapshot becomes
     a fresh level-one game with empty transient inventories and IDs starting at
     one while preserving `clearCount`, `plantedAt`, and `soundEnabled`; missing,
     empty, and inaccessible storage generate only one pristine field; PiP
     movement keeps the same mounted controller and current session.
+12. pointer gesture regressions: the shared 7px threshold classifies sub-
+    threshold movement as a tap and boundary-or-greater movement as a scan;
+    browser-check that a blank-surface touch tap selects its nearest locally
+    revealed fish once, while scan release and cancellation select nothing.
 
 Run focused tests first, then one `pnpm ci:web`.
 
@@ -411,4 +423,14 @@ Cat intent follows the same explicit boundary:
   @pet="game.petCat"
   @search="game.requestCatSearch"
 />
+```
+
+Touch search and guided reveal must stay separate:
+
+```ts
+// Wrong: every fish around the cat's guide point becomes actionable.
+getRevealedPieceIds(pieces, guidedPiece.pile);
+
+// Correct: the pointer light owns radius reveal; the guide retains one ID.
+getRevealedPieceIds(pieces, pointerLight, [guidedPiece.id]);
 ```

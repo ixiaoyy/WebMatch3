@@ -17,6 +17,7 @@ import {
 import {
   findNearestRevealedPiece,
   getRevealedPieceIds,
+  isPointerTap,
   moveSpotlight,
   projectFieldPoint,
   unprojectFieldPoint,
@@ -59,6 +60,8 @@ const pointerInside = ref(false);
 const focusInside = ref(false);
 const slipDirections = ref<ReadonlyMap<string, -1 | 1>>(new Map());
 let searchPointerId: number | null = null;
+let searchPointerStart: Point | null = null;
+let searchPointerMoved = false;
 let afterglowHandle: ReturnType<typeof setTimeout> | null = null;
 let slipHandle: ReturnType<typeof setTimeout> | null = null;
 
@@ -77,13 +80,12 @@ const revealedPieceIds = computed(() => {
   const revealed = new Set(getRevealedPieceIds(
     props.pieces,
     props.introPhase === "idle" ? light.value : INITIAL_DISCOVERY_POINT,
-    [activeFocusedId.value, draggedPieceId.value],
+    [
+      activeFocusedId.value,
+      draggedPieceId.value,
+      guidedPiece.value?.id ?? null,
+    ],
   ));
-  if (guidedLight.value) {
-    for (const pieceId of getRevealedPieceIds(props.pieces, guidedLight.value)) {
-      revealed.add(pieceId);
-    }
-  }
   return revealed;
 });
 const separationOffsets = computed(() => {
@@ -241,6 +243,8 @@ function releaseSearchPointerCapture(): void {
     cluster.value.releasePointerCapture(searchPointerId);
   }
   searchPointerId = null;
+  searchPointerStart = null;
+  searchPointerMoved = false;
 }
 
 function findPieceElement(target: EventTarget | null): HTMLElement | null {
@@ -355,6 +359,8 @@ function onPointerDown(event: PointerEvent): void {
   if (props.away || props.disabled) return;
   if (event.target !== cluster.value || event.pointerType === "mouse") return;
   searchPointerId = event.pointerId;
+  searchPointerStart = { x: event.clientX, y: event.clientY };
+  searchPointerMoved = false;
   cluster.value?.setPointerCapture(event.pointerId);
   moveLight(event.clientX, event.clientY);
 }
@@ -362,12 +368,39 @@ function onPointerDown(event: PointerEvent): void {
 function onPointerMove(event: PointerEvent): void {
   if (props.away || props.disabled) return;
   if (event.pointerType === "mouse" || searchPointerId === event.pointerId) {
+    if (
+      searchPointerId === event.pointerId &&
+      searchPointerStart &&
+      !isPointerTap(searchPointerStart, {
+        x: event.clientX,
+        y: event.clientY,
+      })
+    ) {
+      searchPointerMoved = true;
+    }
     pointerInside.value = true;
     moveLight(event.clientX, event.clientY);
   }
 }
 
 function onPointerEnd(event: PointerEvent): void {
+  if (searchPointerId !== event.pointerId) return;
+  const shouldActivate = !searchPointerMoved && light.value !== null;
+  const localLight = light.value;
+  releaseSearchPointerCapture();
+  pointerInside.value = false;
+  if (shouldActivate && localLight) {
+    const target = findNearestRevealedPiece(
+      selectable.value,
+      getRevealedPieceIds(selectable.value, localLight),
+      localLight,
+    );
+    if (target) onActivate(target.id);
+  }
+  startAfterglow();
+}
+
+function onPointerCancel(event: PointerEvent): void {
   if (searchPointerId !== event.pointerId) return;
   releaseSearchPointerCapture();
   pointerInside.value = false;
@@ -447,7 +480,7 @@ onBeforeUnmount(() => {
     @pointerdown="onPointerDown"
     @pointermove="onPointerMove"
     @pointerup="onPointerEnd"
-    @pointercancel="onPointerEnd"
+    @pointercancel="onPointerCancel"
     @pointerleave="onPointerLeave"
     @focusin="onFocusIn"
     @focusout="onFocusOut"

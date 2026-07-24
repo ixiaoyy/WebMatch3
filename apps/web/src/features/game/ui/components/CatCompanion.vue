@@ -25,6 +25,7 @@ const trigger = ref<HTMLButtonElement | null>(null);
 const petAction = ref<HTMLButtonElement | null>(null);
 const searchAction = ref<HTMLButtonElement | null>(null);
 const interactionOpen = ref(false);
+const keyboardInteraction = ref(false);
 let interactionDocument: Document | null = null;
 let focusRestoreWindow: Window | null = null;
 let focusRestoreFrame: number | null = null;
@@ -83,6 +84,7 @@ function scheduleTriggerFocus(): void {
 function closeInteraction(restoreFocus: boolean): void {
   if (!interactionOpen.value) return;
   interactionOpen.value = false;
+  keyboardInteraction.value = false;
   detachInteractionListeners();
   if (restoreFocus) scheduleTriggerFocus();
 }
@@ -99,9 +101,10 @@ function onDocumentKeyDown(event: KeyboardEvent): void {
   closeInteraction(true);
 }
 
-function openInteraction(): void {
+function openInteraction(focusFirstAction: boolean): void {
   if (props.travelPhase !== "home" || props.loss) return;
   cancelScheduledFocus();
+  keyboardInteraction.value = focusFirstAction;
   interactionOpen.value = true;
   void nextTick(() => {
     const nextDocument = root.value?.ownerDocument ?? null;
@@ -118,12 +121,18 @@ function openInteraction(): void {
   });
 }
 
-function toggleInteraction(): void {
+function toggleInteraction(event: MouseEvent): void {
   if (props.travelPhase !== "home") return;
   if (interactionOpen.value) {
     closeInteraction(true);
   } else {
-    openInteraction();
+    openInteraction(keyboardInteraction.value || event.detail === 0);
+  }
+}
+
+function onTriggerKeydown(event: KeyboardEvent): void {
+  if (event.key === "Enter" || event.key === " ") {
+    keyboardInteraction.value = true;
   }
 }
 
@@ -145,6 +154,7 @@ function onFocusOut(event: FocusEvent): void {
 }
 
 function onMenuKeyDown(event: KeyboardEvent): void {
+  keyboardInteraction.value = true;
   const actions = [petAction.value, searchAction.value].filter(
     (action): action is HTMLButtonElement => action !== null,
   );
@@ -191,6 +201,7 @@ onBeforeUnmount(() => {
     :data-loss="loss"
     :data-feed-response="feedResponse"
     :data-interaction-open="interactionOpen"
+    :data-keyboard-interaction="keyboardInteraction"
     @focusout="onFocusOut"
   >
     <button
@@ -204,6 +215,7 @@ onBeforeUnmount(() => {
       :aria-disabled="travelPhase !== 'home' || loss"
       :disabled="loss"
       @click="toggleInteraction"
+      @keydown="onTriggerKeydown"
     >
       <Transition name="cat-pose" mode="out-in">
         <img
@@ -376,42 +388,49 @@ onBeforeUnmount(() => {
   &__menu {
     position: absolute;
     z-index: 5;
-    top: 10%;
-    left: 50%;
+    top: 16%;
+    left: 71%;
     display: flex;
-    width: max-content;
+    flex-direction: column;
+    width: 136px;
     max-width: calc(100vw - 24px);
-    padding: 6px;
-    gap: 5px;
-    border: 1px solid rgb(255 255 255 / 76%);
-    border-radius: 18px 18px 18px 7px;
-    background: rgb(249 248 250 / 91%);
-    transform: translateX(-50%);
-    backdrop-filter: blur(9px);
+    padding: 8px 11px 7px;
+    border: 0;
+    background: url("../assets/cat/cat-menu-bubble.webp") center / 100% 100%
+      no-repeat;
+    box-shadow: 0 12px 30px rgb(70 77 125 / 12%);
+    backdrop-filter: blur(12px) saturate(1.08);
   }
 
   &__menu-action {
-    min-width: 80px;
-    min-height: 44px;
-    padding: 8px 11px;
-    border: 1px solid rgb(111 121 158 / 18%);
-    border-radius: 13px;
+    width: 100%;
+    min-height: 46px;
+    padding: 8px 4px;
+    border: 0;
+    border-bottom: 1px dashed rgb(106 116 157 / 28%);
+    border-radius: 0;
     color: #48516d;
-    background: rgb(238 239 249 / 78%);
+    background: transparent;
     font: inherit;
     font-size: 14px;
-    font-weight: 680;
+    font-weight: 650;
     line-height: 1;
     white-space: nowrap;
     cursor: pointer;
     transition:
-      border-color 150ms ease,
+      color 150ms ease,
       background-color 150ms ease,
-      transform 180ms var(--ease-out);
+      transform 150ms var(--ease-out);
+
+    &:last-child {
+      border-bottom: 0;
+      font-size: 15px;
+      font-weight: 760;
+    }
 
     &:hover {
-      border-color: rgb(111 121 158 / 30%);
-      background: rgb(245 243 251 / 96%);
+      color: #394461;
+      background: rgb(255 255 255 / 38%);
     }
 
     &:active {
@@ -419,9 +438,13 @@ onBeforeUnmount(() => {
     }
 
     &:focus-visible {
-      outline: 3px solid var(--focus);
-      outline-offset: 2px;
+      outline: 0;
+      box-shadow: inset 3px 0 0 rgb(105 116 163 / 46%);
     }
+  }
+
+  &[data-keyboard-interaction="false"] &__menu-action:focus-visible {
+    box-shadow: none;
   }
 
   &[data-reaction="look"] &__image {
@@ -513,7 +536,7 @@ onBeforeUnmount(() => {
 .cat-menu-enter-from,
 .cat-menu-leave-to {
   opacity: 0;
-  transform: translateX(-50%) translateY(3px);
+  transform: translateY(5px) scale(0.97);
 }
 
 @media (max-width: 620px) {
@@ -522,15 +545,16 @@ onBeforeUnmount(() => {
     height: var(--cat-companion-height, 142px);
 
     &__menu {
-      top: auto;
-      bottom: calc(100% - 14px);
-      padding: 5px;
-      gap: 4px;
+      top: -24px;
+      bottom: auto;
+      left: 68%;
+      width: 124px;
+      padding: 7px 9px 6px;
     }
 
     &__menu-action {
-      min-width: 76px;
-      padding-inline: 9px;
+      min-height: 44px;
+      padding-inline: 3px;
     }
   }
 }

@@ -103,10 +103,14 @@ wallpaper containing interactive objects.
   steady warm local beam reveals the guarded fish independently from the
   movable pointer spotlight.
 - Home interaction uses one compact translucent two-action menu anchored to the
-  cat. Each action remains at least 44px from the first rendered frame; menu
-  entrance may fade or translate but must not scale the targets below that
-  minimum. It fits inside `320x240` and remains distinct from the one
-  pointer-transparent reaction bubble. Neither becomes a persistent HUD.
+  cat's right side. The actions stack vertically inside one pale lavender
+  cat-ear speech bubble with a quiet stitched divider and small lower-left
+  tail; they do not read as two separate pill buttons. Each action remains at
+  least 44px from the first rendered frame; menu entrance may fade or translate
+  but must not scale the targets below that minimum. It fits inside `320x240`
+  without covering the top-right quiet controls or tray and remains distinct
+  from the one pointer-transparent reaction bubble. Neither becomes a
+  persistent HUD.
 - At `<=620px`, the same normalized field reprojects inside safe bounds and
   touch scanning replaces hover assumptions. No viewport may gain horizontal
   overflow. The cat clears the centered tray vertically, while the plant stays
@@ -132,6 +136,7 @@ wallpaper containing interactive objects.
 | 320px viewport | safe full-surface field, readable tray, 44px targets, no overflow |
 | `320x240` compact surface | full surface, controls, cat, plant cue, and tray remain visible with no scroll overflow |
 | Cat interaction menu opens | keep both actions inside the viewport at 44px or larger, with the home cat still legible beside the pot |
+| Cat menu opens from pointer input | keep the unified bubble surface free of a persistent nested-button focus ring; keyboard activation still exposes a visible focus indicator |
 | Reduced motion | instant/near-instant projection and feedback, no lost state |
 | Clear reaches a plant stage before its day gate | remain in the previous stage |
 | Stage mark is shown | exactly one flower, correct species and increasing size, no visible copy |

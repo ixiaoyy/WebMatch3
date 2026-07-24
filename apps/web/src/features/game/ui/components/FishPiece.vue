@@ -3,6 +3,7 @@ import { computed, ref } from "vue";
 
 import type { PilePiece, Point } from "../../engine";
 import { getFishAccessibleLabel, getFishPresentation } from "../game-ui";
+import { isPointerTap } from "../spotlight";
 
 const props = defineProps<{
   piece: PilePiece;
@@ -56,7 +57,10 @@ function onPointerMove(event: PointerEvent): void {
   if (pointerId !== event.pointerId) return;
   const nextX = event.clientX - pointerStart.x;
   const nextY = event.clientY - pointerStart.y;
-  if (!dragging.value && Math.hypot(nextX, nextY) < 7) return;
+  if (
+    !dragging.value &&
+    isPointerTap(pointerStart, { x: event.clientX, y: event.clientY })
+  ) return;
   if (!dragging.value) {
     dragging.value = true;
     emit("dragStart", props.piece.id);
