@@ -37,6 +37,11 @@ export interface AmbientSnapshotV3 {
   readonly pet: AmbientPetProgress;
 }
 
+export interface AmbientSnapshotLoadResult {
+  readonly snapshot: AmbientSnapshotV3;
+  readonly loadedFromStorage: boolean;
+}
+
 export interface StorageLike {
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;
@@ -367,24 +372,53 @@ function normalizeLoadedSnapshot(
   };
 }
 
+export function loadAmbientSnapshotResult(
+  storage: StorageLike | null,
+  random: RandomSource = Math.random,
+  now = Date.now(),
+): AmbientSnapshotLoadResult {
+  if (!storage) {
+    return {
+      snapshot: createFreshSnapshot(random, now),
+      loadedFromStorage: false,
+    };
+  }
+  try {
+    const raw = storage.getItem(AMBIENT_STORAGE_KEY);
+    if (!raw) {
+      return {
+        snapshot: createFreshSnapshot(random, now),
+        loadedFromStorage: false,
+      };
+    }
+    const parsed = JSON.parse(raw) as unknown;
+    const snapshot = parseAmbientSnapshot(parsed, now) ??
+      migrateLegacyV2Snapshot(parsed, now) ??
+      migrateLegacyV1Snapshot(parsed, random, now);
+    if (!snapshot) {
+      return {
+        snapshot: createFreshSnapshot(random, now),
+        loadedFromStorage: false,
+      };
+    }
+    return {
+      snapshot: normalizeLoadedSnapshot(snapshot, random),
+      loadedFromStorage: true,
+    };
+  } catch {
+    return {
+      snapshot: createFreshSnapshot(random, now),
+      loadedFromStorage: false,
+    };
+  }
+}
+
 export function loadAmbientSnapshot(
   storage: StorageLike | null,
   random: RandomSource = Math.random,
   now = Date.now(),
 ): AmbientSnapshotV3 {
-  if (!storage) return createFreshSnapshot(random, now);
-  try {
-    const raw = storage.getItem(AMBIENT_STORAGE_KEY);
-    if (!raw) return createFreshSnapshot(random, now);
-    const parsed = JSON.parse(raw) as unknown;
-    const snapshot = parseAmbientSnapshot(parsed, now) ??
-      migrateLegacyV2Snapshot(parsed, now) ??
-      migrateLegacyV1Snapshot(parsed, random, now) ??
-      createFreshSnapshot(random, now);
-    return normalizeLoadedSnapshot(snapshot, random);
-  } catch {
-    return createFreshSnapshot(random, now);
-  }
+  return loadAmbientSnapshotResult(storage, random, now).snapshot;
 }
 
 export function saveAmbientSnapshot(

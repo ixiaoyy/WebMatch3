@@ -3,11 +3,13 @@ export {
   AMBIENT_STORAGE_KEY,
   createFreshSnapshot,
   loadAmbientSnapshot,
+  loadAmbientSnapshotResult,
   parseAmbientSnapshot,
   resolveBrowserStorage,
   saveAmbientSnapshot,
   type AmbientPreferences,
   type AmbientPlantProgress,
+  type AmbientSnapshotLoadResult,
   type AmbientSnapshotV3,
   type StorageLike,
 } from "./ambient-storage";

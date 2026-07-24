@@ -41,8 +41,10 @@ in a work browser, but materially rich when the player touches it.
    game state.
 3. **Five seconds is enough.** Every new field opens with a nearby discoverable
    match and a constructed complete solution, with no start gate.
-4. **Resume without ceremony.** Save stable state after meaningful actions and
-   restore it directly, with no welcome-back or offline-reward flow.
+4. **Start fresh without ceremony.** Each new page/controller opens a fresh
+   first-difficulty field while preserving lifetime plant clears, planting age,
+   and the sound preference. Picture-in-Picture keeps the current mounted
+   session rather than starting another field.
 5. **Growth instead of pressure.** Clears visibly evolve the plant. A full tray
    triggers a brief, quiet loss response and automatically restarts at the
    first difficulty without a failure screen or any plant-progress penalty.

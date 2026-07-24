@@ -1,8 +1,18 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { createSeededRandom, getSelectablePieces } from "../engine";
 import {
+  createLevelState,
+  createInitialState,
+  createSeededRandom,
+  feedPiece,
+  getSelectablePieces,
+  selectPiece,
+} from "../engine";
+import {
+  AMBIENT_STORAGE_KEY,
+  createFreshSnapshot,
   loadAmbientSnapshot,
+  saveAmbientSnapshot,
   type StorageLike,
 } from "../session/ambient-storage";
 import { createAmbientController, type TimerApi } from "./ambient-controller";
@@ -43,6 +53,39 @@ function controlledTimers() {
 }
 
 describe("ambient controller", () => {
+  it("generates one initial field when storage is missing, invalid, or unavailable", () => {
+    const invalidStorage = memoryStorage();
+    invalidStorage.setItem(AMBIENT_STORAGE_KEY, "not-json");
+    const unavailableStorage: StorageLike = {
+      getItem: () => {
+        throw new Error("blocked");
+      },
+      setItem: () => {
+        throw new Error("blocked");
+      },
+    };
+
+    for (
+      const storage of [
+        null,
+        memoryStorage(),
+        invalidStorage,
+        unavailableStorage,
+      ] as const
+    ) {
+      const expected = createInitialState(createSeededRandom(38));
+      const controller = createAmbientController({
+        random: createSeededRandom(38),
+        storage,
+      });
+
+      expect(controller.game.value).toEqual(expected);
+      expect(controller.game.value.pieces[0]?.id).toBe("fish-1");
+      expect(controller.game.value.nextPieceId).toBe(37);
+      controller.dispose();
+    }
+  });
+
   it("runs one non-blocking intro sequence for a pristine initial state", () => {
     const { delays, runDelay, timers } = controlledTimers();
     const controller = createAmbientController({
@@ -203,6 +246,73 @@ describe("ambient controller", () => {
     expect(restored.feedback.value).toBe("idle");
     expect(restored.introPhase.value).toBe("idle");
     restored.dispose();
+  });
+
+  it("starts a fresh level-one session without losing long-term plant progress", () => {
+    const storage = memoryStorage();
+    const plantedAt = 250_000;
+    const storedBase = createLevelState(
+      3,
+      137,
+      101,
+      createSeededRandom(73),
+    );
+    const feedTarget = getSelectablePieces(storedBase.pieces)[0];
+    expect(feedTarget).toBeDefined();
+    if (!feedTarget) return;
+    const fed = feedPiece(storedBase, feedTarget.id, createSeededRandom(74));
+    const trayTarget = getSelectablePieces(fed.state.pieces)[0];
+    expect(trayTarget).toBeDefined();
+    if (!trayTarget) return;
+    const selected = selectPiece(
+      fed.state,
+      trayTarget.id,
+      createSeededRandom(75),
+    );
+    const guardTarget = getSelectablePieces(selected.state.pieces)[0];
+    expect(guardTarget).toBeDefined();
+    if (!guardTarget) return;
+    const storedSnapshot = {
+      ...createFreshSnapshot(createSeededRandom(76), plantedAt),
+      game: selected.state,
+      preferences: { soundEnabled: true },
+      pet: { guardedPieceId: guardTarget.id },
+    };
+    expect(storedSnapshot.game.level).toBe(3);
+    expect(storedSnapshot.game.tray).toHaveLength(1);
+    expect(storedSnapshot.game.fed).toHaveLength(1);
+    expect(saveAmbientSnapshot(storage, storedSnapshot)).toBe(true);
+
+    const controller = createAmbientController({
+      random: createSeededRandom(77),
+      storage,
+      now: () => plantedAt + 4 * 86_400_000,
+    });
+
+    expect(controller.game.value.level).toBe(1);
+    expect(controller.game.value.pieces).toHaveLength(36);
+    expect(controller.game.value.pieces[0]?.id).toBe("fish-1");
+    expect(controller.game.value.nextPieceId).toBe(37);
+    expect(controller.game.value.tray).toEqual([]);
+    expect(controller.game.value.fed).toEqual([]);
+    expect(controller.game.value.clearCount).toBe(137);
+    expect(controller.guardedPiece.value).toBeNull();
+    expect(controller.catTravelPhase.value).toBe("home");
+    expect(controller.catPose.value).toBe("idle");
+    expect(controller.soundEnabled.value).toBe(true);
+    expect(controller.plantAgeDays.value).toBe(4);
+
+    controller.dispose();
+    const persisted = loadAmbientSnapshot(
+      storage,
+      createSeededRandom(78),
+      plantedAt + 4 * 86_400_000,
+    );
+    expect(persisted.game).toEqual(controller.game.value);
+    expect(persisted.game.clearCount).toBe(137);
+    expect(persisted.plant.plantedAt).toBe(plantedAt);
+    expect(persisted.preferences.soundEnabled).toBe(true);
+    expect(persisted.pet.guardedPieceId).toBeNull();
   });
 
   it("replaces direct feedback instead of running competing feedback timers", () => {

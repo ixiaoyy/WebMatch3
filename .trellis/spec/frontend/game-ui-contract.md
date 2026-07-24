@@ -56,7 +56,21 @@ interface AmbientSnapshotV3 {
   readonly pet: { readonly guardedPieceId: string | null };
 }
 
-loadAmbientSnapshot(storage: StorageLike | null, random?: RandomSource): AmbientSnapshotV3
+interface AmbientSnapshotLoadResult {
+  readonly snapshot: AmbientSnapshotV3;
+  readonly loadedFromStorage: boolean;
+}
+
+loadAmbientSnapshot(
+  storage: StorageLike | null,
+  random?: RandomSource,
+  now?: number,
+): AmbientSnapshotV3
+loadAmbientSnapshotResult(
+  storage: StorageLike | null,
+  random?: RandomSource,
+  now?: number,
+): AmbientSnapshotLoadResult
 saveAmbientSnapshot(storage: StorageLike | null, snapshot: AmbientSnapshotV3): boolean
 createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => void): DocumentPipController
 ```
@@ -105,7 +119,9 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
   triple lifts briefly, and tray slot one responds. Pointer/touch/keyboard
   input, selection, feeding, cat search, PiP activation, away, or disposal
   cancels it immediately. Refresh may replay only while canonical state remains
-  untouched; snapshots never gain intro fields.
+  untouched. Eligibility is computed from the loaded pre-reset snapshot so an
+  operated session does not become tutorial-eligible merely because the new
+  controller resets its field; snapshots never gain intro fields.
 - Controller feedback is one mutually exclusive projection. Direct `select`,
   `feed`, and `feed-rejected` feedback lasts about 220ms; `clear`, `settle`, and
   `level` use the existing 620ms reward window; `loss` remains 1.2s. Components
@@ -156,30 +172,45 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
   low-frequency automatic idle reactions never select, reveal, or approach
   fish. Reaction and travel timers pause while away without replaying missed
   automatic reactions.
-- Stable state persists after selection, clear, loss restart, preference change,
-  and attention loss using `web-match3:ambient-state`. The obsolete
+- Snapshot state persists after selection, clear, loss restart, preference
+  change, and attention loss using `web-match3:ambient-state`. Its
+  `game.clearCount` is the person's lifetime plant experience, while
+  `plant.plantedAt` is the long-term planting timestamp. A newly created page
+  controller never resumes the stored level, fish, tray, fed fish, or pet guard:
+  it generates one level-one field with IDs starting at `fish-1`, carrying
+  forward only `clearCount`, `plantedAt`, and `soundEnabled`. The obsolete
   `web-match3:progress` key is not read or deleted.
+- `loadAmbientSnapshotResult` distinguishes a valid restored snapshot from a
+  fresh fallback. Missing, malformed, inaccessible, or incompatible storage
+  returns `loadedFromStorage: false` with the single freshly generated field;
+  the controller must reuse that field rather than generating a second one.
+  A valid stored snapshot returns `loadedFromStorage: true`, which is the only
+  path that derives a replacement field while preserving its long-term values.
 - Light coordinates, afterglow handles, focus, pointer capture, and drag motion
   are component-local state and never enter an ambient snapshot. Removing a
   stacked fish may briefly settle its directly related neighbors, but that
   motion never changes canonical coordinates. Away and unmount clear all of
   these projections without changing canonical game state.
 - Version-three parsing accepts an omitted legacy `pet` projection and
-  normalizes it to home. Only an existing guard target is restored; malformed,
-  stale, or full-cat targets default home without rejecting
-  the otherwise valid game snapshot.
-- A valid legacy version-three snapshot with a seven-piece tray normalizes to
-  a fresh stable level-one field, clears feed and guard state, and preserves
-  `clearCount`, the plant timestamp, preferences, and monotonic piece IDs.
+  normalizes it to home. The parser may validate an existing guard target so
+  loaded-state checks remain truthful; every new controller still clears the
+  guard together with all other single-session state. Malformed, stale, or
+  full-cat targets default home without rejecting an otherwise valid game
+  snapshot.
+- Any valid stored version-three game, not only a seven-piece loss snapshot,
+  starts the controller on a fresh level-one field with empty tray/feed and the
+  cat home. `clearCount`, the plant timestamp, and preferences survive; stored
+  level, coordinates, inventory, guard, and piece IDs do not.
 - A clear persists canonical state immediately but may expose the pre-clear
   tray as an ephemeral 620ms preview. The exact three pieces first travel into
   one shared tray position, then bubble and dissolve together before the tray
   compacts. That preview never enters storage.
 - Version-one endless-pile snapshots migrate to version three by preserving
   `clearCount`, plant age, and preferences while replacing the old pile/tray
-  with a fresh solvable level-one field. Version-two snapshots map their four
-  legacy color keys to whale, koi, sardine, and pufferfish while preserving
-  IDs, level, tray, geometry, counters, preferences, and plant state.
+  with a fresh solvable level-one field. Version-two snapshot parsing maps its
+  four legacy color keys to whale, koi, sardine, and pufferfish and validates
+  the migrated canonical game; controller creation then applies the same
+  new-session reset while retaining `clearCount`, preferences, and plant state.
 - Snapshot validation begins from `unknown`: version three, positive level,
   dynamic active inventory (`pieces + tray + unsettled fed`) bounded by that
   level's config and divisible by three per kind, tray length `0..7`, feed
@@ -194,7 +225,9 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
   back to in-memory play and never block rendering.
 - A full-tray loss persists the already-reset stable level-one state before a
   1-1.5 second seven-piece tray preview. Away/unmount cancels and clears the
-  preview; returning resumes the stable field instead of replaying the loss.
+  preview; returning attention within the same controller resumes that stable
+  field, while constructing a new controller generates another fresh
+  level-one session without touching plant experience.
 - Audio is muted by default. Explicit opt-in enables only one short clear
   sound; away/dispose stops active nodes immediately.
 - Document Picture-in-Picture is feature-detected and hidden when unsupported.
@@ -231,8 +264,10 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
 | Coarse pointer or width `<=620px` | touch scanning and semantic controls work without hover dependency |
 | Seven unmatched tray entries | persist stable level-one restart, lock for the loss preview, then resume automatically |
 | Window/document becomes away | persist, cancel timers, stop sound, pause motion |
+| No stored snapshot or storage is unavailable | generate exactly one pristine level-one field with `fish-1` through `fish-36`, sound off, and a new planting timestamp |
+| Valid stored mid-session snapshot opens in a new controller | generate a fresh level-one field, clear tray/feed/guard, reset piece IDs, and preserve `clearCount`, `plantedAt`, and `soundEnabled` |
 | Stored JSON/schema is invalid | fresh solvable level-one snapshot, sound off |
-| Valid version-two snapshot uses four or eight legacy keys | map kinds, preserve opaque IDs and progress, return version three |
+| Valid version-two snapshot uses four or eight legacy keys | map and validate kinds, preserve long-term progress, then start the controller on a fresh version-three level-one field |
 | Valid version-one endless snapshot | preserve long-term progress and start a solvable version-three level-one field |
 | Final triple clears | persist next harder level, show disappear/arrival preview, then unlock input |
 | Legacy version-one snapshot lacks `plant` | preserve game/preferences and seed `plantedAt` at load |
@@ -253,9 +288,14 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
   local to `FishField.vue`.
 - Good: activating the home cat reveals intent first; only the explicit search
   action starts looking or creates a guard target.
+- Good: reloading after level, tray, feed, or guard changes starts a clean
+  level-one session while the plant remains at the person's accumulated
+  `clearCount` and original `plantedAt`.
 - Bad: a hidden fish keeps a pointer hit box or light coordinates are saved.
 - Bad: the cat trigger calls `requestCatSearch` directly or pet/menu state is
   added to the persisted snapshot.
+- Bad: controller creation either resumes the stored game or calls
+  `createFreshSnapshot` in a way that replaces lifetime plant experience.
 - Bad: a component calls `localStorage` or computes blockers itself.
 - Bad: hover state, timers, focus, DOM nodes, or audio objects enter snapshots.
 - Bad: a second Vue mount is created for the small window.
@@ -268,9 +308,9 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
    canonical tray;
 2. immediate stable persistence plus automatic completion, away cancellation,
    and dispose cancellation of the 1-1.5 second loss preview;
-3. version-three snapshot round-trip and full-tray normalization, four-kind and eight-kind version-two
-   migration, opaque legacy IDs, version-one migration, malformed JSON/schema,
-   duplicate IDs, invalid
+3. version-three snapshot round-trip, load-result source metadata, full-tray
+   normalization, four-kind and eight-kind version-two migration, opaque legacy
+   IDs, version-one migration, malformed JSON/schema, duplicate IDs, invalid
    geometry/inventory, tray/level/counter/plant bounds, inaccessible storage,
    and quota failure;
 4. browser checks at `320x568`, `390x844`, `768x1024`, and `1440x900` for no
@@ -298,6 +338,11 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
     rejection/travel/guard rules; browser-check first-action focus, arrow
     navigation, Escape/outside dismissal, focus restoration, and PiP document
     movement.
+11. controller-entry regressions: a valid level/tray/feed/guard snapshot becomes
+    a fresh level-one game with empty transient inventories and IDs starting at
+    one while preserving `clearCount`, `plantedAt`, and `soundEnabled`; missing,
+    empty, and inaccessible storage generate only one pristine field; PiP
+    movement keeps the same mounted controller and current session.
 
 Run focused tests first, then one `pnpm ci:web`.
 
@@ -315,7 +360,15 @@ This trusts corrupt data and forks canonical state across two Vue mounts.
 ### Correct
 
 ```ts
-const snapshot = loadAmbientSnapshot(resolveBrowserStorage(), random);
+const loaded = loadAmbientSnapshotResult(resolveBrowserStorage(), random);
+const stored = loaded.snapshot;
+const initial = loaded.loadedFromStorage
+  ? {
+      ...stored,
+      game: createLevelState(1, stored.game.clearCount, 1, random),
+      pet: { guardedPieceId: null },
+    }
+  : stored;
 pipDocument.body.append(existingSurface);
 
 const scheduler = createFieldProjectionScheduler(

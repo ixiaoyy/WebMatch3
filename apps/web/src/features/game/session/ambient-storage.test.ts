@@ -13,6 +13,7 @@ import {
   AMBIENT_STORAGE_KEY,
   createFreshSnapshot,
   loadAmbientSnapshot,
+  loadAmbientSnapshotResult,
   parseAmbientSnapshot,
   saveAmbientSnapshot,
   type StorageLike,
@@ -59,6 +60,43 @@ function createMemoryStorage(): StorageLike & { values: Map<string, string> } {
 }
 
 describe("ambient snapshot storage", () => {
+  it("reports whether a valid snapshot was restored or a fresh fallback was used", () => {
+    const emptyStorage = createMemoryStorage();
+    const emptyResult = loadAmbientSnapshotResult(
+      emptyStorage,
+      createSeededRandom(8),
+      2_000,
+    );
+    expect(emptyResult).toEqual({
+      snapshot: createFreshSnapshot(createSeededRandom(8), 2_000),
+      loadedFromStorage: false,
+    });
+
+    const storedSnapshot = createFreshSnapshot(createSeededRandom(9), 3_000);
+    expect(saveAmbientSnapshot(emptyStorage, storedSnapshot)).toBe(true);
+    expect(
+      loadAmbientSnapshotResult(
+        emptyStorage,
+        createSeededRandom(10),
+        4_000,
+      ),
+    ).toEqual({
+      snapshot: storedSnapshot,
+      loadedFromStorage: true,
+    });
+
+    emptyStorage.values.set(AMBIENT_STORAGE_KEY, "not-json");
+    const malformedResult = loadAmbientSnapshotResult(
+      emptyStorage,
+      createSeededRandom(11),
+      5_000,
+    );
+    expect(malformedResult).toEqual({
+      snapshot: createFreshSnapshot(createSeededRandom(11), 5_000),
+      loadedFromStorage: false,
+    });
+  });
+
   it("round-trips exact stable state and preferences", () => {
     const storage = createMemoryStorage();
     const fresh = createFreshSnapshot(createSeededRandom(10));

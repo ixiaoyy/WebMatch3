@@ -100,6 +100,24 @@ create one owner for:
 
 Rendering code may format fields, but it must not redefine the payload contract.
 
+### Mistake 5: Treating Every Persisted Field As Having The Same Lifetime
+
+**Bad**: A “start a new session” change either restores the entire snapshot or
+replaces the entire snapshot with defaults.
+
+**Good**: Before implementing reset or restore behavior, classify every field
+at the persistence boundary:
+
+- interaction-only projection;
+- current-session state;
+- lifetime/person progress;
+- durable preference.
+
+Write one integration test that starts from a mixed snapshot and proves both
+sides of the boundary: session fields reset, while lifetime progress and
+preferences survive. A container such as `game` does not make every nested
+field session-scoped; classify by product meaning, not object shape.
+
 ---
 
 ## Checklist for Cross-Layer Features
@@ -110,12 +128,14 @@ Before implementation:
 - [ ] Identified all layer boundaries
 - [ ] Defined format at each boundary
 - [ ] Decided where validation happens
+- [ ] Classified persisted fields by lifetime before defining reset/restore
 
 After implementation:
 
 - [ ] Tested with edge cases (null, empty, invalid)
 - [ ] Verified error handling at each boundary
 - [ ] Checked data survives round-trip
+- [ ] Tested mixed-lifetime reset/restore behavior in one boundary-level test
 - [ ] Checked that consumers import shared decoders / projections instead of
       casting payload fields locally
 - [ ] Checked that derived state points back to the source event identifier

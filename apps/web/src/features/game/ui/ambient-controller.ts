@@ -1,6 +1,7 @@
 import { computed, ref, shallowRef } from "vue";
 
 import {
+  createLevelState,
   feedPiece,
   getSelectablePieces,
   selectPiece,
@@ -10,7 +11,7 @@ import {
 } from "../engine";
 import {
   AMBIENT_SNAPSHOT_VERSION,
-  loadAmbientSnapshot,
+  loadAmbientSnapshotResult,
   resolveBrowserStorage,
   saveAmbientSnapshot,
   type AmbientSnapshotV3,
@@ -73,7 +74,26 @@ export function createAmbientController(
   const timers = options.timers ?? browserTimers;
   const now = options.now ?? Date.now;
   const currentTime = ref(now());
-  const initial = loadAmbientSnapshot(storage, random, currentTime.value);
+  const loaded = loadAmbientSnapshotResult(storage, random, currentTime.value);
+  const stored = loaded.snapshot;
+  const introEligible = shouldStartIntro(
+    stored.game,
+    stored.pet.guardedPieceId,
+  );
+  // A controller owns one play session; storage carries only its long-term
+  // plant progress and preferences into a newly generated level-one field.
+  const initial: AmbientSnapshotV3 = loaded.loadedFromStorage
+    ? {
+      ...stored,
+      game: createLevelState(
+        1,
+        stored.game.clearCount,
+        1,
+        random,
+      ),
+      pet: { guardedPieceId: null },
+    }
+    : stored;
   const game = shallowRef<AmbientGameState>(initial.game);
   const soundEnabled = ref(initial.preferences.soundEnabled);
   const status = ref("小鱼藏在桌面上。移动指针、触摸或方向键寻找它们。");
@@ -173,7 +193,7 @@ export function createAmbientController(
   }
 
   function startIntro(): void {
-    if (!shouldStartIntro(initial.game, initial.pet.guardedPieceId)) return;
+    if (!introEligible) return;
     feedback.value = "intro";
     introPhase.value = "scan";
     status.value = "一道柔和的光正扫向附近的小鱼。";

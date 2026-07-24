@@ -41,9 +41,9 @@ current level. Emptying the pile advances to a gradually denser level. A full
 tray briefly remains visible as failure feedback while the persisted stable
 state immediately restarts at level one with plant experience preserved.
 
-Version-three persistence stores canonical game, preferences, plant age, and
-only a validated guarded fish ID. Missing, malformed, stale, full-tray, or
-full-cat guard state safely restores a playable level with the cat home. The
-same mounted Vue surface
-moves into Document Picture-in-Picture and reflows there without creating a
-second controller.
+Version-three persistence validates canonical game state, preferences, plant
+age, and a guarded fish ID. A new page/controller always generates a fresh
+level-one field with an empty tray, no fed fish, and the cat home; only lifetime
+`clearCount`, `plantedAt`, and the sound preference carry into that session.
+The same mounted Vue surface moves into Document Picture-in-Picture and reflows
+there without creating a second controller or resetting the current field.
