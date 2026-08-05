@@ -99,7 +99,11 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
   pointer light, then keeps a brief afterglow. Crossing the threshold is a
   scan and release never selects; pointer cancellation also never selects.
 - Fish outside the light are visually hidden and cannot intercept pointer
-  input. The actually focused fish and an active dragged fish stay visible;
+  input. Fish inside an outer UI-only hint ring may expose a faint silhouette,
+  but remain unrevealed and pointer-transparent until they enter the canonical
+  discovery radius. The hint ring reuses the spotlight's elliptical distance
+  calculation and never changes coordinates, selection, guard, or snapshot
+  state. The actually focused fish and an active dragged fish stay visible;
   every revealed fish remains actionable unless the whole field is disabled.
 - Native piece buttons provide 44px-or-larger targets. Tab and assistive
   technology retain a direct semantic action path that does not require
@@ -124,11 +128,16 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
   cancels it immediately. Refresh may replay only while canonical state remains
   untouched. Eligibility is computed from the loaded pre-reset snapshot so an
   operated session does not become tutorial-eligible merely because the new
-  controller resets its field; snapshots never gain intro fields.
+  controller resets its field; snapshots never gain intro fields. Independently,
+  the first level of each mounted page session may show one short visible
+  instruction until the first successful tray selection. Moving or cancelling
+  the visual intro does not dismiss this instruction, which stays non-blocking
+  and UI-local and never enters a snapshot.
 - Controller feedback is one mutually exclusive projection. Direct `select`,
-  `feed`, and `feed-rejected` feedback lasts about 220ms; `clear`, `settle`, and
-  `level` use the existing 620ms reward window; `loss` remains 1.2s. Components
-  consume this projection and do not start competing cross-component timers.
+  `feed`, and `feed-rejected` feedback lasts about 220ms; `clear` and `settle`
+  use the existing 620ms reward window; `level` uses about 960ms so its arrival
+  cue is readable; `loss` remains 1.2s. Components consume this projection and
+  do not start competing cross-component timers.
   FishField may still own pointer afterglow, drag return, and nearby slip timers
   because those projections never cross its boundary.
 - When the search surface itself is focused, arrows move the light and
@@ -140,6 +149,12 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
   never selects, feeds, persists, or announces merely because an arrow moved.
 - The home cat is a native button whose pointer, touch, Enter, and Space
   activation opens one component-local menu with `摸一下` and `帮我抓鱼`.
+  The component's outer layout and transparent artwork area are pointer-
+  transparent; only a pose-aligned native trigger and the open menu accept
+  pointer input. Every pose retains at least a 44px trigger, while feeding still
+  evaluates the separate outer geometric drop bounds. Keyboard focus follows
+  the visible cat with an alpha-aware shadow instead of outlining the artwork
+  canvas.
   Activation alone never selects a target. `摸一下` calls `petCat`, replaces the
   current transient reaction/status, keeps the cat home, and never changes or
   persists canonical game state. Only `帮我抓鱼` calls `requestCatSearch`.
@@ -148,7 +163,9 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
   fish inside the guide beam's visual radius remain hidden and pointer-
   transparent. The cat guards until the exact fish is selected, fed, or
   invalidated. Pointer spotlight movement does not dismiss or relocate the
-  guide light.
+  guide light. The exact guarded fish may also show one visual-only warm outline
+  and short `这里` marker; the polite live region owns its accessible wording,
+  and resolving or invalidating the guard removes the marker immediately.
 - Cat search ranks only the already eligible hidden candidates. Candidate
   species with two matching tray fish rank before species with one, which rank
   before species with none; ties retain the existing distance-to-cat order and
@@ -238,7 +255,9 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
   the version-two migration boundary may contain legacy kind literals; saved
   output is always version three with canonical species keys.
 - A final clear persists the atomically created next level and locks input for
-  the short level-arrival feedback. No numeric level label is rendered.
+  the short level-arrival feedback. A transient non-modal cue may report the
+  current species count and deeper stacking, but no numeric level label or
+  persistent progression HUD is rendered.
 - Storage absence, malformed data, security errors, or quota failures fall
   back to in-memory play and never block rendering.
 - A full-tray loss persists the already-reset stable level-one state before a
@@ -268,6 +287,7 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
 |---|---|
 | Pointer leaves and no focus remains | clear the transient light; canonical state remains unchanged |
 | Pristine initial state loads | run the interruptible scan/targets/tray intro without locking input or persisting tutorial state |
+| First page-session selection has not completed | keep one visible non-blocking instruction even if pointer movement cancels the visual intro; remove it after successful tray selection |
 | Any input or attention/PiP handoff during intro | cancel the intro timer and continue that action immediately; do not replay in the same controller |
 | Touch tap ends below 7px travel | select the nearest fish revealed by that pointer light once, keep a brief afterglow, then hide non-retained fish |
 | Touch scan crosses 7px or receives `pointercancel` | keep a brief local afterglow without selecting, then hide fish outside retained focus/drag targets |
@@ -280,6 +300,8 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
 | `摸一下` is chosen | close the menu, restore cat focus, show one affectionate reaction/status, and perform no storage write |
 | `帮我抓鱼` is chosen with an eligible target | close the menu, look, travel, immediately light and guard that target on arrival |
 | Guide beam overlaps multiple canonical fish | reveal and enable only the guarded target; keep every neighbor hidden unless the independent pointer light reveals it |
+| Spotlight outer hint ring overlaps a fish | show at most a faint pointer-transparent silhouette; do not add it to the revealed/actionable set |
+| Pointer crosses transparent cat artwork outside the pose trigger | hit the fish or surface beneath it; retain the outer geometry only for drag-to-cat drop evaluation |
 | Eligible hidden fish include tray-count priorities 2, 1, and 0 | choose from priority 2, then 1, then 0; use distance and stable ID only within a priority |
 | Escape or outside pointer activation closes the cat menu | remove the menu and its current-document listeners, then restore focus to the cat |
 | A cat action starts while a leave transition retains the menu node | make that node inert, a11y-hidden, and pointer-transparent immediately, then remove it at transition completion |
@@ -354,8 +376,9 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
    disposal cancellation, untouched-refresh replay, operated-state suppression,
    and mutual replacement of direct feedback.
 8. pure projections for cross-layer intro targets, tray pressure boundaries,
-   clear-versus-settle plant response, direct feed acceptance/rejection, and
-   loss/level input locking.
+   spotlight hint-ring membership without reveal/actionability, clear-versus-
+   settle plant response, direct feed acceptance/rejection, 960ms level
+   feedback, and loss/level input locking.
 9. pure fish accessible-name projections for zero/one/multiple overlaps,
    one-based layers, feedable/resting action wording, and current-piece
    reprojection after an upper fish leaves; browser-check the resulting names
@@ -378,6 +401,9 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
     threshold movement as a tap and boundary-or-greater movement as a scan;
     browser-check that a blank-surface touch tap selects its nearest locally
     revealed fish once, while scan release and cancellation select nothing.
+13. browser hit-test the transparent cat-artwork area against nearby fish in
+    standing and lying pose groups; retain the pose trigger's 44px minimum and
+    the separate outer drag-to-cat drop geometry.
 
 Run focused tests first, then one `pnpm ci:web`.
 

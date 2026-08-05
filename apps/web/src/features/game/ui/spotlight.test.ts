@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import type { PilePiece } from "../engine";
+import {
+  DISCOVERY_RADIUS_X,
+  type PilePiece,
+} from "../engine";
 import {
   FULL_FIELD_PROJECTION,
   LANDSCAPE_FIELD_PROJECTION,
@@ -9,6 +12,7 @@ import {
   findNearestRevealedPiece,
   getFieldProjection,
   getFishTargetOffsets,
+  getHintedPieceIds,
   getRevealedPieceIds,
   isPointerTap,
   MINIMUM_FISH_TARGET_SIZE,
@@ -63,6 +67,33 @@ describe("spotlight projection", () => {
   it("retains only the exact guided fish when no pointer light is active", () => {
     expect(getRevealedPieceIds(pieces, null, ["near"])).toEqual(
       new Set(["near"]),
+    );
+  });
+
+  it("previews only fish in the non-interactive ring outside reveal range", () => {
+    const light = { x: 0.5, y: 0.5 };
+    const ringPieces: readonly PilePiece[] = [
+      {
+        ...pieces[0],
+        id: "revealed",
+        pile: { x: light.x + DISCOVERY_RADIUS_X * 0.9, y: light.y },
+      },
+      {
+        ...pieces[0],
+        id: "hinted",
+        pile: { x: light.x + DISCOVERY_RADIUS_X * 1.2, y: light.y },
+      },
+      {
+        ...pieces[0],
+        id: "hidden",
+        pile: { x: light.x + DISCOVERY_RADIUS_X * 1.4, y: light.y },
+      },
+    ];
+
+    expect(getHintedPieceIds(ringPieces, light)).toEqual(new Set(["hinted"]));
+    expect(getHintedPieceIds(ringPieces, null).size).toBe(0);
+    expect(getRevealedPieceIds(ringPieces, light)).toEqual(
+      new Set(["revealed"]),
     );
   });
 

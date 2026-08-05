@@ -24,6 +24,7 @@ const anchor = ref<HTMLElement | null>(null);
 const catDropTarget = ref<HTMLElement | null>(null);
 const draggingPieceId = ref<string | null>(null);
 const catDropHover = ref(false);
+const playHintDismissed = ref(false);
 const revealedPieceIds = ref<ReadonlySet<string>>(new Set());
 const pipOpen = ref(false);
 const activePipWindow = ref<Window | null>(null);
@@ -72,6 +73,28 @@ const catGuidedPieceId = computed(() =>
     ? game.guardedPiece.value?.id ?? null
     : null,
 );
+const showPlayHint = computed(() =>
+  !playHintDismissed.value &&
+  game.game.value.level === 1 &&
+  game.feedback.value !== "level" &&
+  game.feedback.value !== "loss"
+);
+const fieldKindCount = computed(() =>
+  new Set(game.game.value.pieces.map((piece) => piece.kind)).size
+);
+const levelCue = computed(() =>
+  `新鱼群 · ${fieldKindCount.value} 种鱼 · 更深堆叠`
+);
+
+/**
+ * Dismisses the session-only play hint after the first successful fish pick.
+ * @param pieceId Canonical fish ID emitted by the revealed field target.
+ * @returns Nothing; selection remains owned by the ambient controller.
+ */
+function activateFish(pieceId: string): void {
+  playHintDismissed.value = true;
+  game.activate(pieceId);
+}
 
 function isInsideCat(clientX: number, clientY: number): boolean {
   const bounds = catDropTarget.value?.getBoundingClientRect();
@@ -251,6 +274,22 @@ onBeforeUnmount(() => {
           @toggle-pip="togglePip"
         />
 
+        <Transition name="play-hint">
+          <p v-if="showPlayHint" class="play-hint" aria-hidden="true">
+            移动光圈找鱼，凑齐 3 条同类
+          </p>
+        </Transition>
+
+        <Transition name="level-cue">
+          <p
+            v-if="game.feedback.value === 'level'"
+            class="level-cue"
+            aria-hidden="true"
+          >
+            {{ levelCue }}
+          </p>
+        </Transition>
+
         <GrowingPlant
           :clear-count="game.game.value.clearCount"
           :age-days="game.plantAgeDays.value"
@@ -291,7 +330,7 @@ onBeforeUnmount(() => {
           :feedback="game.feedback.value"
           :intro-phase="game.introPhase.value"
           :intro-target-ids="game.introTargetIds.value"
-          @activate="game.activate"
+          @activate="activateFish"
           @feed="game.feedToCat"
           @search-miss="game.announceSearchMiss"
           @revealed-change="onRevealedChange"
@@ -371,6 +410,68 @@ onBeforeUnmount(() => {
   transition-duration: 0.01ms !important;
 }
 
+.play-hint,
+.level-cue {
+  position: absolute;
+  z-index: 11;
+  left: 50%;
+  width: max-content;
+  max-width: calc(100% - 32px);
+  margin: 0;
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+.play-hint {
+  bottom: calc(
+    var(--scene-tray-bottom) + var(--scene-tray-height) +
+      clamp(24px, 3.6vh, 48px)
+  );
+  padding: 9px 14px;
+  border-radius: 999px;
+  color: #3e4964;
+  background: rgb(251 252 255 / 90%);
+  box-shadow: 0 9px 24px rgb(57 70 112 / 13%);
+  font-size: clamp(13px, 1.2vw, 15px);
+  font-weight: 720;
+  line-height: 1.2;
+  text-align: center;
+  backdrop-filter: blur(10px);
+}
+
+.level-cue {
+  top: clamp(74px, 11vh, 112px);
+  padding: 12px 17px;
+  border-radius: 15px;
+  color: #3f4961;
+  background: rgb(255 251 238 / 94%);
+  box-shadow: 0 12px 30px rgb(57 70 112 / 15%);
+  font-size: clamp(14px, 1.4vw, 17px);
+  font-weight: 760;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.play-hint-enter-active,
+.play-hint-leave-active,
+.level-cue-enter-active,
+.level-cue-leave-active {
+  transition:
+    opacity 180ms ease,
+    filter 220ms ease,
+    transform 240ms var(--ease-out);
+}
+
+.play-hint-enter-from,
+.play-hint-leave-to,
+.level-cue-enter-from,
+.level-cue-leave-to {
+  opacity: 0;
+  filter: blur(2px);
+  transform: translateX(-50%) translateY(6px);
+}
+
 .cat-companion-slot {
   --cat-companion-width: clamp(320px, 35vw, 500px);
 
@@ -381,6 +482,7 @@ onBeforeUnmount(() => {
       var(--cat-companion-width) + var(--cat-plant-overlap)
   );
   bottom: var(--scene-companion-base);
+  pointer-events: none;
   transition:
     left 520ms var(--ease-out),
     bottom 520ms var(--ease-out),
@@ -430,6 +532,17 @@ onBeforeUnmount(() => {
     &[data-away-from-home="true"][data-guard-side="right"] {
       transform: translate(64px, 48%);
     }
+  }
+
+  .play-hint {
+    bottom: calc(
+      var(--scene-tray-bottom) + var(--scene-tray-height) + 16px
+    );
+    padding: 8px 12px;
+  }
+
+  .level-cue {
+    top: 68px;
   }
 
 }
@@ -488,6 +601,13 @@ onBeforeUnmount(() => {
 
 @media (prefers-reduced-motion: reduce) {
   .cat-companion-slot {
+    transition: none;
+  }
+
+  .play-hint-enter-active,
+  .play-hint-leave-active,
+  .level-cue-enter-active,
+  .level-cue-leave-active {
     transition: none;
   }
 }

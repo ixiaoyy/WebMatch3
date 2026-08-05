@@ -17,6 +17,7 @@ import {
 import {
   findNearestRevealedPiece,
   getFishTargetOffsets,
+  getHintedPieceIds,
   getRevealedPieceIds,
   isPointerTap,
   MINIMUM_FISH_TARGET_SIZE,
@@ -78,13 +79,17 @@ const guidedPiece = computed(() =>
     : props.pieces.find((piece) => piece.id === props.guidedPieceId) ?? null,
 );
 const guidedLight = computed(() => guidedPiece.value?.pile ?? null);
+const activeSearchLight = computed(() => {
+  if (props.away) return null;
+  return props.introPhase === "idle" ? light.value : INITIAL_DISCOVERY_POINT;
+});
 const revealedPieceIds = computed(() => {
   if (props.away) return new Set<string>();
   if (props.transitioning) return new Set(props.pieces.map((piece) => piece.id));
 
   const revealed = new Set(getRevealedPieceIds(
     props.pieces,
-    props.introPhase === "idle" ? light.value : INITIAL_DISCOVERY_POINT,
+    activeSearchLight.value,
     [
       activeFocusedId.value,
       draggedPieceId.value,
@@ -93,6 +98,11 @@ const revealedPieceIds = computed(() => {
   ));
   return revealed;
 });
+const hintedPieceIds = computed(() =>
+  props.transitioning
+    ? new Set<string>()
+    : getHintedPieceIds(props.pieces, activeSearchLight.value)
+);
 const separationOffsets = computed(() =>
   props.disabled
     ? new Map<string, Point>()
@@ -104,9 +114,7 @@ const separationOffsets = computed(() =>
     })
 );
 const projectedLight = computed(() => projectFieldPoint(
-  props.introPhase === "idle"
-    ? light.value ?? INITIAL_DISCOVERY_POINT
-    : INITIAL_DISCOVERY_POINT,
+  activeSearchLight.value ?? INITIAL_DISCOVERY_POINT,
   props.projection,
 ));
 const guidedSpotlightStyle = computed(() => {
@@ -486,6 +494,8 @@ onBeforeUnmount(() => {
         :piece="piece"
         :position="projectFieldPoint(piece.pile, projection)"
         :revealed="revealedPieceIds.has(piece.id)"
+        :hinted="hintedPieceIds.has(piece.id)"
+        :guided="guidedPiece?.id === piece.id"
         :feedable="feedable"
         :higher-overlap-count="higherOverlapCounts.get(piece.id) ?? 0"
         :disabled="disabled"
@@ -523,8 +533,15 @@ onBeforeUnmount(() => {
   touch-action: none;
 
   &:focus-visible {
-    outline: 2px solid rgb(60 85 126 / 38%);
-    outline-offset: -5px;
+    outline: none;
+  }
+
+  &:focus-visible &__spotlight--pointer &__spotlight-lens {
+    border-color: rgb(60 85 126 / 44%);
+    box-shadow:
+      inset 0 0 38px rgb(255 250 220 / 16%),
+      0 0 0 2px rgb(60 85 126 / 10%),
+      0 8px 22px rgb(57 70 112 / 10%);
   }
 
   &[data-loss="true"] {
@@ -582,10 +599,10 @@ onBeforeUnmount(() => {
       }
 
       .fish-field__spotlight-lens {
-        border-color: rgb(255 245 198 / 58%);
+        border-color: rgb(255 237 160 / 78%);
         box-shadow:
-          inset 0 0 30px rgb(255 245 196 / 25%),
-          0 0 24px rgb(255 225 145 / 24%);
+          inset 0 0 32px rgb(255 245 196 / 32%),
+          0 8px 26px rgb(187 139 67 / 24%);
       }
     }
   }
@@ -597,11 +614,11 @@ onBeforeUnmount(() => {
     top: calc(var(--active-light-y) * 100%);
     width: var(--spotlight-width);
     height: var(--spotlight-height);
-    border: 1px solid rgb(255 252 231 / 10%);
+    border: 1px solid rgb(255 252 231 / 34%);
     border-radius: 50%;
     box-shadow:
-      inset 0 0 38px rgb(255 250 220 / 8%),
-      0 0 12px rgb(216 229 255 / 7%);
+      inset 0 0 38px rgb(255 250 220 / 14%),
+      0 8px 22px rgb(57 70 112 / 9%);
     transform: translate(-50%, -50%);
   }
 
@@ -609,6 +626,10 @@ onBeforeUnmount(() => {
   &[data-spotlight="dragging"] &__spotlight--pointer,
   &[data-spotlight="afterglow"] &__spotlight--pointer {
     opacity: 1;
+  }
+
+  &[data-spotlight="searching"] &__spotlight--pointer &__spotlight-lens {
+    animation: spotlight-search-breathe 1.35s ease-in-out infinite;
   }
 
   &[data-intro="scan"] &__spotlight--pointer,
@@ -638,6 +659,10 @@ onBeforeUnmount(() => {
 .fish-field[data-feedback="feed"] :deep(.fish-field-piece-leave-active) {
   pointer-events: none;
   animation: fish-origin-tuck 220ms var(--ease-out) both;
+}
+
+.fish-field :deep(.fish-field-piece-leave-active:focus-visible) {
+  outline: none;
 }
 
 .fish-field[data-feedback="feed"] :deep(.fish-field-piece-leave-active) {
@@ -672,6 +697,11 @@ onBeforeUnmount(() => {
 @keyframes intro-spotlight-arrive {
   0% { opacity: 0; transform: translate(-7%, 5%); }
   100% { opacity: 1; transform: none; }
+}
+
+@keyframes spotlight-search-breathe {
+  0%, 100% { filter: brightness(0.98); }
+  50% { filter: brightness(1.08); }
 }
 
 @keyframes fish-origin-tuck {

@@ -228,41 +228,41 @@ onBeforeUnmount(() => {
       :disabled="loss"
       @click="toggleInteraction"
       @keydown="onTriggerKeydown"
-    >
-      <Transition name="cat-pose" mode="out-in">
-        <img
-          :key="pose"
-          class="cat-companion__image"
-          :src="presentation.assetUrl"
-          alt=""
-          width="1402"
-          height="1254"
-          draggable="false"
-        />
-      </Transition>
+    />
 
-      <Transition name="cat-sleep-mark">
-        <span
-          v-if="pose === 'sleeping'"
-          class="cat-companion__sleep-mark"
-          aria-hidden="true"
-        >
-          ZZZ
-        </span>
-      </Transition>
+    <Transition name="cat-pose" mode="out-in">
+      <img
+        :key="pose"
+        class="cat-companion__image"
+        :src="presentation.assetUrl"
+        alt=""
+        width="1402"
+        height="1254"
+        draggable="false"
+      />
+    </Transition>
 
-      <Transition name="cat-bubble" mode="out-in">
-        <span
-          v-if="reaction"
-          :key="reaction.id"
-          class="cat-companion__bubble"
-          role="status"
-          aria-live="polite"
-        >
-          {{ reaction.text }}
-        </span>
-      </Transition>
-    </button>
+    <Transition name="cat-sleep-mark">
+      <span
+        v-if="pose === 'sleeping'"
+        class="cat-companion__sleep-mark"
+        aria-hidden="true"
+      >
+        ZZZ
+      </span>
+    </Transition>
+
+    <Transition name="cat-bubble" mode="out-in">
+      <span
+        v-if="reaction"
+        :key="reaction.id"
+        class="cat-companion__bubble"
+        role="status"
+        aria-live="polite"
+      >
+        {{ reaction.text }}
+      </span>
+    </Transition>
 
     <Transition name="cat-menu" @before-leave="deactivateLeavingMenu">
       <div
@@ -302,23 +302,38 @@ onBeforeUnmount(() => {
   width: var(--cat-companion-width, clamp(320px, 35vw, 500px));
   height: var(--cat-companion-height, clamp(370px, 40vw, 560px));
   isolation: isolate;
+  pointer-events: none;
 
   &__trigger {
-    position: relative;
+    position: absolute;
+    z-index: 2;
+    bottom: 2%;
+    left: 50%;
     display: block;
-    width: 100%;
-    height: 100%;
+    width: 68%;
+    min-width: 44px;
+    height: 84%;
+    min-height: 44px;
     padding: 0;
     border: 0;
     margin: 0;
-    border-radius: 42%;
+    border-radius: 46% 46% 40% 40%;
     background: transparent;
     cursor: pointer;
+    pointer-events: auto;
+    transform: translateX(-50%);
   }
 
   &__trigger:focus-visible {
-    outline: 3px solid var(--focus);
-    outline-offset: 4px;
+    outline: none;
+  }
+
+  &[data-pose="lying"] &__trigger,
+  &[data-pose="sleeping"] &__trigger {
+    bottom: 8%;
+    width: 92%;
+    height: 62%;
+    border-radius: 46% 48% 42% 40%;
   }
 
   &[data-drop-hover="true"] {
@@ -339,11 +354,6 @@ onBeforeUnmount(() => {
     animation: cat-feed-accepted 220ms var(--ease-out) both;
   }
 
-  &[data-feed-response="rejected"] {
-    outline: 2px solid rgb(161 105 112 / 30%);
-    outline-offset: -8px;
-  }
-
   &[data-feed-response="rejected"] &__image {
     animation: cat-feed-rejected 220ms var(--ease-out) both;
   }
@@ -354,6 +364,7 @@ onBeforeUnmount(() => {
 
   &__image {
     position: absolute;
+    z-index: 1;
     inset: 0;
     display: block;
     width: 100%;
@@ -361,7 +372,21 @@ onBeforeUnmount(() => {
     object-fit: contain;
     object-position: 50% 100%;
     filter: drop-shadow(0 9px 8px rgb(57 70 112 / 16%));
+    pointer-events: none;
     user-select: none;
+  }
+
+  &__trigger:hover ~ &__image {
+    filter:
+      drop-shadow(0 10px 10px rgb(57 70 112 / 18%))
+      brightness(1.025);
+  }
+
+  &__trigger:focus-visible ~ &__image {
+    filter:
+      drop-shadow(0 0 2px rgb(60 85 126 / 92%))
+      drop-shadow(0 0 6px rgb(247 250 255 / 88%))
+      drop-shadow(0 10px 10px rgb(57 70 112 / 18%));
   }
 
   &__sleep-mark {
@@ -412,6 +437,7 @@ onBeforeUnmount(() => {
       no-repeat;
     box-shadow: 0 12px 30px rgb(70 77 125 / 12%);
     backdrop-filter: blur(12px) saturate(1.08);
+    pointer-events: auto;
   }
 
   &__menu-action {

@@ -25,7 +25,7 @@ const emit = defineEmits<{
   right: max(var(--quiet-controls-right, 18px), env(safe-area-inset-right));
   display: flex;
   gap: var(--quiet-controls-gap, 8px);
-  opacity: 0.56;
+  opacity: 0.8;
   transition: opacity 160ms ease;
 
   &:hover,
@@ -37,21 +37,26 @@ const emit = defineEmits<{
     min-width: var(--quiet-control-min-width, 64px);
     min-height: var(--quiet-control-min-height, 48px);
     padding: var(--quiet-control-padding, 9px 15px);
-    border: 1px solid var(--quiet-line);
+    border: 1px solid rgb(67 78 112 / 24%);
     border-radius: 999px;
-    color: var(--ink-muted);
-    background: var(--quiet-surface-strong);
-    box-shadow: 0 6px 8px rgb(57 70 112 / 8%);
+    color: #4b5670;
+    background: rgb(251 252 255 / 94%);
+    box-shadow: 0 7px 16px rgb(57 70 112 / 11%);
     font-size: var(--quiet-control-font-size, 14px);
     font-weight: 680;
     cursor: pointer;
     backdrop-filter: blur(10px);
+
+    &:focus-visible {
+      outline-offset: 2px;
+      box-shadow: 0 9px 20px rgb(57 70 112 / 16%);
+    }
   }
 }
 
 @media (hover: none) {
   .quiet-controls {
-    opacity: 0.58;
+    opacity: 0.86;
   }
 }
 

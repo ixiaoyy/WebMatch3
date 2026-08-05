@@ -56,6 +56,7 @@ const DIRECT_FEEDBACK_DURATION = 220;
 const INTRO_SCAN_DURATION = 520;
 const INTRO_TARGET_DURATION = 620;
 const INTRO_TRAY_DURATION = 620;
+const LEVEL_FEEDBACK_DURATION = 960;
 const LOSS_FEEDBACK_DURATION = 1_200;
 
 const browserTimers: TimerApi = {
@@ -552,7 +553,10 @@ export function createAmbientController(
     showCatReaction(feedCount === 3 ? "full" : "fed");
     persist();
     if (result.settled.length > 0) {
-      settleFeedback(result.levelAdvanced ? "level" : "settle", 620);
+      settleFeedback(
+        result.levelAdvanced ? "level" : "settle",
+        result.levelAdvanced ? LEVEL_FEEDBACK_DURATION : 620,
+      );
     } else {
       settleFeedback("feed", DIRECT_FEEDBACK_DURATION);
     }
@@ -583,7 +587,7 @@ export function createAmbientController(
       options.onClear?.();
       settleFeedback(
         result.levelAdvanced ? "level" : "clear",
-        620,
+        result.levelAdvanced ? LEVEL_FEEDBACK_DURATION : 620,
       );
       return;
     }
@@ -601,7 +605,10 @@ export function createAmbientController(
         catPose.value = "idle";
         clearCatPoseTimer();
       }
-      settleFeedback(result.levelAdvanced ? "level" : "settle", 620);
+      settleFeedback(
+        result.levelAdvanced ? "level" : "settle",
+        result.levelAdvanced ? LEVEL_FEEDBACK_DURATION : 620,
+      );
       return;
     }
     game.value = result.state;

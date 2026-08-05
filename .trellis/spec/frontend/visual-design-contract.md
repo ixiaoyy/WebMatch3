@@ -47,22 +47,27 @@ wallpaper containing interactive objects.
 - Fish may rotate through the complete `[0, 360)` range. The stable button
   target and rotation-independent conservative overlap footprint keep vertical
   and inverted silhouettes aligned with interaction and settling behavior.
-- Fish are visually unidentifiable outside the local spotlight. Revealed
-  pieces remain fully actionable at every layer. A revealed stack quietly fans
-  apart to expose distinct pointer targets; removing one may make directly
-  related neighbors slide a few pixels sideways and down before settling.
-  Neither motion changes canonical positions. Focused and dragged pieces retain
+- Fish are visually unidentifiable outside the local spotlight except for a
+  very faint silhouette in its outer directional hint ring. Hinted silhouettes
+  remain pointer-transparent and do not count as revealed. Revealed pieces
+  remain fully actionable at every layer. A revealed stack quietly fans apart
+  to expose distinct pointer targets; removing one may make directly related
+  neighbors slide a few pixels sideways and down before settling. Neither
+  motion changes canonical positions. Focused and dragged pieces retain
   recognizable silhouettes outside the light.
 - Interaction motion uses one quiet exponential ease-out language: direct
   selection, tray landing, and feed acceptance/rejection take `150-250ms`;
-  intro, clear, settle, plant response, and level arrival take `480-700ms`.
-  Do not add spring motion, casino particles, or full-screen flashes. Reduced
-  motion keeps static light, outline, shadow, color, and pressure states while
-  removing travel and pulse animation; content is usable before animation ends.
-- The first untouched scene demonstrates the loop without visible copy or an
-  input lock: the spotlight scans to the initial discoverable match, its three
-  targets lift with layer-aware timing, then the first empty tray slot responds.
-  Any real input immediately owns the scene.
+  intro, clear, settle, and plant response take `480-700ms`; level arrival may
+  remain visible for about `960ms`. Do not add spring motion, casino particles,
+  or full-screen flashes. Reduced motion keeps static light, outline, shadow,
+  color, copy, and pressure states while removing travel and pulse animation;
+  content is usable before animation ends.
+- The first untouched scene demonstrates the loop without an input lock: the
+  spotlight scans to the initial discoverable match, its three targets lift
+  with layer-aware timing, and the first empty tray slot responds. A short
+  visible instruction may remain until the first successful selection even
+  after real input takes over the spotlight; it must not become a start gate,
+  tutorial panel, or persistent HUD.
 - Plant begins as an empty ceramic pot. Generated foliage reveals continuously
   from the first clear: clear `1` reaches 4%, the first field's 12 clears reach
   18%, and later nodes `100,300,600,1000,1800,3000,5000,8000` preserve the
@@ -78,18 +83,23 @@ wallpaper containing interactive objects.
   pomegranate blossom for fruiting, and peony for mature. The mark grows in
   size at every stage and contains no visible word, digit, frame, or badge.
   It may transition once when the stage changes, but it does not bob at idle.
+  A normal clear may additionally show one transient `植物 +1 成长` cue near
+  the plant; this cue disappears with clear feedback and never becomes part of
+  the persistent stage mark.
 - A tray clear keeps the exact three cleared silhouettes visible for about
   620ms. They first slide from their occupied slots into one shared middle
   position, then small bubbles rise as all three dissolve together. This is
   the primary clear feedback; it becomes a static highlighted preview under
   reduced motion.
 - Clearing a finite cluster fades the next, slightly harder cluster into the
-  same surface. The transition communicates progression without adding a
-  number, label, modal, or separate result screen.
+  same surface. A short non-modal cue may state the current species count and
+  deeper stacking, but it must not add a numeric level label, confirmation,
+  persistent progression HUD, or separate result screen.
 - The seven-slot tray is the only persistent glass grouping. Quiet controls
-  stay low-opacity until hover/focus, become slightly clearer on touch-only
-  surfaces, and preserve 44px-or-larger targets. The empty tray is present but
-  nearly transparent; occupied slots restore full readability.
+  remain visually secondary yet readable at rest, become clearer on
+  hover/focus and touch-only surfaces, and preserve 44px-or-larger targets. The
+  empty tray is present but nearly transparent; occupied slots restore full
+  readability.
 - At five entries the tray gains a static warm caution edge. At six entries it
   adds a slower, stronger pressure cue; reduced motion replaces the pulse with
   a fixed outline. A normal clear uses the lavender reward and plant response,
@@ -101,7 +111,10 @@ wallpaper containing interactive objects.
   travel may move the cat beside one fish without covering that fish's target;
   its current bounds are also the pointer/touch feed drop region. On arrival, a
   steady warm local beam reveals the guarded fish independently from the
-  movable pointer spotlight.
+  movable pointer spotlight. The outer artwork canvas remains pointer-
+  transparent and a pose-aligned 44px-or-larger trigger owns activation, so
+  transparent pixels cannot block fish beneath them; keyboard focus follows
+  the visible silhouette instead of the artwork rectangle.
 - Home interaction uses one compact translucent two-action menu anchored to the
   cat's right side. The actions stack vertically inside one pale lavender
   cat-ear speech bubble with a quiet stitched divider and small lower-left
@@ -132,14 +145,14 @@ wallpaper containing interactive objects.
 | Fish silhouettes collapse at 32–48px | reject the set or adjust subject scale |
 | Idle scene identifies fish before search | hide fish projection without removing its semantic action path |
 | Field resembles rows/cells | replace authored positions; hiding borders is insufficient |
-| Controls compete with scene | reduce opacity/weight, retain focus visibility |
+| Controls compete with scene | reduce weight while retaining readable resting contrast and focus visibility |
 | 320px viewport | safe full-surface field, readable tray, 44px targets, no overflow |
 | `320x240` compact surface | full surface, controls, cat, plant cue, and tray remain visible with no scroll overflow |
 | Cat interaction menu opens | keep both actions inside the viewport at 44px or larger, with the home cat still legible beside the pot |
 | Cat menu opens from pointer input | keep the unified bubble surface free of a persistent nested-button focus ring; keyboard activation still exposes a visible focus indicator |
 | Reduced motion | instant/near-instant projection and feedback, no lost state |
 | Clear reaches a plant stage before its day gate | remain in the previous stage |
-| Stage mark is shown | exactly one flower, correct species and increasing size, no visible copy |
+| Stage mark is shown | exactly one flower, correct species and increasing size, no persistent visible copy; a clear-only growth cue may coexist transiently |
 | `backdrop-filter` unsupported | translucent fallback remains readable |
 | Away state | pause animation and remove transition travel |
 
@@ -164,8 +177,10 @@ wallpaper containing interactive objects.
    lower-right hierarchy;
 2. capture `320x240`, `320x568`, `390x844`, `768x1024`, and `1440x900`;
 3. inspect hidden idle, pointer/touch/keyboard reveal, afterglow, retained
-   focus/drag, stacked lower selection and settling, cat menu open, pet
-   reaction, bubble clear, growing, flowering, fruiting, mature,
+   focus/drag, pointer-transparent outer hint silhouettes, stacked lower
+   selection and settling, cat menu open, transparent cat-artwork hit testing,
+   guarded-fish marker, pet reaction, bubble clear, growth cue, growing,
+   flowering, fruiting, mature,
    full-tray loss, away, and reduced-motion states;
 4. validate the home cat/pot relationship and 44px menu actions at every
    captured viewport, plus tab title `小鱼`, whale favicon legibility, console

@@ -13,6 +13,7 @@ export const MINIMUM_FISH_TARGET_SIZE = 44;
 
 const FISH_TARGET_GAP = MINIMUM_FISH_TARGET_SIZE + 4;
 const FISH_TARGET_LAYOUT_ITERATIONS = 96;
+const HINTED_SPOTLIGHT_RADIUS_SCALE = 1.35;
 
 export interface FieldProjection {
   readonly left: number;
@@ -305,6 +306,52 @@ export function isPointerTap(
   return Math.hypot(current.x - start.x, current.y - start.y) < threshold;
 }
 
+/**
+ * Finds fish inside a scaled copy of the canonical elliptical discovery area.
+ * @param pieces Canonical fish pieces to measure without mutating them.
+ * @param light Current canonical spotlight point, or null when search is idle.
+ * @param radiusScale Multiplier applied to both discovery radii.
+ * @returns Piece IDs whose centers fall inside the scaled ellipse.
+ */
+function getPieceIdsWithinSpotlightRadius(
+  pieces: readonly PilePiece[],
+  light: Point | null,
+  radiusScale: number,
+): Set<string> {
+  const ids = new Set<string>();
+  if (!light) return ids;
+  const safeScale = Math.max(0.001, radiusScale);
+  for (const piece of pieces) {
+    const distance = Math.hypot(
+      (piece.pile.x - light.x) / (DISCOVERY_RADIUS_X * safeScale),
+      (piece.pile.y - light.y) / (DISCOVERY_RADIUS_Y * safeScale),
+    );
+    if (distance <= 1) ids.add(piece.id);
+  }
+  return ids;
+}
+
+/**
+ * Returns a visual-only preview ring immediately outside the reveal area.
+ * @param pieces Canonical fish pieces available for transient projection.
+ * @param light Current canonical spotlight point, or null when search is idle.
+ * @returns IDs in the outer hint ring, excluding already revealed fish.
+ */
+export function getHintedPieceIds(
+  pieces: readonly PilePiece[],
+  light: Point | null,
+): ReadonlySet<string> {
+  const hintedIds = getPieceIdsWithinSpotlightRadius(
+    pieces,
+    light,
+    HINTED_SPOTLIGHT_RADIUS_SCALE,
+  );
+  for (const revealedId of getPieceIdsWithinSpotlightRadius(pieces, light, 1)) {
+    hintedIds.delete(revealedId);
+  }
+  return hintedIds;
+}
+
 export function getRevealedPieceIds(
   pieces: readonly PilePiece[],
   light: Point | null,
@@ -317,12 +364,8 @@ export function getRevealedPieceIds(
     ),
   );
   if (!light) return ids;
-  for (const piece of pieces) {
-    const distance = Math.hypot(
-      (piece.pile.x - light.x) / DISCOVERY_RADIUS_X,
-      (piece.pile.y - light.y) / DISCOVERY_RADIUS_Y,
-    );
-    if (distance <= 1) ids.add(piece.id);
+  for (const pieceId of getPieceIdsWithinSpotlightRadius(pieces, light, 1)) {
+    ids.add(pieceId);
   }
   return ids;
 }

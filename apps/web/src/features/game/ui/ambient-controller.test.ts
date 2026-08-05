@@ -606,7 +606,7 @@ describe("ambient controller", () => {
   });
 
   it("opens a harder level only after the current pile is completely cleared", () => {
-    const { callbacks, timers } = controlledTimers();
+    const { callbacks, delays, timers } = controlledTimers();
     const controller = createAmbientController({
       random: createSeededRandom(55),
       storage: null,
@@ -637,6 +637,7 @@ describe("ambient controller", () => {
     expect(controller.game.value.pieces).toHaveLength(42);
     expect(controller.feedback.value).toBe("level");
     expect(controller.canSelect.value).toBe(false);
+    expect(delays).toEqual([960]);
     callbacks.shift()?.();
     expect(controller.feedback.value).toBe("idle");
     expect(controller.canSelect.value).toBe(true);

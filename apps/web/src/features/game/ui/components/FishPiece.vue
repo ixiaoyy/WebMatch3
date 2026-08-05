@@ -9,6 +9,8 @@ const props = defineProps<{
   piece: PilePiece;
   position: Point;
   revealed: boolean;
+  hinted: boolean;
+  guided: boolean;
   feedable: boolean;
   higherOverlapCount: number;
   tabIndex: number;
@@ -127,6 +129,8 @@ function onKeydown(event: KeyboardEvent): void {
     :data-piece-id="piece.id"
     :data-kind="piece.kind"
     :data-revealed="revealed"
+    :data-hinted="hinted"
+    :data-guided="guided"
     :data-layer="piece.layer"
     :data-dragging="dragging"
     :data-slipping="slipDirection !== 0"
@@ -173,6 +177,9 @@ function onKeydown(event: KeyboardEvent): void {
         draggable="false"
       />
     </span>
+    <span v-if="guided" class="fish-piece__guide-label" aria-hidden="true">
+      这里
+    </span>
   </button>
 </template>
 
@@ -209,6 +216,10 @@ function onKeydown(event: KeyboardEvent): void {
   &[data-revealed="true"],
   &[data-dragging="true"] {
     opacity: 1;
+  }
+
+  &[data-hinted="true"]:not([data-revealed="true"]):not([data-dragging="true"]) {
+    opacity: 0.16;
   }
 
   &[data-revealed="true"]:not(:disabled),
@@ -250,6 +261,44 @@ function onKeydown(event: KeyboardEvent): void {
     );
   }
 
+  &[data-hinted="true"]:not([data-revealed="true"]) &__visual {
+    filter: grayscale(0.3) blur(0.35px)
+      drop-shadow(0 5px 8px rgb(57 70 112 / 10%));
+    transform:
+      translate(-50%, -50%)
+      rotate(var(--piece-rotation))
+      scale(calc(var(--piece-scale) * 0.96));
+  }
+
+  &[data-guided="true"] {
+    z-index: 10;
+  }
+
+  &[data-guided="true"] &__visual {
+    animation: fish-guided-breathe 1.2s ease-in-out infinite;
+    filter:
+      drop-shadow(0 0 3px rgb(255 247 198 / 92%))
+      drop-shadow(0 8px 13px rgb(187 139 67 / 34%));
+  }
+
+  &__guide-label {
+    position: absolute;
+    z-index: 2;
+    top: -30px;
+    left: 50%;
+    width: max-content;
+    padding: 5px 9px;
+    border-radius: 999px;
+    color: #5f4b2f;
+    background: rgb(255 248 218 / 94%);
+    box-shadow: 0 7px 18px rgb(95 75 47 / 16%);
+    font-size: 12px;
+    font-weight: 760;
+    line-height: 1;
+    pointer-events: none;
+    transform: translateX(-50%);
+  }
+
   &:hover:not(:disabled):not([data-dragging="true"]) {
     z-index: 8;
   }
@@ -265,8 +314,8 @@ function onKeydown(event: KeyboardEvent): void {
   &:focus-visible {
     z-index: 9;
     border-radius: 36%;
-    outline: 3px solid var(--focus);
-    outline-offset: 2px;
+    outline: 2px solid rgb(60 85 126 / 56%);
+    outline-offset: 3px;
   }
 
   &[data-slipping="true"]:not([data-dragging="true"]) &__visual {
@@ -319,6 +368,22 @@ function onKeydown(event: KeyboardEvent): void {
       rotate(var(--piece-rotation))
       scale(var(--piece-scale-intro));
     filter: drop-shadow(0 14px 14px rgb(85 84 130 / 28%)) brightness(1.06);
+  }
+}
+
+@keyframes fish-guided-breathe {
+  0%, 100% {
+    transform:
+      translate(-50%, -50%)
+      rotate(var(--piece-rotation))
+      scale(var(--piece-scale));
+  }
+
+  50% {
+    transform:
+      translate(-50%, -54%)
+      rotate(var(--piece-rotation))
+      scale(calc(var(--piece-scale) * 1.045));
   }
 }
 
@@ -375,6 +440,12 @@ function onKeydown(event: KeyboardEvent): void {
   .fish-piece__visual {
     transition: none;
     animation: none !important;
+  }
+
+  .fish-piece[data-guided="true"] .fish-piece__visual {
+    filter:
+      drop-shadow(0 0 3px rgb(255 247 198 / 92%))
+      drop-shadow(0 8px 13px rgb(187 139 67 / 34%));
   }
 
   .fish-piece[data-intro-target="true"] .fish-piece__visual {

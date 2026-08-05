@@ -62,6 +62,15 @@ const stageAssets: Readonly<Record<PlantStage, string>> = {
         />
       </Transition>
     </span>
+    <Transition name="growth-cue">
+      <figcaption
+        v-if="celebrating"
+        class="growing-plant__growth-cue"
+        aria-hidden="true"
+      >
+        植物 +1 成长
+      </figcaption>
+    </Transition>
   </figure>
 </template>
 
@@ -95,6 +104,7 @@ const stageAssets: Readonly<Record<PlantStage, string>> = {
     transform-origin: 50% 100%;
     transition:
       clip-path 620ms var(--ease-out),
+      filter 320ms ease,
       opacity 420ms ease,
       transform 620ms var(--ease-out);
   }
@@ -163,8 +173,46 @@ const stageAssets: Readonly<Record<PlantStage, string>> = {
   }
 
   &--celebrating {
-    animation: plant-reward 460ms var(--ease-out);
+    animation: plant-reward 560ms var(--ease-out);
   }
+
+  &--celebrating &__foliage {
+    filter:
+      brightness(1.08)
+      drop-shadow(0 9px 14px rgb(129 107 177 / 18%));
+  }
+
+  &__growth-cue {
+    position: absolute;
+    z-index: 5;
+    top: 14%;
+    left: 50%;
+    width: max-content;
+    padding: 7px 10px;
+    border-radius: 999px;
+    color: #4b5268;
+    background: rgb(255 251 229 / 94%);
+    box-shadow: 0 9px 22px rgb(79 70 109 / 17%);
+    font-size: clamp(12px, 1vw, 14px);
+    font-weight: 780;
+    line-height: 1;
+    transform: translateX(-50%);
+  }
+}
+
+.growth-cue-enter-active,
+.growth-cue-leave-active {
+  transition:
+    opacity 180ms ease,
+    filter 220ms ease,
+    transform 260ms var(--ease-out);
+}
+
+.growth-cue-enter-from,
+.growth-cue-leave-to {
+  opacity: 0;
+  filter: blur(2px);
+  transform: translateX(-50%) translateY(7px);
 }
 
 .stage-flower-enter-active,
@@ -185,7 +233,7 @@ const stageAssets: Readonly<Record<PlantStage, string>> = {
 }
 
 @keyframes plant-reward {
-  50% { transform: translateY(-3px) scale(1.018); }
+  52% { transform: translateY(-7px) scale(1.045); }
 }
 
 @media (max-width: 620px) {
@@ -219,6 +267,7 @@ const stageAssets: Readonly<Record<PlantStage, string>> = {
 @media (prefers-reduced-motion: reduce) {
   .growing-plant--celebrating {
     animation: none;
+    filter: brightness(1.07);
   }
 
   .growing-plant__foliage {
@@ -226,7 +275,9 @@ const stageAssets: Readonly<Record<PlantStage, string>> = {
   }
 
   .stage-flower-enter-active,
-  .stage-flower-leave-active {
+  .stage-flower-leave-active,
+  .growth-cue-enter-active,
+  .growth-cue-leave-active {
     transition: none;
   }
 }
