@@ -46,6 +46,7 @@ const label = computed(() => getFishAccessibleLabel({
 
 function onPointerDown(event: PointerEvent): void {
   if (event.button !== 0) return;
+  suppressClick = false;
   pointerId = event.pointerId;
   pointerStart = { x: event.clientX, y: event.clientY };
   dragX.value = 0;
@@ -81,7 +82,11 @@ function finishDrag(event: PointerEvent): void {
   dragging.value = false;
   dragX.value = 0;
   dragY.value = 0;
-  if (!wasDragging) return;
+  if (!wasDragging) {
+    suppressClick = true;
+    emit("activate", props.piece.id);
+    return;
+  }
   suppressClick = true;
   emit("dragEnd", props.piece.id, event.clientX, event.clientY);
 }
@@ -96,11 +101,12 @@ function cancelDrag(event: PointerEvent): void {
   if (wasDragging) emit("dragEnd", props.piece.id, Number.NaN, Number.NaN);
 }
 
-function onClick(): void {
-  if (suppressClick) {
+function onClick(event: MouseEvent): void {
+  if (suppressClick && event.detail !== 0) {
     suppressClick = false;
     return;
   }
+  suppressClick = false;
   emit("activate", props.piece.id);
 }
 
@@ -158,13 +164,15 @@ function onKeydown(event: KeyboardEvent): void {
     @pointerup="finishDrag"
     @pointercancel="cancelDrag"
   >
-    <img
-      :src="presentation.assetUrl"
-      alt=""
-      width="512"
-      height="512"
-      draggable="false"
-    />
+    <span class="fish-piece__visual" aria-hidden="true">
+      <img
+        :src="presentation.assetUrl"
+        alt=""
+        width="512"
+        height="512"
+        draggable="false"
+      />
+    </span>
   </button>
 </template>
 
@@ -172,10 +180,11 @@ function onKeydown(event: KeyboardEvent): void {
 .fish-piece {
   --active-x: var(--pile-x);
   --active-y: var(--pile-y);
+  --piece-visual-size: clamp(68px, 6.4vw, 88px);
   position: absolute;
   z-index: calc(2 + var(--piece-layer));
-  width: clamp(68px, 6.4vw, 88px);
-  height: clamp(68px, 6.4vw, 88px);
+  width: var(--fish-target-size, 44px);
+  height: var(--fish-target-size, 44px);
   padding: 0;
   border: 0;
   border-radius: 44%;
@@ -190,24 +199,16 @@ function onKeydown(event: KeyboardEvent): void {
     translate(
       calc(-50% + var(--separation-x)),
       calc(-50% + var(--separation-y) + var(--layer-lift))
-    )
-    rotate(var(--piece-rotation))
-    scale(var(--piece-scale));
-  transform-origin: 50% 72%;
+    );
   transition:
     left 520ms var(--ease-out),
     top 520ms var(--ease-out),
     transform 220ms var(--ease-out),
-    filter 220ms var(--ease-out),
     opacity 220ms var(--ease-out);
 
   &[data-revealed="true"],
   &[data-dragging="true"] {
     opacity: 1;
-    filter: drop-shadow(
-      0 var(--layer-shadow-y) var(--layer-shadow-blur)
-      rgb(57 70 112 / 18%)
-    );
   }
 
   &[data-revealed="true"]:not(:disabled),
@@ -215,7 +216,25 @@ function onKeydown(event: KeyboardEvent): void {
     pointer-events: auto;
   }
 
-  img {
+  &__visual {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    display: block;
+    width: var(--piece-visual-size);
+    height: var(--piece-visual-size);
+    pointer-events: none;
+    transform:
+      translate(-50%, -50%)
+      rotate(var(--piece-rotation))
+      scale(var(--piece-scale));
+    transform-origin: 50% 72%;
+    transition:
+      transform 220ms var(--ease-out),
+      filter 220ms var(--ease-out);
+  }
+
+  &__visual img {
     width: 100%;
     height: 100%;
     object-fit: contain;
@@ -223,13 +242,21 @@ function onKeydown(event: KeyboardEvent): void {
     user-select: none;
   }
 
+  &[data-revealed="true"] &__visual,
+  &[data-dragging="true"] &__visual {
+    filter: drop-shadow(
+      0 var(--layer-shadow-y) var(--layer-shadow-blur)
+      rgb(57 70 112 / 18%)
+    );
+  }
+
   &:hover:not(:disabled):not([data-dragging="true"]) {
     z-index: 8;
+  }
+
+  &:hover:not(:disabled):not([data-dragging="true"]) &__visual {
     transform:
-      translate(
-        calc(-50% + var(--separation-x)),
-        calc(-54% + var(--separation-y) + var(--layer-lift))
-      )
+      translate(-50%, -54%)
       rotate(var(--piece-rotation))
       scale(calc(var(--piece-scale) * 1.06));
     filter: drop-shadow(0 10px 12px rgb(78 87 126 / 19%));
@@ -242,16 +269,16 @@ function onKeydown(event: KeyboardEvent): void {
     outline-offset: 2px;
   }
 
-  &[data-slipping="true"]:not([data-dragging="true"]) {
+  &[data-slipping="true"]:not([data-dragging="true"]) &__visual {
     animation: fish-nearby-slip 380ms var(--ease-out);
   }
 
-  &[data-intro-target="true"]:not([data-dragging="true"]) {
+  &[data-intro-target="true"]:not([data-dragging="true"]) &__visual {
     animation: fish-intro-lift 620ms var(--ease-out) both;
     animation-delay: var(--layer-delay);
   }
 
-  &[data-arriving="true"] {
+  &[data-arriving="true"] &__visual {
     animation: fish-layer-arrive 540ms var(--ease-out) both;
     animation-delay: var(--layer-delay);
   }
@@ -263,10 +290,16 @@ function onKeydown(event: KeyboardEvent): void {
       translate(
         calc(-50% + var(--separation-x) + var(--drag-x)),
         calc(-50% + var(--separation-y) + var(--layer-lift) + var(--drag-y))
-      )
+      );
+    transition: none;
+  }
+
+  &[data-dragging="true"] &__visual {
+    filter: drop-shadow(0 13px 14px rgb(57 70 112 / 24%));
+    transform:
+      translate(-50%, -50%)
       rotate(var(--piece-rotation))
       scale(calc(var(--piece-scale) * 1.06));
-    filter: drop-shadow(0 13px 14px rgb(57 70 112 / 24%));
     transition: none;
   }
 }
@@ -274,10 +307,7 @@ function onKeydown(event: KeyboardEvent): void {
 @keyframes fish-intro-lift {
   0%, 100% {
     transform:
-      translate(
-        calc(-50% + var(--separation-x)),
-        calc(-50% + var(--separation-y) + var(--layer-lift))
-      )
+      translate(-50%, -50%)
       rotate(var(--piece-rotation))
       scale(var(--piece-scale));
     filter: drop-shadow(0 var(--layer-shadow-y) 8px rgb(57 70 112 / 18%));
@@ -285,10 +315,7 @@ function onKeydown(event: KeyboardEvent): void {
 
   48% {
     transform:
-      translate(
-        calc(-50% + var(--separation-x)),
-        calc(-58% + var(--separation-y) + var(--layer-lift))
-      )
+      translate(-50%, -58%)
       rotate(var(--piece-rotation))
       scale(var(--piece-scale-intro));
     filter: drop-shadow(0 14px 14px rgb(85 84 130 / 28%)) brightness(1.06);
@@ -298,10 +325,7 @@ function onKeydown(event: KeyboardEvent): void {
 @keyframes fish-layer-arrive {
   0% {
     transform:
-      translate(
-        calc(-50% + var(--separation-x)),
-        calc(-50% + var(--separation-y) + var(--layer-lift) - 12px)
-      )
+      translate(-50%, calc(-50% - 12px))
       rotate(var(--piece-rotation))
       scale(var(--piece-scale-arrive));
     filter: blur(1.5px);
@@ -309,10 +333,7 @@ function onKeydown(event: KeyboardEvent): void {
 
   100% {
     transform:
-      translate(
-        calc(-50% + var(--separation-x)),
-        calc(-50% + var(--separation-y) + var(--layer-lift))
-      )
+      translate(-50%, -50%)
       rotate(var(--piece-rotation))
       scale(var(--piece-scale));
     filter: drop-shadow(0 var(--layer-shadow-y) 8px rgb(57 70 112 / 18%));
@@ -323,10 +344,7 @@ function onKeydown(event: KeyboardEvent): void {
   0%,
   100% {
     transform:
-      translate(
-        calc(-50% + var(--separation-x)),
-        calc(-50% + var(--separation-y) + var(--layer-lift))
-      )
+      translate(-50%, -50%)
       rotate(var(--piece-rotation))
       scale(var(--piece-scale));
   }
@@ -334,8 +352,8 @@ function onKeydown(event: KeyboardEvent): void {
   52% {
     transform:
       translate(
-        calc(-50% + var(--separation-x) + var(--slip-x)),
-        calc(-50% + var(--separation-y) + var(--layer-lift) + 10px)
+        calc(-50% + var(--slip-x)),
+        calc(-50% + 10px)
       )
       rotate(calc(var(--piece-rotation) + var(--slip-rotation)))
       scale(calc(var(--piece-scale) * 0.98));
@@ -345,18 +363,21 @@ function onKeydown(event: KeyboardEvent): void {
 
 @media (max-width: 620px) {
   .fish-piece {
-    width: clamp(62px, 20vw, 78px);
-    height: clamp(62px, 20vw, 78px);
+    --piece-visual-size: clamp(62px, 20vw, 78px);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .fish-piece {
     transition: none;
+  }
+
+  .fish-piece__visual {
+    transition: none;
     animation: none !important;
   }
 
-  .fish-piece[data-intro-target="true"] {
+  .fish-piece[data-intro-target="true"] .fish-piece__visual {
     filter: drop-shadow(0 var(--layer-shadow-y) 10px rgb(85 84 130 / 26%))
       brightness(1.04);
   }

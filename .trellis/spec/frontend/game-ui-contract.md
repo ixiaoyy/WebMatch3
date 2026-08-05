@@ -134,6 +134,10 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
 - When the search surface itself is focused, arrows move the light and
   Enter/Space selects the nearest revealed selectable fish. Focused piece
   buttons retain directional navigation and `F` feeding.
+- If Enter/Space finds no revealed fish under a moved keyboard spotlight,
+  `FishField` emits one UI-only miss event and the controller replaces the
+  polite live-region status with a short continue-searching hint. The miss
+  never selects, feeds, persists, or announces merely because an arrow moved.
 - The home cat is a native button whose pointer, touch, Enter, and Space
   activation opens one component-local menu with `摸一下` and `帮我抓鱼`.
   Activation alone never selects a target. `摸一下` calls `petCat`, replaces the
@@ -145,12 +149,21 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
   transparent. The cat guards until the exact fish is selected, fed, or
   invalidated. Pointer spotlight movement does not dismiss or relocate the
   guide light.
+- Cat search ranks only the already eligible hidden candidates. Candidate
+  species with two matching tray fish rank before species with one, which rank
+  before species with none; ties retain the existing distance-to-cat order and
+  use piece ID as the deterministic final order. The helper never selects,
+  removes, clears, or feeds the guarded target.
 - The interaction menu focuses its first action, supports arrow/Home/End
   navigation, closes on Escape or outside pointer activation, and restores
   focus to the cat. Its document listeners resolve from the component root's
   current `ownerDocument`, so moving the existing surface into Picture-in-
   Picture cannot leave listeners attached to the opener. Menu state, focus,
   DOM nodes, and scheduled focus restoration never enter the snapshot.
+- Choosing either cat action closes the menu before emitting the action. A DOM
+  node retained for the leave transition is immediately inert, `aria-hidden`,
+  and pointer-transparent, then removed when the transition finishes; it never
+  remains as a menu or menuitem in the accessibility tree.
 - Pointer and touch feeding use one Pointer Events drag path from a selectable
   fish to the cat's current bounds. Canonical state changes only on a valid
   drop; failed/rejected drops restore the fish. Keyboard users focus a fish and
@@ -235,9 +248,12 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
   level-one session without touching plant experience.
 - Audio is muted by default. Explicit opt-in enables only one short clear
   sound; away/dispose stops active nodes immediately.
-- Document Picture-in-Picture is feature-detected and hidden when unsupported.
-  It moves the existing mounted surface, never mounts a second game/controller,
-  and restores that surface on `pagehide`.
+- Document Picture-in-Picture is supported only when `requestWindow` is
+  callable and is hidden otherwise. A valid request immediately reports that
+  opening is in progress; rejection or bounded non-settlement keeps the same
+  surface in place and replaces that status with one quiet failure message. A
+  successful request moves the existing mounted surface, never mounts a second
+  game/controller, and restores that surface on `pagehide`.
 - Away styling is owned by the movable surface rather than its opener-page
   ancestor, so animation pause and reduced-attention contrast remain effective
   after the same DOM subtree enters Picture-in-Picture.
@@ -264,7 +280,9 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
 | `摸一下` is chosen | close the menu, restore cat focus, show one affectionate reaction/status, and perform no storage write |
 | `帮我抓鱼` is chosen with an eligible target | close the menu, look, travel, immediately light and guard that target on arrival |
 | Guide beam overlaps multiple canonical fish | reveal and enable only the guarded target; keep every neighbor hidden unless the independent pointer light reveals it |
+| Eligible hidden fish include tray-count priorities 2, 1, and 0 | choose from priority 2, then 1, then 0; use distance and stable ID only within a priority |
 | Escape or outside pointer activation closes the cat menu | remove the menu and its current-document listeners, then restore focus to the cat |
+| A cat action starts while a leave transition retains the menu node | make that node inert, a11y-hidden, and pointer-transparent immediately, then remove it at transition completion |
 | Guarded target is selected or fed | return cat home and clear the guard |
 | Feed credit completes one/two tray fish | animate only that short group, consume credits once, no plant clear |
 | Cat already has three feeds | keep feed mode off and announce that the cat is full |
@@ -280,7 +298,9 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
 | Legacy version-one snapshot lacks `plant` | preserve game/preferences and seed `plantedAt` at load |
 | Storage access/write throws | continue in memory; write returns `false` |
 | PiP API unavailable | render no small-window button or warning |
+| PiP namespace exists but `requestWindow` is not callable | treat it as unavailable and render no small-window button |
 | PiP request rejects/closes | keep or restore the same surface and state |
+| Keyboard spotlight has no revealed target on Enter/Space | announce one transient miss; do not change or persist game state |
 | Multiple resize deliveries before one frame | commit one projection from the latest valid dimensions |
 | Surface moves into PiP before resize scheduling | request the frame from the surface's current window |
 | `320x240` narrow surface | use the compact composition, preserve 44px controls, and create no horizontal or vertical overflow |
@@ -345,7 +365,10 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
     rejection/travel/guard rules; browser-check first-action focus, arrow
     navigation, Escape/outside dismissal, focus restoration, and PiP document
     movement. Assert the guide retains only the exact guarded ID even when
-    canonical neighbors fall inside the guide beam's visual radius.
+    canonical neighbors fall inside the guide beam's visual radius. Assert
+    search priority `two matching tray fish > one > zero`, with distance and ID
+    tie-breaks, and assert a leaving action menu is immediately non-interactive
+    and absent from the accessibility tree.
 11. controller-entry regressions: a valid level/tray/feed/guard snapshot becomes
     a fresh level-one game with empty transient inventories and IDs starting at
     one while preserving `clearCount`, `plantedAt`, and `soundEnabled`; missing,

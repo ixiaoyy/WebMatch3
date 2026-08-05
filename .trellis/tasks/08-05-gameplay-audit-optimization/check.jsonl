@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/frontend/index.md", "reason": "执行前端收尾检查并按相关契约验证。"}
+{"file": ".trellis/spec/frontend/game-ui-contract.md", "reason": "核对输入、live region、菜单、PiP、单会话与完整核心循环。"}
+{"file": ".trellis/spec/frontend/visual-design-contract.md", "reason": "核对独立 44px 目标、窄屏/紧凑视口、无溢出和 reduced-motion。"}
+{"file": ".trellis/spec/frontend/game-engine-contract.md", "reason": "证明 UI 修复没有改变纯引擎规则、坐标和阻挡关系。"}
+{"file": ".trellis/tasks/08-05-gameplay-audit-optimization/research/playtest-audit.md", "reason": "逐项复测原始缺陷并补齐首次试玩的证据缺口。"}

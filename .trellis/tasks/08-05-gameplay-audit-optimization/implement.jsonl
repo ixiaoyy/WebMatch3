@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/frontend/game-ui-contract.md", "reason": "约束 UI 投影、键盘/触摸路径、菜单生命周期、PiP 单 surface 与持久化边界。"}
+{"file": ".trellis/spec/frontend/visual-design-contract.md", "reason": "约束 44px 目标、显影鱼群展开、窄屏/紧凑布局、菜单和 reduced-motion。"}
+{"file": ".trellis/spec/frontend/game-engine-contract.md", "reason": "确保命中修复不改 canonical 坐标、blocker 元数据或选择规则。"}
+{"file": ".trellis/spec/frontend/directory-structure.md", "reason": "把单一游戏消费者的投影与交互代码保留在 features/game/ui。"}
+{"file": ".trellis/tasks/08-05-gameplay-audit-optimization/research/playtest-audit.md", "reason": "提供实测复现、截图索引、源码冲突和尚未验证的路径。"}

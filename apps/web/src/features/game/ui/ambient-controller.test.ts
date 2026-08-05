@@ -762,6 +762,108 @@ describe("ambient controller", () => {
     controller.dispose();
   });
 
+  it("prioritizes hidden legal fish that complete the strongest tray pair", () => {
+    const controller = createAmbientController({
+      random: createSeededRandom(154),
+      storage: null,
+    });
+    const source = controller.game.value.pieces[0];
+    expect(source).toBeDefined();
+    if (!source) return;
+    const zeroMatch = {
+      ...source,
+      id: "zero-match",
+      kind: "sardine" as const,
+      pile: { x: 0.13, y: 0.73 },
+      spread: { x: 0.13, y: 0.73 },
+      blockerIds: [],
+    };
+    const oneMatch = {
+      ...source,
+      id: "one-match",
+      kind: "whale" as const,
+      pile: { x: 0.3, y: 0.7 },
+      spread: { x: 0.3, y: 0.7 },
+      blockerIds: [],
+    };
+    const twoMatch = {
+      ...source,
+      id: "two-match",
+      kind: "koi" as const,
+      pile: { x: 0.8, y: 0.2 },
+      spread: { x: 0.8, y: 0.2 },
+      blockerIds: [],
+    };
+    controller.game.value = {
+      ...controller.game.value,
+      pieces: [zeroMatch, oneMatch, twoMatch],
+      tray: [
+        { id: "tray-koi-1", kind: "koi" },
+        { id: "tray-koi-2", kind: "koi" },
+        { id: "tray-whale", kind: "whale" },
+      ],
+    };
+
+    controller.requestCatSearch();
+
+    expect(controller.guardedPiece.value?.id).toBe(twoMatch.id);
+    controller.dispose();
+  });
+
+  it("prefers one tray match over a closer unmatched hidden fish", () => {
+    const controller = createAmbientController({
+      random: createSeededRandom(155),
+      storage: null,
+    });
+    const source = controller.game.value.pieces[0];
+    expect(source).toBeDefined();
+    if (!source) return;
+    const unmatched = {
+      ...source,
+      id: "unmatched",
+      kind: "sardine" as const,
+      pile: { x: 0.12, y: 0.74 },
+      spread: { x: 0.12, y: 0.74 },
+      blockerIds: [],
+    };
+    const oneMatch = {
+      ...source,
+      id: "one-match",
+      kind: "whale" as const,
+      pile: { x: 0.85, y: 0.15 },
+      spread: { x: 0.85, y: 0.15 },
+      blockerIds: [],
+    };
+    controller.game.value = {
+      ...controller.game.value,
+      pieces: [unmatched, oneMatch],
+      tray: [{ id: "tray-whale", kind: "whale" }],
+    };
+
+    controller.requestCatSearch();
+
+    expect(controller.guardedPiece.value?.id).toBe(oneMatch.id);
+    controller.dispose();
+  });
+
+  it("announces a keyboard search miss without changing or persisting the game", () => {
+    const setItem = vi.fn();
+    const controller = createAmbientController({
+      random: createSeededRandom(156),
+      storage: { getItem: () => null, setItem },
+    });
+    const beforeMiss = controller.game.value;
+
+    controller.announceSearchMiss();
+
+    expect(controller.status.value).toBe(
+      "这里还没有照到小鱼，继续移动探照灯。",
+    );
+    expect(controller.game.value).toBe(beforeMiss);
+    expect(setItem).not.toHaveBeenCalled();
+    controller.dispose();
+  });
+
   it("persists sound preference without enabling it by default", () => {
     const storage = memoryStorage();
     const first = createAmbientController({

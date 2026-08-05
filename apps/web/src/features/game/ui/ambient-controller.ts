@@ -410,13 +410,22 @@ export function createAmbientController(
       return;
     }
 
+    const trayKindCounts = new Map<string, number>();
+    for (const piece of game.value.tray) {
+      trayKindCounts.set(piece.kind, (trayKindCounts.get(piece.kind) ?? 0) + 1);
+    }
     const candidates = selectablePieces.value.filter((piece) =>
       options.isSearchCandidate?.(piece.id) ?? true,
     );
-    const target = candidates.sort((first, second) =>
-      Math.hypot(first.pile.x - 0.12, first.pile.y - 0.74) -
-      Math.hypot(second.pile.x - 0.12, second.pile.y - 0.74)
-    )[0];
+    const target = candidates.sort((first, second) => {
+      const matchPriority = (trayKindCounts.get(second.kind) ?? 0) -
+        (trayKindCounts.get(first.kind) ?? 0);
+      if (matchPriority !== 0) return matchPriority;
+      const distancePriority =
+        Math.hypot(first.pile.x - 0.12, first.pile.y - 0.74) -
+        Math.hypot(second.pile.x - 0.12, second.pile.y - 0.74);
+      return distancePriority || first.id.localeCompare(second.id);
+    })[0];
     if (!target) {
       status.value = "小猫暂时找不到可以提示的小鱼。";
       showCatReaction("unavailable");
@@ -429,6 +438,17 @@ export function createAmbientController(
     showCatReaction("searching");
     persist();
     scheduleCatTravelling(320);
+  }
+
+  /**
+   * Announces that keyboard activation found no fish under the spotlight.
+   * @returns Nothing; only the transient live-region status is updated.
+   * The notification changes only transient status and leaves game state intact.
+   */
+  function announceSearchMiss(): void {
+    takeOverIntro();
+    if (isAway.value || !canSelect.value) return;
+    status.value = "这里还没有照到小鱼，继续移动探照灯。";
   }
 
   function petCat(): void {
@@ -693,6 +713,7 @@ export function createAmbientController(
     rejectFeed,
     petCat,
     requestCatSearch,
+    announceSearchMiss,
     takeOverIntro,
     startReactions,
     setSoundEnabled,

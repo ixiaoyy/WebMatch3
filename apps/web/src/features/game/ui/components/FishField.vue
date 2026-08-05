@@ -16,12 +16,15 @@ import {
 } from "../game-ui";
 import {
   findNearestRevealedPiece,
+  getFishTargetOffsets,
   getRevealedPieceIds,
   isPointerTap,
+  MINIMUM_FISH_TARGET_SIZE,
   moveSpotlight,
   projectFieldPoint,
   unprojectFieldPoint,
   type FieldProjection,
+  type FieldSurfaceSize,
   type SpotlightDirection,
   type SpotlightMode,
 } from "../spotlight";
@@ -35,6 +38,7 @@ const props = defineProps<{
   loss: boolean;
   away: boolean;
   projection: FieldProjection;
+  surfaceSize: FieldSurfaceSize;
   guidedPieceId: string | null;
   feedback: GameFeedback;
   introPhase: IntroPhase;
@@ -44,6 +48,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   activate: [pieceId: string];
   feed: [pieceId: string];
+  searchMiss: [];
   revealedChange: [pieceIds: readonly string[]];
   dragStart: [pieceId: string];
   dragMove: [pieceId: string, clientX: number, clientY: number];
@@ -88,49 +93,16 @@ const revealedPieceIds = computed(() => {
   ));
   return revealed;
 });
-const separationOffsets = computed(() => {
-  const offsets = new Map<string, { x: number; y: number }>();
-  for (const lowerPiece of props.pieces) {
-    if (!revealedPieceIds.value.has(lowerPiece.id)) continue;
-    for (const upperId of getBlockerIds(props.pieces, lowerPiece.id)) {
-      if (!revealedPieceIds.value.has(upperId)) continue;
-      const upperPiece = props.pieces.find((piece) => piece.id === upperId);
-      if (!upperPiece) continue;
-      let directionX = upperPiece.pile.x - lowerPiece.pile.x;
-      let directionY = upperPiece.pile.y - lowerPiece.pile.y;
-      const distance = Math.hypot(directionX, directionY);
-      if (distance < 0.001) {
-        directionX = upperPiece.id.length % 2 === 0 ? -1 : 1;
-        directionY = 0.6;
-      } else {
-        directionX /= distance;
-        directionY /= distance;
-      }
-
-      const lowerOffset = offsets.get(lowerPiece.id) ?? { x: 0, y: 0 };
-      const upperOffset = offsets.get(upperPiece.id) ?? { x: 0, y: 0 };
-      offsets.set(lowerPiece.id, {
-        x: lowerOffset.x - directionX * 10,
-        y: lowerOffset.y - directionY * 10,
-      });
-      offsets.set(upperPiece.id, {
-        x: upperOffset.x + directionX * 22,
-        y: upperOffset.y + directionY * 22,
-      });
-    }
-  }
-
-  for (const [pieceId, offset] of offsets) {
-    const distance = Math.hypot(offset.x, offset.y);
-    if (distance > 32) {
-      offsets.set(pieceId, {
-        x: offset.x / distance * 32,
-        y: offset.y / distance * 32,
-      });
-    }
-  }
-  return offsets;
-});
+const separationOffsets = computed(() =>
+  props.disabled
+    ? new Map<string, Point>()
+    : getFishTargetOffsets({
+      pieces: props.pieces,
+      revealedIds: revealedPieceIds.value,
+      projection: props.projection,
+      surfaceSize: props.surfaceSize,
+    })
+);
 const projectedLight = computed(() => projectFieldPoint(
   props.introPhase === "idle"
     ? light.value ?? INITIAL_DISCOVERY_POINT
@@ -351,7 +323,11 @@ function onSurfaceKeydown(event: KeyboardEvent): void {
       revealedPieceIds.value,
       light.value,
     );
-    if (target) emit("activate", target.id);
+    if (target) {
+      emit("activate", target.id);
+    } else {
+      emit("searchMiss");
+    }
   }
 }
 
@@ -474,6 +450,7 @@ onBeforeUnmount(() => {
     :style="{
       '--light-x': projectedLight.x,
       '--light-y': projectedLight.y,
+      '--fish-target-size': `${MINIMUM_FISH_TARGET_SIZE}px`,
     }"
     tabindex="0"
     aria-label="小鱼搜索桌面。移动指针或用方向键移动探照灯，Enter选择显影小鱼。"
@@ -704,9 +681,7 @@ onBeforeUnmount(() => {
       translate(
         calc(-50% + var(--separation-x)),
         calc(-50% + var(--separation-y) + var(--layer-lift))
-      )
-      rotate(var(--piece-rotation))
-      scale(var(--piece-scale));
+      );
   }
 
   100% {
@@ -715,9 +690,7 @@ onBeforeUnmount(() => {
       translate(
         calc(-50% + var(--separation-x)),
         calc(-50% + var(--separation-y) + var(--layer-lift) + 6px)
-      )
-      rotate(var(--piece-rotation))
-      scale(var(--piece-scale-tuck));
+      );
   }
 }
 

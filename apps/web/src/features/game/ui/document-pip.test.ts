@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createDocumentPipController } from "./document-pip";
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllGlobals();
 });
 
@@ -14,6 +15,34 @@ describe("document picture-in-picture controller", () => {
 
     expect(controller.supported).toBe(false);
     await expect(controller.open({} as HTMLElement, {} as HTMLElement)).resolves.toBe(false);
+    expect(controller.opened).toBe(false);
+    expect(onSurfaceChange).not.toHaveBeenCalled();
+  });
+
+  it("stays unsupported when requestWindow is not callable", async () => {
+    vi.stubGlobal("window", {
+      documentPictureInPicture: { requestWindow: true },
+    });
+    const controller = createDocumentPipController(vi.fn());
+
+    expect(controller.supported).toBe(false);
+    await expect(
+      controller.open({} as HTMLElement, {} as HTMLElement),
+    ).resolves.toBe(false);
+  });
+
+  it("settles a non-resolving browser request as a safe failure", async () => {
+    vi.useFakeTimers();
+    const requestWindow = vi.fn(() => new Promise<Window>(() => undefined));
+    vi.stubGlobal("window", { documentPictureInPicture: { requestWindow } });
+    vi.stubGlobal("document", { querySelectorAll: vi.fn(() => []) });
+    const onSurfaceChange = vi.fn();
+    const controller = createDocumentPipController(onSurfaceChange);
+
+    const opened = controller.open({} as HTMLElement, {} as HTMLElement);
+    await vi.advanceTimersByTimeAsync(1_500);
+
+    await expect(opened).resolves.toBe(false);
     expect(controller.opened).toBe(false);
     expect(onSurfaceChange).not.toHaveBeenCalled();
   });

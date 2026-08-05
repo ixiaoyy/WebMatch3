@@ -177,6 +177,18 @@ function onMenuKeyDown(event: KeyboardEvent): void {
   actions[nextIndex]?.focus();
 }
 
+/**
+ * Makes the transition-retained menu inert before its visual exit completes.
+ * @param element Menu element retained by Vue during the leave transition.
+ * @returns Nothing; the element is deactivated in place.
+ */
+function deactivateLeavingMenu(element: Element): void {
+  const menu = element as HTMLElement;
+  menu.inert = true;
+  menu.setAttribute("inert", "");
+  menu.setAttribute("aria-hidden", "true");
+}
+
 watch(
   () => [props.travelPhase, props.loss] as const,
   ([travelPhase, loss]) => {
@@ -252,7 +264,7 @@ onBeforeUnmount(() => {
       </Transition>
     </button>
 
-    <Transition name="cat-menu">
+    <Transition name="cat-menu" @before-leave="deactivateLeavingMenu">
       <div
         v-if="interactionOpen"
         id="cat-interaction-menu"
@@ -531,6 +543,10 @@ onBeforeUnmount(() => {
 .cat-menu-enter-active,
 .cat-menu-leave-active {
   transition: opacity 150ms ease, transform 180ms var(--ease-out);
+}
+
+.cat-menu-leave-active {
+  pointer-events: none;
 }
 
 .cat-menu-enter-from,

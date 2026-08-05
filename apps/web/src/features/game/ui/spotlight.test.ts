@@ -8,8 +8,10 @@ import {
   createFieldProjectionScheduler,
   findNearestRevealedPiece,
   getFieldProjection,
+  getFishTargetOffsets,
   getRevealedPieceIds,
   isPointerTap,
+  MINIMUM_FISH_TARGET_SIZE,
   moveSpotlight,
   projectFieldPoint,
   unprojectFieldPoint,
@@ -80,6 +82,91 @@ describe("spotlight projection", () => {
       new Set(["near", "far"]),
       { x: 0.52, y: 0.52 },
     )?.id).toBe("near");
+  });
+
+  it("fans crowded fish into stable independent 44px targets", () => {
+    const crowded = Array.from({ length: 6 }, (_, index): PilePiece => ({
+      id: `crowded-${index}`,
+      kind: index % 2 === 0 ? "whale" : "koi",
+      pile: { x: 0.46 + index * 0.008, y: 0.38 + index * 0.004 },
+      spread: { x: 0.46 + index * 0.008, y: 0.38 + index * 0.004 },
+      rotation: index * 35,
+      scale: 0.92 + index * 0.01,
+      layer: index % 2 as 0 | 1,
+    }));
+    const canonical = JSON.stringify(crowded);
+    const projection = getFieldProjection(320, 568);
+    const revealedIds = new Set(crowded.map((piece) => piece.id));
+    const offsets = getFishTargetOffsets({
+      pieces: crowded,
+      revealedIds,
+      projection,
+      surfaceSize: { width: 320, height: 568 },
+    });
+    const reversedOffsets = getFishTargetOffsets({
+      pieces: [...crowded].reverse(),
+      revealedIds,
+      projection,
+      surfaceSize: { width: 320, height: 568 },
+    });
+    const centers = crowded.map((piece) => {
+      const projected = projectFieldPoint(piece.pile, projection);
+      const offset = offsets.get(piece.id) ?? { x: 0, y: 0 };
+      return {
+        id: piece.id,
+        x: projected.x * 320 + offset.x,
+        y: projected.y * 568 + offset.y,
+      };
+    });
+
+    for (let firstIndex = 0; firstIndex < centers.length; firstIndex += 1) {
+      for (
+        let secondIndex = firstIndex + 1;
+        secondIndex < centers.length;
+        secondIndex += 1
+      ) {
+        const first = centers[firstIndex];
+        const second = centers[secondIndex];
+        if (!first || !second) continue;
+        expect(
+          Math.abs(first.x - second.x) >= MINIMUM_FISH_TARGET_SIZE ||
+            Math.abs(first.y - second.y) >= MINIMUM_FISH_TARGET_SIZE,
+        ).toBe(true);
+      }
+    }
+    expect([...reversedOffsets.entries()]).toEqual([...offsets.entries()]);
+    expect(JSON.stringify(crowded)).toBe(canonical);
+  });
+
+  it("keeps fanned target cores inside compact projected bounds", () => {
+    const edgePieces = Array.from({ length: 4 }, (_, index): PilePiece => ({
+      id: `edge-${index}`,
+      kind: "sardine",
+      pile: { x: 0.01, y: 0.01 },
+      spread: { x: 0.01, y: 0.01 },
+      rotation: 0,
+      scale: 1,
+      layer: index % 2 as 0 | 1,
+    }));
+    const projection = getFieldProjection(320, 240);
+    const offsets = getFishTargetOffsets({
+      pieces: edgePieces,
+      revealedIds: new Set(edgePieces.map((piece) => piece.id)),
+      projection,
+      surfaceSize: { width: 320, height: 240 },
+    });
+    const halfTarget = MINIMUM_FISH_TARGET_SIZE / 2;
+
+    for (const piece of edgePieces) {
+      const projected = projectFieldPoint(piece.pile, projection);
+      const offset = offsets.get(piece.id) ?? { x: 0, y: 0 };
+      const x = projected.x * 320 + offset.x;
+      const y = projected.y * 240 + offset.y;
+      expect(x).toBeGreaterThanOrEqual(halfTarget);
+      expect(x).toBeLessThanOrEqual(320 - halfTarget);
+      expect(y).toBeGreaterThanOrEqual(halfTarget);
+      expect(y).toBeLessThanOrEqual(projection.height * 240 - halfTarget);
+    }
   });
 
   it("reprojects compact surfaces without changing canonical coordinates", () => {

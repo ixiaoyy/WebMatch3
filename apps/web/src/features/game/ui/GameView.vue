@@ -16,6 +16,7 @@ import {
   getFieldProjection,
   projectFieldPoint,
   type FieldProjectionScheduler,
+  type FieldSurfaceSize,
 } from "./spotlight";
 
 const surface = ref<HTMLElement | null>(null);
@@ -31,9 +32,15 @@ const fieldProjection = ref(
     ? FULL_FIELD_PROJECTION
     : getFieldProjection(window.innerWidth, window.innerHeight),
 );
+const surfaceSize = ref<FieldSurfaceSize>(
+  typeof window === "undefined"
+    ? { width: 1, height: 1 }
+    : { width: window.innerWidth, height: window.innerHeight },
+);
 const clearSound = createClearSound();
 let surfaceObserver: ResizeObserver | null = null;
 let projectionScheduler: FieldProjectionScheduler | null = null;
+let latestSurfaceSize = surfaceSize.value;
 const game = createAmbientController({
   onClear: () => {
     if (game.soundEnabled.value) clearSound.play();
@@ -157,6 +164,7 @@ async function togglePip(): Promise<void> {
     return;
   }
   if (!surface.value || !anchor.value) return;
+  game.status.value = "正在打开小窗。";
   const opened = await pip.open(surface.value, anchor.value);
   if (!opened) game.status.value = "小窗没有打开，小鱼还在这里。";
 }
@@ -170,6 +178,7 @@ onMounted(() => {
   projectionScheduler = createFieldProjectionScheduler(
     (projection) => {
       fieldProjection.value = projection;
+      surfaceSize.value = latestSurfaceSize;
     },
     (callback) => {
       const frameWindow = surface.value?.ownerDocument.defaultView ?? window;
@@ -180,6 +189,10 @@ onMounted(() => {
   if (surface.value && typeof ResizeObserver !== "undefined") {
     surfaceObserver = new ResizeObserver(([entry]) => {
       if (!entry) return;
+      latestSurfaceSize = {
+        width: entry.contentRect.width,
+        height: entry.contentRect.height,
+      };
       projectionScheduler?.schedule(
         entry.contentRect.width,
         entry.contentRect.height,
@@ -187,6 +200,8 @@ onMounted(() => {
     });
     surfaceObserver.observe(surface.value);
     const bounds = surface.value.getBoundingClientRect();
+    latestSurfaceSize = { width: bounds.width, height: bounds.height };
+    surfaceSize.value = latestSurfaceSize;
     fieldProjection.value = getFieldProjection(bounds.width, bounds.height);
   }
 });
@@ -271,12 +286,14 @@ onBeforeUnmount(() => {
           :loss="game.feedbackProjection.value.loss"
           :away="game.isAway.value"
           :projection="fieldProjection"
+          :surface-size="surfaceSize"
           :guided-piece-id="catGuidedPieceId"
           :feedback="game.feedback.value"
           :intro-phase="game.introPhase.value"
           :intro-target-ids="game.introTargetIds.value"
           @activate="game.activate"
           @feed="game.feedToCat"
+          @search-miss="game.announceSearchMiss"
           @revealed-change="onRevealedChange"
           @drag-start="onFishDragStart"
           @drag-move="onFishDragMove"
