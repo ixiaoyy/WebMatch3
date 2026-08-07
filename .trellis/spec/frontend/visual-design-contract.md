@@ -10,8 +10,9 @@ reference labels are not product UI.
 
 ## 1. Scope / Trigger
 
-Apply this contract when changing wallpaper, global tokens, fish/plant assets,
-pile/tray composition, quiet controls, reward motion, or responsive layout.
+Apply this contract when changing wallpaper, global tokens, fish/cat/plant
+assets, pile/tray composition, small-to-large delivery, bond-stage props,
+quiet controls, reward motion, or responsive layout.
 
 ## 2. Signatures / Asset Slots
 
@@ -19,6 +20,7 @@ pile/tray composition, quiet controls, reward motion, or responsive layout.
 ui/assets/ambient/wallpaper.webp
 ui/assets/fish/fish-{whale,koi,sardine,puffer,goldfish,clownfish,angelfish,betta}.webp
 ui/assets/cat/cat-{idle,eating,full,lying,sleeping}.webp
+ui/assets/cat/cat-{yarn-ball,cushion}.webp
 ui/assets/ambient/plant-{pot,foliage,flowering,fruiting,mature}.webp
 ui/assets/ambient/plant-stage-{bud,lily-of-the-valley,pomegranate,peony}.webp
 public/favicon.{ico,png variants}
@@ -39,6 +41,10 @@ wallpaper containing interactive objects.
   top bar, logo, level title, grid, or conventional HUD.
 - Eight fish share tactile felt, stitched seams, bead eyes, rounded volume, and
   lavender-compatible lighting while remaining distinct by species silhouette.
+- Field and tray fish are visually small while retaining a 44px hit target.
+  Three same-species tray fish form one transient large fish that is clearly
+  bigger at a glance; size contrast communicates combination without cutting,
+  fragments, seams, or body-part imagery.
 - Fish use a seed-reproducible, irregular full-surface arrangement of singleton
   and shallow grouped positions. Safe regions reserve the cat, plant, and tray;
   bounded footprint-aware rejection prevents extreme piles while preserving
@@ -56,8 +62,8 @@ wallpaper containing interactive objects.
   motion changes canonical positions. Focused and dragged pieces retain
   recognizable silhouettes outside the light.
 - Interaction motion uses one quiet exponential ease-out language: direct
-  selection, tray landing, and feed acceptance/rejection take `150-250ms`;
-  intro, clear, settle, and plant response take `480-700ms`; level arrival may
+  selection and tray landing take `150-250ms`; intro, three-fish gathering,
+  large-fish formation, delivery, and plant response take `480-700ms`; level arrival may
   remain visible for about `960ms`. Do not add spring motion, casino particles,
   or full-screen flashes. Reduced motion keeps static light, outline, shadow,
   color, copy, and pressure states while removing travel and pulse animation;
@@ -86,11 +92,11 @@ wallpaper containing interactive objects.
   A normal clear may additionally show one transient `植物 +1 成长` cue near
   the plant; this cue disappears with clear feedback and never becomes part of
   the persistent stage mark.
-- A tray clear keeps the exact three cleared silhouettes visible for about
-  620ms. They first slide from their occupied slots into one shared middle
-  position, then small bubbles rise as all three dissolve together. This is
-  the primary clear feedback; it becomes a static highlighted preview under
-  reduced motion.
+- A combination keeps the exact three tray silhouettes visible for about
+  700ms. They gather at one shared tray center, give way to one same-species
+  large fish, and that fish travels to the cat as its eating pose begins. This
+  is the primary completion feedback; reduced motion shows the large fish
+  statically beside the cat while preserving the same state and copy.
 - Clearing a finite cluster fades the next, slightly harder cluster into the
   same surface. A short non-modal cue may state the current species count and
   deeper stacking, but it must not add a numeric level label, confirmation,
@@ -102,19 +108,29 @@ wallpaper containing interactive objects.
   readability.
 - At five entries the tray gains a static warm caution edge. At six entries it
   adds a slower, stronger pressure cue; reduced motion replaces the pulse with
-  a fixed outline. A normal clear uses the lavender reward and plant response,
-  while feed-credit settlement uses a cooler tray treatment without plant
-  celebration.
+  a fixed outline. A same-species combination uses the lavender reward and
+  plant response.
 - The felt cat stays visible beside the plant pot in its home state. Cat and
   plant use shared responsive position/width variables so desktop, mobile, and
   compact compositions keep them adjacent without covering the tray. Search
   travel may move the cat beside one fish without covering that fish's target;
-  its current bounds are also the pointer/touch feed drop region. On arrival, a
+  its current bounds may detect a direct single-fish drop only to show the
+  combine-first hint and restore that fish. On arrival from search, a
   steady warm local beam reveals the guarded fish independently from the
   movable pointer spotlight. The outer artwork canvas remains pointer-
   transparent and a pose-aligned 44px-or-larger trigger owns activation, so
   transparent pixels cannot block fish beneath them; keyboard focus follows
   the visible silhouette instead of the artwork rectangle.
+- Cat motion has one independent channel: gentle idle breathing, synchronized
+  eating, petting nuzzle with restrained purr rings, searching hop, guarding,
+  resting, sleeping, and loss. Pose assets cross-fade in place so there is no
+  transparent frame between them. Reduced motion preserves pose and static
+  state cues without displacement.
+- Bond props accumulate without becoming a HUD: feeds `0..2` show the newcomer
+  scene, feeds `3..8` add one dusty-lavender felt yarn ball, and feeds `9+` add
+  one muted-blue oval felt cushion beneath the cat. Both generated props match
+  the existing tactile cat material, remain pointer-transparent, and fit every
+  responsive vignette.
 - Home interaction uses one compact translucent two-action menu anchored to the
   cat's right side. The actions stack vertically inside one pale lavender
   cat-ear speech bubble with a quiet stitched divider and small lower-left
@@ -143,6 +159,8 @@ wallpaper containing interactive objects.
 |---|---|
 | Asset has opaque key-color background/fringe | reject or reprocess before import |
 | Fish silhouettes collapse at 32–48px | reject the set or adjust subject scale |
+| Three small fish combine | show one clearly larger same-species fish and an unbroken causal path from tray to cat |
+| Direct single-fish drop reaches the cat | restore the small fish and show the combine-first hint; do not depict biting or cutting |
 | Idle scene identifies fish before search | hide fish projection without removing its semantic action path |
 | Field resembles rows/cells | replace authored positions; hiding borders is insufficient |
 | Controls compete with scene | reduce weight while retaining readable resting contrast and focus visibility |
@@ -150,7 +168,8 @@ wallpaper containing interactive objects.
 | `320x240` compact surface | full surface, controls, cat, plant cue, and tray remain visible with no scroll overflow |
 | Cat interaction menu opens | keep both actions inside the viewport at 44px or larger, with the home cat still legible beside the pot |
 | Cat menu opens from pointer input | keep the unified bubble surface free of a persistent nested-button focus ring; keyboard activation still exposes a visible focus indicator |
-| Reduced motion | instant/near-instant projection and feedback, no lost state |
+| Reduced motion | instant/near-instant projection, static large fish beside the cat, visible pose change, and no lost state |
+| Bond stage becomes familiar or bonded | reveal exactly the yarn ball or yarn-plus-cushion scene without covering cat, plant, tray, or fish targets |
 | Clear reaches a plant stage before its day gate | remain in the previous stage |
 | Stage mark is shown | exactly one flower, correct species and increasing size, no persistent visible copy; a clear-only growth cue may coexist transiently |
 | `backdrop-filter` unsupported | translucent fallback remains readable |
@@ -165,8 +184,12 @@ wallpaper containing interactive objects.
 - Good: contact shadows ground objects without introducing a board surface.
 - Good: the home cat and pot read as one lower-right vignette, and the transient
   action menu remains subordinate to them.
+- Good: the small-to-large size jump reads before the delivery motion, and cat
+  chewing begins in the same completion beat.
 - Bad: every object receives glow, continuous bobbing, or saturated particles.
 - Bad: menu animation scales a 44px action below its minimum hit target.
+- Bad: fish are sliced, stitched from visible parts, or disappear without a
+  readable large-fish handoff.
 - Bad: the tray expands into a dashboard or the pile becomes a rectangular
   tile matrix.
 
@@ -179,8 +202,9 @@ wallpaper containing interactive objects.
 3. inspect hidden idle, pointer/touch/keyboard reveal, afterglow, retained
    focus/drag, pointer-transparent outer hint silhouettes, stacked lower
    selection and settling, cat menu open, transparent cat-artwork hit testing,
-   guarded-fish marker, pet reaction, bubble clear, growth cue, growing,
-   flowering, fruiting, mature,
+   guarded-fish marker, pet reaction, three-small-fish gathering, large-fish
+   formation/delivery, synchronized eating, newcomer/familiar/bonded props,
+   pose cross-fade, bubble clear, growth cue, growing, flowering, fruiting, mature,
    full-tray loss, away, and reduced-motion states;
 4. validate the home cat/pot relationship and 44px menu actions at every
    captured viewport, plus tab title `小鱼`, whale favicon legibility, console

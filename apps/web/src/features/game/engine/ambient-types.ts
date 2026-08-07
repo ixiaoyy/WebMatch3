@@ -32,14 +32,9 @@ export interface TrayPiece {
   readonly kind: FishKind;
 }
 
-export interface FedFish extends TrayPiece {
-  readonly settled: boolean;
-}
-
 export interface AmbientGameState {
   readonly pieces: readonly PilePiece[];
   readonly tray: readonly TrayPiece[];
-  readonly fed: readonly FedFish[];
   readonly clearCount: number;
   readonly level: number;
   readonly nextPieceId: number;
@@ -56,19 +51,12 @@ export interface MovedSelection {
   readonly selected: TrayPiece;
 }
 
-export interface ClearedSelection {
-  readonly kind: "cleared";
+export interface CombinedSelection {
+  readonly kind: "combined";
   readonly state: AmbientGameState;
   readonly selected: TrayPiece;
-  readonly cleared: readonly TrayPiece[];
-  readonly levelAdvanced: boolean;
-}
-
-export interface SettledSelection {
-  readonly kind: "settled";
-  readonly state: AmbientGameState;
-  readonly selected: TrayPiece;
-  readonly settled: readonly TrayPiece[];
+  readonly combined: readonly [TrayPiece, TrayPiece, TrayPiece];
+  readonly fishKind: FishKind;
   readonly levelAdvanced: boolean;
 }
 
@@ -82,29 +70,5 @@ export interface LostSelection {
 export type SelectionResult =
   | MissingSelection
   | MovedSelection
-  | ClearedSelection
-  | SettledSelection
+  | CombinedSelection
   | LostSelection;
-
-export interface FedFishResult {
-  readonly kind: "fed";
-  readonly state: AmbientGameState;
-  readonly selected: TrayPiece;
-  readonly settled: readonly TrayPiece[];
-  readonly levelAdvanced: boolean;
-}
-
-export interface FeedMissingResult {
-  readonly kind: "missing";
-  readonly state: AmbientGameState;
-}
-
-export interface FeedFullResult {
-  readonly kind: "full";
-  readonly state: AmbientGameState;
-}
-
-export type FeedResult =
-  | FedFishResult
-  | FeedMissingResult
-  | FeedFullResult;

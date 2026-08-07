@@ -1,9 +1,17 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import {
+  computed,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  watch,
+} from "vue";
 
 import { createAmbientController } from "./ambient-controller";
 import wallpaperUrl from "./assets/ambient/wallpaper.webp";
 import CatCompanion from "./components/CatCompanion.vue";
+import FishDelivery from "./components/FishDelivery.vue";
 import FishField from "./components/FishField.vue";
 import FishTray from "./components/FishTray.vue";
 import GrowingPlant from "./components/GrowingPlant.vue";
@@ -22,8 +30,15 @@ import {
 const surface = ref<HTMLElement | null>(null);
 const anchor = ref<HTMLElement | null>(null);
 const catDropTarget = ref<HTMLElement | null>(null);
+const fishTray = ref<{ $el: HTMLElement } | null>(null);
 const draggingPieceId = ref<string | null>(null);
-const catDropHover = ref(false);
+const deliveryGeometry = ref<{
+  readonly eventId: number;
+  readonly startX: number;
+  readonly startY: number;
+  readonly endX: number;
+  readonly endY: number;
+} | null>(null);
 const playHintDismissed = ref(false);
 const revealedPieceIds = ref<ReadonlySet<string>>(new Set());
 const pipOpen = ref(false);
@@ -109,17 +124,7 @@ function isInsideCat(clientX: number, clientY: number): boolean {
 
 function onFishDragStart(pieceId: string): void {
   draggingPieceId.value = pieceId;
-  catDropHover.value = false;
-  game.status.value = "把小鱼拖到小猫身上即可喂食。";
-}
-
-function onFishDragMove(
-  pieceId: string,
-  clientX: number,
-  clientY: number,
-): void {
-  if (draggingPieceId.value !== pieceId) return;
-  catDropHover.value = isInsideCat(clientX, clientY);
+  game.status.value = "单条小鱼不会直接喂食，要先在托盘凑齐三条同种鱼。";
 }
 
 function onFishDragEnd(
@@ -130,13 +135,44 @@ function onFishDragEnd(
   const accepted = draggingPieceId.value === pieceId &&
     isInsideCat(clientX, clientY);
   draggingPieceId.value = null;
-  catDropHover.value = false;
   if (accepted) {
-    game.feedToCat(pieceId);
+    game.rejectDirectFeed();
   } else {
-    game.rejectFeed();
+    game.status.value = "小鱼回到了原处；轻点它可以放入托盘。";
   }
 }
+
+/**
+ * Measures the current tray and cat centers in surface-local coordinates.
+ * @param eventId Completed-fish event whose delivery should use the geometry.
+ * @returns Nothing; the transient delivery projection is updated in place.
+ */
+function measureDelivery(eventId: number): void {
+  const surfaceBounds = surface.value?.getBoundingClientRect();
+  const trayBounds = fishTray.value?.$el.getBoundingClientRect();
+  const catBounds = catDropTarget.value?.getBoundingClientRect();
+  if (!surfaceBounds || !trayBounds || !catBounds) return;
+  deliveryGeometry.value = {
+    eventId,
+    startX: trayBounds.left + trayBounds.width / 2 - surfaceBounds.left,
+    startY: trayBounds.top + trayBounds.height / 2 - surfaceBounds.top,
+    endX: catBounds.left + catBounds.width * 0.5 - surfaceBounds.left,
+    endY: catBounds.top + catBounds.height * 0.52 - surfaceBounds.top,
+  };
+}
+
+watch(
+  () => game.completedFish.value,
+  async (event) => {
+    if (!event) {
+      deliveryGeometry.value = null;
+      return;
+    }
+    await nextTick();
+    measureDelivery(event.id);
+  },
+  { flush: "post" },
+);
 
 function onRevealedChange(pieceIds: readonly string[]): void {
   revealedPieceIds.value = new Set(pieceIds);
@@ -276,7 +312,7 @@ onBeforeUnmount(() => {
 
         <Transition name="play-hint">
           <p v-if="showPlayHint" class="play-hint" aria-hidden="true">
-            移动光圈找鱼，凑齐 3 条同类
+            找到三条同种小鱼，合成大鱼喂猫
           </p>
         </Transition>
 
@@ -305,12 +341,11 @@ onBeforeUnmount(() => {
         >
           <CatCompanion
             :pose="game.catPose.value"
+            :motion="game.catMotion.value"
+            :bond-stage="game.bondStage.value"
             :reaction="game.catReaction.value"
             :travel-phase="game.catTravelPhase.value"
-            :full="game.game.value.fed.length >= 3 || game.catIsResting.value"
-            :drop-hover="catDropHover"
             :loss="game.feedbackProjection.value.loss"
-            :feed-response="game.feedbackProjection.value.catFeedResponse"
             @pet="game.petCat"
             @search="game.requestCatSearch"
           />
@@ -319,7 +354,6 @@ onBeforeUnmount(() => {
         <FishField
           :key="game.game.value.level"
           :pieces="game.game.value.pieces"
-          :feedable="game.catCanEat.value"
           :disabled="!game.canSelect.value"
           :transitioning="game.feedbackProjection.value.levelArriving"
           :loss="game.feedbackProjection.value.loss"
@@ -331,19 +365,28 @@ onBeforeUnmount(() => {
           :intro-phase="game.introPhase.value"
           :intro-target-ids="game.introTargetIds.value"
           @activate="activateFish"
-          @feed="game.feedToCat"
           @search-miss="game.announceSearchMiss"
           @revealed-change="onRevealedChange"
           @drag-start="onFishDragStart"
-          @drag-move="onFishDragMove"
           @drag-end="onFishDragEnd"
         />
 
         <FishTray
+          ref="fishTray"
           :pieces="game.trayPreview.value ?? game.game.value.tray"
           :feedback="game.feedback.value"
           :clearing-piece-ids="game.clearingPieceIds.value"
           :intro-tray="game.introPhase.value === 'tray'"
+        />
+
+        <FishDelivery
+          v-if="game.completedFish.value && deliveryGeometry"
+          :key="deliveryGeometry.eventId"
+          :kind="game.completedFish.value.kind"
+          :start-x="deliveryGeometry.startX"
+          :start-y="deliveryGeometry.startY"
+          :end-x="deliveryGeometry.endX"
+          :end-y="deliveryGeometry.endY"
         />
 
         <p class="visually-hidden" aria-live="polite" aria-atomic="true">

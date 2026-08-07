@@ -6,7 +6,6 @@ import {
   createLevelState,
   createInitialState,
   createSeededRandom,
-  feedPiece,
   getBlockerIds,
   getLevelConfig,
   getSelectablePieces,
@@ -15,9 +14,25 @@ import {
   isSafeFieldPoint,
   selectPiece,
   type AmbientGameState,
-  type FedFish,
   type PilePiece,
 } from "./ambient";
+
+/**
+ * Finds one same-species triple from the supplied pile.
+ * @param pieces Candidate pile pieces, optionally spanning multiple species.
+ * @returns An ordered triple, or null when no species has three fish.
+ */
+function findCompleteSet(
+  pieces: readonly PilePiece[],
+): readonly [PilePiece, PilePiece, PilePiece] | null {
+  for (const kind of FISH_KINDS) {
+    const [first, second, third] = pieces.filter((piece) =>
+      piece.kind === kind
+    );
+    if (first && second && third) return [first, second, third];
+  }
+  return null;
+}
 
 function footprintsOverlap(first: PilePiece, second: PilePiece): boolean {
   const firstWidth = 0.2 * first.scale;
@@ -102,9 +117,8 @@ describe("ambient fish engine", () => {
         expect(new Set(kinds).size).toBe(3);
       }
       for (const kind of FISH_KINDS) {
-        expect(
-          state.pieces.filter((piece) => piece.kind === kind).length % 3,
-        ).toBe(0);
+        const kindPieces = state.pieces.filter((piece) => piece.kind === kind);
+        expect(kindPieces.length % 3).toBe(0);
       }
     }
   });
@@ -132,7 +146,7 @@ describe("ambient fish engine", () => {
           (piece.pile.y - 0.45) / 0.165,
         ) <= 1)
       ).find((candidates) =>
-        candidates.length >= 3 &&
+        findCompleteSet(candidates.map(({ piece }) => piece)) !== null &&
         new Set(candidates.map(({ groupIndex }) => groupIndex)).size >= 3 &&
         new Set(candidates.map(({ piece }) => piece.layer)).size >= 2
       );
@@ -281,13 +295,11 @@ describe("ambient fish engine", () => {
     expect(state).toEqual(snapshot);
   });
 
-  it("moves selectable pieces in tray order and clears a triple", () => {
+  it("moves small fish in tray order and combines a same-species triple", () => {
     let state = createInitialState(createSeededRandom(19));
-    const match = getSelectablePieces(state.pieces).filter(
-      (piece, _, selectable) =>
-        selectable.filter((candidate) => candidate.kind === piece.kind).length >= 3,
-    );
-    const targets = match.filter((piece) => piece.kind === match[0].kind).slice(0, 3);
+    const targets = findCompleteSet(getSelectablePieces(state.pieces));
+    expect(targets).not.toBeNull();
+    if (!targets) return;
 
     const first = selectPiece(state, targets[0].id, createSeededRandom(20));
     expect(first.kind).toBe("moved");
@@ -298,7 +310,11 @@ describe("ambient fish engine", () => {
     expect(state.tray.map((piece) => piece.id)).toEqual([targets[0].id, targets[1].id]);
 
     const third = selectPiece(state, targets[2].id, createSeededRandom(22));
-    expect(third.kind).toBe("cleared");
+    expect(third.kind).toBe("combined");
+    if (third.kind !== "combined") return;
+    expect(third.combined.map((piece) => piece.id)).toEqual(
+      targets.map((piece) => piece.id),
+    );
     expect(third.state.tray).toHaveLength(0);
     expect(third.state.clearCount).toBe(1);
     expect(third.state.pieces).toHaveLength(33);
@@ -324,105 +340,53 @@ describe("ambient fish engine", () => {
     expect(getBlockerIds(withoutBlockers, blocked.id)).toEqual([]);
   });
 
-  it("feeds any three selectable species without growing the plant", () => {
-    const base = createInitialState(createSeededRandom(23));
-    const targets = FISH_KINDS.slice(0, 3).map((kind, index) => ({
-      ...base.pieces.find((piece) => piece.kind === kind)!,
-      id: `feed-${index}`,
-      kind,
-      pile: { x: 0.15 + index * 0.25, y: 0.2 },
-      layer: 0 as const,
-    }));
-    let state: AmbientGameState = {
-      ...base,
-      pieces: [
-        ...targets,
-        { ...base.pieces[0], id: "keep", pile: { x: 0.9, y: 0.9 }, layer: 0 },
-      ],
-    };
-    expect(targets).toHaveLength(3);
-
-    for (const target of targets) {
-      const result = feedPiece(state, target.id, createSeededRandom(24));
-      expect(result.kind).toBe("fed");
-      state = result.state;
-    }
-
-    expect(state.fed.map((piece) => piece.kind)).toEqual(
-      targets.map((piece) => piece.kind),
-    );
-    expect(state.fed.every((piece) => !piece.settled)).toBe(true);
-    expect(state.clearCount).toBe(0);
-  });
-
-  it("uses feed credits once to remove a one- or two-fish tray group", () => {
+  it("combines the earliest same-species triple and leaves other fish", () => {
     const base = createInitialState(createSeededRandom(25));
-    const triple = getSelectablePieces(base.pieces).filter(
-      (piece, _, pieces) =>
-        pieces.filter((candidate) => candidate.kind === piece.kind).length >= 3,
-    );
-    const targets = triple
-      .filter((piece) => piece.kind === triple[0].kind)
-      .slice(0, 3);
-
-    const firstFeed = feedPiece(base, targets[0].id, createSeededRandom(26));
-    expect(firstFeed.kind).toBe("fed");
-    const firstTray = selectPiece(firstFeed.state, targets[1].id, createSeededRandom(27));
-    expect(firstTray.kind).toBe("moved");
-    const twoFishSettlement = selectPiece(
-      firstTray.state,
-      targets[2].id,
-      createSeededRandom(28),
-    );
-    expect(twoFishSettlement.kind).toBe("settled");
-    expect(twoFishSettlement.state.tray).toHaveLength(0);
-    expect(twoFishSettlement.state.fed).toEqual([
-      { id: targets[0].id, kind: targets[0].kind, settled: true },
-    ]);
-    expect(twoFishSettlement.state.clearCount).toBe(0);
-
-    const creditKind = "whale" as const;
-    const fed: readonly FedFish[] = [
-      { id: "fed-1", kind: creditKind, settled: false },
-    ];
     const customState: AmbientGameState = {
       ...base,
       pieces: [
-        { ...base.pieces[0], id: "feed-2", kind: creditKind, layer: 0 },
-        { ...base.pieces[1], id: "keep-1", kind: "koi", layer: 0 },
+        { ...base.pieces[0], id: "third-whale", kind: "whale" },
+        { ...base.pieces[1], id: "keep", kind: "koi" },
       ],
-      tray: [{ id: "tray-1", kind: creditKind }],
-      fed,
+      tray: [
+        { id: "first-whale", kind: "whale" },
+        { id: "keep-koi", kind: "koi" },
+        { id: "second-whale", kind: "whale" },
+      ],
     };
-    const oneFishSettlement = feedPiece(
-      customState,
-      "feed-2",
-      createSeededRandom(29),
-    );
-    expect(oneFishSettlement.kind).toBe("fed");
-    if (oneFishSettlement.kind !== "fed") return;
-    expect(oneFishSettlement.settled).toEqual(customState.tray);
-    expect(oneFishSettlement.state.tray).toHaveLength(0);
-    expect(oneFishSettlement.state.fed.every((piece) => piece.settled)).toBe(true);
-    expect(oneFishSettlement.state.clearCount).toBe(base.clearCount);
+    const result = selectPiece(customState, "third-whale", createSeededRandom(29));
+    expect(result.kind).toBe("combined");
+    if (result.kind !== "combined") return;
+    expect(result.combined.map((piece) => piece.id)).toEqual([
+      "first-whale",
+      "second-whale",
+      "third-whale",
+    ]);
+    expect(result.state.tray).toEqual([
+      { id: "keep-koi", kind: "koi" },
+    ]);
+    expect(result.state.clearCount).toBe(1);
   });
 
-  it("prioritizes a normal tray triple over unused feed credit", () => {
+  it("does not combine mixed species", () => {
     const base = createInitialState(createSeededRandom(33));
-    const target = getSelectablePieces(base.pieces)[0];
-    const state: AmbientGameState = {
-      ...base,
-      pieces: [{ ...target, id: "third", layer: 0 }],
-      tray: [
-        { id: "first", kind: target.kind },
-        { id: "second", kind: target.kind },
-      ],
-      fed: [{ id: "credit", kind: target.kind, settled: false }],
-    };
+    const source = base.pieces[0];
+    const pieces = [
+      { ...source, id: "whale-1", kind: "whale" as const },
+      { ...source, id: "whale-2", kind: "whale" as const },
+      { ...source, id: "koi-1", kind: "koi" as const },
+      { ...source, id: "koi-2", kind: "koi" as const },
+    ];
+    let state: AmbientGameState = { ...base, pieces, tray: [] };
 
-    const result = selectPiece(state, "third", createSeededRandom(34));
-    expect(result.kind).toBe("cleared");
-    expect(result.state.clearCount).toBe(1);
+    for (const piece of pieces) {
+      const result = selectPiece(state, piece.id, createSeededRandom(34));
+      expect(result.kind).toBe("moved");
+      state = result.state;
+    }
+
+    expect(state.tray).toHaveLength(4);
+    expect(state.clearCount).toBe(0);
   });
 
   it("constructs every progressive level with a complete removal path", () => {
@@ -433,21 +397,14 @@ describe("ambient fish engine", () => {
 
       while (state.level === level) {
         const selectable = getSelectablePieces(state.pieces);
-        const matching = selectable.find(
-          (piece) => selectable.filter(
-            (candidate) => candidate.kind === piece.kind,
-          ).length >= 3,
-        );
-        expect(matching).toBeDefined();
-        if (!matching) break;
-        const triple = selectable
-          .filter((piece) => piece.kind === matching.kind)
-          .slice(0, 3);
+        const triple = findCompleteSet(selectable);
+        expect(triple).not.toBeNull();
+        if (!triple) break;
 
         for (const piece of triple) {
           const result = selectPiece(state, piece.id, random);
-          expect(result.kind === "moved" || result.kind === "cleared").toBe(true);
-          if (result.kind === "cleared") clears += 1;
+          expect(result.kind === "moved" || result.kind === "combined").toBe(true);
+          if (result.kind === "combined") clears += 1;
           state = result.state;
         }
       }
@@ -464,14 +421,9 @@ describe("ambient fish engine", () => {
       let state = createLevelState(level, 0, 1, random);
 
       while (state.level === level) {
-        const matching = state.pieces.find((piece) =>
-          state.pieces.filter((candidate) => candidate.kind === piece.kind).length >= 3
-        );
-        expect(matching).toBeDefined();
-        if (!matching) break;
-        const triple = state.pieces
-          .filter((piece) => piece.kind === matching.kind)
-          .slice(0, 3);
+        const triple = findCompleteSet(state.pieces);
+        expect(triple).not.toBeNull();
+        if (!triple) break;
         for (const piece of triple) {
           state = selectPiece(state, piece.id, random).state;
         }
@@ -524,7 +476,8 @@ describe("ambient fish engine", () => {
       new Set(FISH_KINDS),
     );
     for (const kind of FISH_KINDS) {
-      expect(levelSix.pieces.filter((piece) => piece.kind === kind).length % 3).toBe(0);
+      const kindPieces = levelSix.pieces.filter((piece) => piece.kind === kind);
+      expect(kindPieces.length % 3).toBe(0);
     }
   });
 
@@ -535,33 +488,34 @@ describe("ambient fish engine", () => {
     if (!target) return;
     const tray = [
       { id: "t1", kind: "whale" },
-      { id: "t2", kind: "koi" },
+      { id: "t2", kind: "whale" },
       { id: "t3", kind: "sardine" },
       { id: "t4", kind: "sardine" },
-      { id: "t5", kind: "whale" },
+      { id: "t5", kind: "koi" },
       { id: "t6", kind: "koi" },
     ] as const;
     const state: AmbientGameState = {
       ...base,
       tray,
-      fed: [{ id: "fed", kind: "goldfish", settled: false }],
     };
     const firstNewPieceId = state.nextPieceId;
     const result = selectPiece(state, target.id, createSeededRandom(31));
 
     expect(result.kind).toBe("lost");
     if (result.kind !== "lost") return;
-    expect(result.tray).toEqual([...tray, { id: target.id, kind: target.kind }]);
+    expect(result.tray).toEqual([
+      ...tray,
+      { id: target.id, kind: target.kind },
+    ]);
     expect(result.state.level).toBe(1);
     expect(result.state.pieces).toHaveLength(36);
     expect(result.state.pieces[0]?.id).toBe(`fish-${firstNewPieceId}`);
     expect(result.state.tray).toEqual([]);
-    expect(result.state.fed).toEqual([]);
     expect(result.state.clearCount).toBe(9);
     expect(result.state.nextPieceId).toBe(firstNewPieceId + 36);
   });
 
-  it("settles a triple or feed credit before applying the full-tray loss", () => {
+  it("combines three small fish before applying the full-tray loss", () => {
     const base = createInitialState(createSeededRandom(32));
     const target = base.pieces.find((piece) => piece.kind === "whale");
     expect(target).toBeDefined();
@@ -580,24 +534,8 @@ describe("ambient fish engine", () => {
       pieces: [target],
       tray: tripleTray,
     }, target.id, createSeededRandom(33));
-    expect(triple.kind).toBe("cleared");
-
-    const creditTray = [
-      { id: "w1", kind: "whale" },
-      { id: "k1", kind: "koi" },
-      { id: "k2", kind: "koi" },
-      { id: "s1", kind: "sardine" },
-      { id: "s2", kind: "sardine" },
-      { id: "p1", kind: "pufferfish" },
-    ] as const;
-    const credited = selectPiece({
-      ...base,
-      pieces: [target],
-      tray: creditTray,
-      fed: [{ id: "fed-whale", kind: "whale", settled: false }],
-    }, target.id, createSeededRandom(34));
-    expect(credited.kind).toBe("settled");
-    expect(credited.state.tray).toHaveLength(5);
+    expect(triple.kind).toBe("combined");
+    expect(triple.state.tray).toHaveLength(4);
   });
 
   it("rejects invalid random sources", () => {

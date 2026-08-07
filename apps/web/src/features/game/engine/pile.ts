@@ -424,7 +424,6 @@ export function createLevelState(
   return {
     pieces: piecesWithBlockers,
     tray: [],
-    fed: [],
     clearCount,
     level,
     nextPieceId: nextPieceId + piecesWithBlockers.length,

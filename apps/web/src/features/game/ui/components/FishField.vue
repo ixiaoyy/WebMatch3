@@ -33,7 +33,6 @@ import FishPiece from "./FishPiece.vue";
 
 const props = defineProps<{
   pieces: readonly PilePiece[];
-  feedable: boolean;
   disabled: boolean;
   transitioning: boolean;
   loss: boolean;
@@ -48,7 +47,6 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   activate: [pieceId: string];
-  feed: [pieceId: string];
   searchMiss: [];
   revealedChange: [pieceIds: readonly string[]];
   dragStart: [pieceId: string];
@@ -208,11 +206,6 @@ function showNearbySlip(pieceId: string): void {
 function onActivate(pieceId: string): void {
   showNearbySlip(pieceId);
   emit("activate", pieceId);
-}
-
-function onFeed(pieceId: string): void {
-  showNearbySlip(pieceId);
-  emit("feed", pieceId);
 }
 
 function releaseSearchPointerCapture(): void {
@@ -496,7 +489,6 @@ onBeforeUnmount(() => {
         :revealed="revealedPieceIds.has(piece.id)"
         :hinted="hintedPieceIds.has(piece.id)"
         :guided="guidedPiece?.id === piece.id"
-        :feedable="feedable"
         :higher-overlap-count="higherOverlapCounts.get(piece.id) ?? 0"
         :disabled="disabled"
         :separation="separationOffsets.get(piece.id) ?? { x: 0, y: 0 }"
@@ -507,7 +499,6 @@ onBeforeUnmount(() => {
         :arriving="transitioning"
         :tab-index="piece.id === focusedId ? 0 : -1"
         @activate="onActivate"
-        @feed="onFeed"
         @focus="revealFocusedPiece"
         @navigate="navigate"
         @drag-start="onDragStart"
@@ -656,17 +647,14 @@ onBeforeUnmount(() => {
 }
 
 .fish-field[data-feedback="select"] :deep(.fish-field-piece-leave-active),
-.fish-field[data-feedback="feed"] :deep(.fish-field-piece-leave-active) {
+.fish-field[data-feedback="clear"] :deep(.fish-field-piece-leave-active),
+.fish-field[data-feedback="level"] :deep(.fish-field-piece-leave-active) {
   pointer-events: none;
   animation: fish-origin-tuck 220ms var(--ease-out) both;
 }
 
 .fish-field :deep(.fish-field-piece-leave-active:focus-visible) {
   outline: none;
-}
-
-.fish-field[data-feedback="feed"] :deep(.fish-field-piece-leave-active) {
-  filter: brightness(1.1) drop-shadow(0 8px 10px rgb(255 207 132 / 28%));
 }
 
 @media (max-width: 620px) {

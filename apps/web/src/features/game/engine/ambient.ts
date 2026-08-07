@@ -14,13 +14,11 @@ export {
   MAX_PIECE_COUNT,
   type LevelConfig,
 } from "./pile";
-export { feedPiece, restartAfterLoss, selectPiece } from "./transitions";
+export { restartAfterLoss, selectPiece } from "./transitions";
 export {
   FISH_KINDS,
   type AmbientGameState,
-  type FedFish,
   type FishKind,
-  type FeedResult,
   type PilePiece,
   type Point,
   type RandomSource,

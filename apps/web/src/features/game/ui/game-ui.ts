@@ -35,10 +35,7 @@ export type GameFeedback =
   | "idle"
   | "intro"
   | "select"
-  | "feed"
-  | "feed-rejected"
   | "clear"
-  | "settle"
   | "loss"
   | "level";
 
@@ -47,7 +44,6 @@ export interface GameFeedbackProjection {
   readonly celebratesPlant: boolean;
   readonly levelArriving: boolean;
   readonly loss: boolean;
-  readonly catFeedResponse: "idle" | "accepted" | "rejected";
 }
 
 export interface FishPresentation {
@@ -59,7 +55,6 @@ export interface FishAccessibleLabelOptions {
   readonly kind: FishKind;
   readonly layer: number;
   readonly higherOverlapCount: number;
-  readonly feedable: boolean;
 }
 
 export interface PlantStagePresentation {
@@ -106,15 +101,13 @@ export function getFishAccessibleLabel({
   kind,
   layer,
   higherOverlapCount,
-  feedable,
 }: FishAccessibleLabelOptions): string {
   const overlapLabel = higherOverlapCount === 0
     ? "上方没有小鱼重叠"
     : `上方有${higherOverlapCount}条小鱼重叠`;
-  const actionLabel = feedable
-    ? "Enter或空格放入托盘，按F喂给小猫"
-    : "Enter或空格放入托盘；小猫正在休息，按F可听取提示";
-  return `${getFishPresentation(kind).label}，第${layer + 1}层，${overlapLabel}；${actionLabel}`;
+  return `${getFishPresentation(kind).label}，小尺寸，第${
+    layer + 1
+  }层，${overlapLabel}；Enter、空格或F放入托盘`;
 }
 
 export function getHigherOverlapCounts(
@@ -149,9 +142,6 @@ export function projectGameFeedback(
     celebratesPlant: feedback === "clear",
     levelArriving: feedback === "level",
     loss: feedback === "loss",
-    catFeedResponse: feedback === "feed"
-      ? "accepted"
-      : feedback === "feed-rejected" ? "rejected" : "idle",
   };
 }
 
@@ -171,13 +161,11 @@ export function getIntroTargetIds(
   }
   for (const candidates of candidatesByKind.values()) {
     const first = candidates[0];
-    if (!first || candidates.length < 3) continue;
-    const crossLayer = candidates.find((piece) => piece.layer !== first.layer);
-    if (!crossLayer) continue;
+    const second = candidates.find((piece) => piece.layer !== first?.layer);
     const third = candidates.find((piece) =>
-      piece.id !== first.id && piece.id !== crossLayer.id
+      piece.id !== first?.id && piece.id !== second?.id
     );
-    if (third) return [first.id, crossLayer.id, third.id];
+    if (first && second && third) return [first.id, second.id, third.id];
   }
   return [];
 }
@@ -189,7 +177,6 @@ export function shouldStartIntro(
   return game.level === 1 &&
     game.clearCount === 0 &&
     game.tray.length === 0 &&
-    game.fed.length === 0 &&
     guardedPieceId === null &&
     game.nextPieceId === game.pieces.length + 1 &&
     getIntroTargetIds(game.pieces).length === 3;

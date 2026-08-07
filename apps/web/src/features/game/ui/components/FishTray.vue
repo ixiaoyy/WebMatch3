@@ -126,14 +126,6 @@ function clearStyle(index: number): Record<string, string | number> {
       0 16px 34px rgb(91 74 141 / 15%);
   }
 
-  &[data-feedback="settle"] {
-    border-color: rgb(149 177 207 / 68%);
-    box-shadow:
-      inset 0 3px 3px rgb(255 255 255 / 72%),
-      0 0 0 5px rgb(139 180 208 / 10%),
-      0 12px 24px rgb(72 103 135 / 13%);
-  }
-
   &[data-pressure="caution"] {
     border-color: rgb(197 166 139 / 62%);
     box-shadow:
@@ -175,8 +167,8 @@ function clearStyle(index: number): Record<string, string | number> {
     img {
       position: relative;
       z-index: 1;
-      width: 112%;
-      height: 112%;
+      width: 82%;
+      height: 82%;
       object-fit: contain;
     }
 

@@ -8,8 +8,9 @@ export {
   resolveBrowserStorage,
   saveAmbientSnapshot,
   type AmbientPreferences,
+  type AmbientPetProgress,
   type AmbientPlantProgress,
   type AmbientSnapshotLoadResult,
-  type AmbientSnapshotV3,
+  type AmbientSnapshotV4,
   type StorageLike,
 } from "./ambient-storage";

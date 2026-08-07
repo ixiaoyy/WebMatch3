@@ -8,16 +8,22 @@ import {
 } from "vue";
 
 import { getCatPresentation, type CatPose } from "../game-ui";
-import type { CatReaction, CatTravelPhase } from "../cat-reactions";
+import catCushionUrl from "../assets/cat/cat-cushion.webp";
+import catYarnBallUrl from "../assets/cat/cat-yarn-ball.webp";
+import type {
+  CatBondStage,
+  CatMotion,
+  CatReaction,
+  CatTravelPhase,
+} from "../cat-reactions";
 
 const props = defineProps<{
   pose: CatPose;
+  motion: CatMotion;
+  bondStage: CatBondStage;
   reaction: CatReaction | null;
   travelPhase: CatTravelPhase;
-  full: boolean;
-  dropHover: boolean;
   loss: boolean;
-  feedResponse: "idle" | "accepted" | "rejected";
 }>();
 const emit = defineEmits<{ pet: []; search: [] }>();
 const root = ref<HTMLElement | null>(null);
@@ -38,13 +44,16 @@ const actionLabel = computed(() => {
   if (props.travelPhase === "looking" || props.travelPhase === "travelling") {
     return `${presentation.value.label}，正在帮你寻找小鱼`;
   }
-  if (props.full) {
-    return `${presentation.value.label}，已经吃饱，正在休息；点击打开互动选项`;
+  if (props.motion === "feeding") {
+    return `${presentation.value.label}，正在吃三条小鱼合成的大鱼`;
+  }
+  if (props.motion === "resting" || props.motion === "sleeping") {
+    return `${presentation.value.label}，吃饱后正在短暂休息；点击打开互动选项`;
   }
   if (props.travelPhase === "guarding") {
-    return `${presentation.value.label}，正守着找到的小鱼；也可以把小鱼拖到这里喂食`;
+    return `${presentation.value.label}，正守着找到的小鱼`;
   }
-  return `${presentation.value.label}，点击打开互动选项；也可以把小鱼拖到这里喂食`;
+  return `${presentation.value.label}，点击打开互动选项`;
 });
 
 function detachInteractionListeners(): void {
@@ -207,11 +216,10 @@ onBeforeUnmount(() => {
     ref="root"
     class="cat-companion"
     :data-pose="pose"
-    :data-reaction="reaction?.motion"
+    :data-motion="motion"
+    :data-bond-stage="bondStage"
     :data-travel-phase="travelPhase"
-    :data-drop-hover="dropHover"
     :data-loss="loss"
-    :data-feed-response="feedResponse"
     :data-interaction-open="interactionOpen"
     :data-keyboard-interaction="keyboardInteraction"
     @focusout="onFocusOut"
@@ -230,17 +238,43 @@ onBeforeUnmount(() => {
       @keydown="onTriggerKeydown"
     />
 
-    <Transition name="cat-pose" mode="out-in">
-      <img
-        :key="pose"
-        class="cat-companion__image"
-        :src="presentation.assetUrl"
-        alt=""
-        width="1402"
-        height="1254"
-        draggable="false"
-      />
-    </Transition>
+    <img
+      v-if="bondStage === 'bonded'"
+      class="cat-companion__keepsake cat-companion__keepsake--cushion"
+      :src="catCushionUrl"
+      alt=""
+      width="1254"
+      height="1254"
+      draggable="false"
+    />
+
+    <img
+      v-else-if="bondStage === 'familiar'"
+      class="cat-companion__keepsake cat-companion__keepsake--yarn"
+      :src="catYarnBallUrl"
+      alt=""
+      width="1254"
+      height="1254"
+      draggable="false"
+    />
+
+    <span class="cat-companion__ground-shadow" aria-hidden="true" />
+
+    <div class="cat-companion__motion" aria-hidden="true">
+      <Transition name="cat-pose">
+        <img
+          :key="pose"
+          class="cat-companion__image"
+          :src="presentation.assetUrl"
+          alt=""
+          width="1402"
+          height="1254"
+          draggable="false"
+        />
+      </Transition>
+      <span class="cat-companion__purr-ring cat-companion__purr-ring--one" />
+      <span class="cat-companion__purr-ring cat-companion__purr-ring--two" />
+    </div>
 
     <Transition name="cat-sleep-mark">
       <span
@@ -336,29 +370,79 @@ onBeforeUnmount(() => {
     border-radius: 46% 48% 42% 40%;
   }
 
-  &[data-drop-hover="true"] {
-    filter: drop-shadow(0 0 13px rgb(255 208 136 / 64%));
-    transform: scale(1.035);
+  &__keepsake {
+    position: absolute;
+    z-index: 0;
+    display: block;
+    object-fit: contain;
+    pointer-events: none;
+    user-select: none;
   }
 
-  &[data-travel-phase="looking"] &__image {
-    filter: drop-shadow(0 9px 8px rgb(57 70 112 / 16%)) brightness(1.04);
-    transform: translateY(-2px);
+  &__keepsake--yarn {
+    bottom: 2%;
+    left: 2%;
+    width: 28%;
+    height: 28%;
+    filter: drop-shadow(0 7px 6px rgb(57 70 112 / 15%));
   }
 
-  &[data-travel-phase="guarding"] &__image {
+  &__keepsake--cushion {
+    right: -1%;
+    bottom: -3%;
+    width: 98%;
+    height: 35%;
+    filter: drop-shadow(0 7px 6px rgb(57 70 112 / 13%));
+    transform: scaleX(1.65);
+  }
+
+  &__ground-shadow {
+    position: absolute;
+    z-index: 0;
+    right: 14%;
+    bottom: 2%;
+    width: 66%;
+    height: 8%;
+    border-radius: 50%;
+    background: rgb(63 72 107 / 12%);
+    filter: blur(6px);
+    pointer-events: none;
+    transform-origin: center;
+  }
+
+  &__motion {
+    position: absolute;
+    z-index: 1;
+    inset: 0;
+    pointer-events: none;
+    transform-origin: 50% 92%;
+  }
+
+  &[data-motion="idle"] &__motion {
+    animation: cat-idle-breathe 3.8s ease-in-out infinite;
+  }
+
+  &[data-motion="feeding"] &__motion {
+    animation: cat-chew 260ms ease-in-out infinite alternate;
+  }
+
+  &[data-motion="petting"] &__motion {
+    animation: cat-nuzzle 560ms var(--ease-out) both;
+  }
+
+  &[data-motion="searching"] &__motion {
+    animation: cat-search-hop 520ms var(--ease-out) infinite;
+  }
+
+  &[data-motion="searching"] &__ground-shadow {
+    animation: cat-search-shadow 520ms var(--ease-out) infinite;
+  }
+
+  &[data-motion="guarding"] &__motion {
     filter: drop-shadow(0 0 15px rgb(255 224 153 / 32%));
   }
 
-  &[data-feed-response="accepted"] &__image {
-    animation: cat-feed-accepted 220ms var(--ease-out) both;
-  }
-
-  &[data-feed-response="rejected"] &__image {
-    animation: cat-feed-rejected 220ms var(--ease-out) both;
-  }
-
-  &[data-loss="true"] &__image {
+  &[data-motion="loss"] &__motion {
     animation: cat-loss-reaction 1.2s var(--ease-out) both;
   }
 
@@ -376,13 +460,13 @@ onBeforeUnmount(() => {
     user-select: none;
   }
 
-  &__trigger:hover ~ &__image {
+  &__trigger:hover ~ &__motion &__image {
     filter:
       drop-shadow(0 10px 10px rgb(57 70 112 / 18%))
       brightness(1.025);
   }
 
-  &__trigger:focus-visible ~ &__image {
+  &__trigger:focus-visible ~ &__motion &__image {
     filter:
       drop-shadow(0 0 2px rgb(60 85 126 / 92%))
       drop-shadow(0 0 6px rgb(247 250 255 / 88%))
@@ -420,6 +504,28 @@ onBeforeUnmount(() => {
     pointer-events: none;
     transform: translateX(-50%);
     backdrop-filter: blur(7px);
+  }
+
+  &__purr-ring {
+    position: absolute;
+    z-index: 2;
+    top: 35%;
+    right: 19%;
+    display: block;
+    width: 13%;
+    aspect-ratio: 1;
+    border: 2px solid rgb(208 173 226 / 62%);
+    border-radius: 50%;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  &[data-motion="petting"] &__purr-ring {
+    animation: cat-purr-ring 560ms ease-out both;
+  }
+
+  &[data-motion="petting"] &__purr-ring--two {
+    animation-delay: 90ms;
   }
 
   &__menu {
@@ -485,33 +591,37 @@ onBeforeUnmount(() => {
     box-shadow: none;
   }
 
-  &[data-reaction="look"] &__image {
-    animation: cat-look 560ms var(--ease-out) both;
-  }
-
-  &[data-reaction="tail"] &__image,
-  &[data-reaction="purr"] &__image {
-    animation: cat-soft-wiggle 520ms var(--ease-out) both;
-  }
-
-  &[data-reaction="paw"] &__image,
-  &[data-reaction="belly"] &__image,
-  &[data-reaction="yawn"] &__image {
-    animation: cat-soft-pat 560ms var(--ease-out) both;
-  }
 }
 
-@keyframes cat-look {
-  50% { transform: translateX(-3px) rotate(-1.5deg); }
+@keyframes cat-idle-breathe {
+  0%, 100% { transform: translateY(0) scaleY(1); }
+  50% { transform: translateY(-1px) scaleY(1.012); }
 }
 
-@keyframes cat-soft-wiggle {
-  35% { transform: rotate(1.5deg); }
-  70% { transform: rotate(-1deg); }
+@keyframes cat-chew {
+  from { transform: translateY(0) scale(1); }
+  to { transform: translateY(2px) scale(1.006, 0.994); }
 }
 
-@keyframes cat-soft-pat {
-  45% { transform: translateY(2px) scale(0.99); }
+@keyframes cat-nuzzle {
+  0%, 100% { transform: translateX(0); }
+  46% { transform: translateX(-5px) translateY(1px); }
+}
+
+@keyframes cat-search-hop {
+  0%, 100% { transform: translateY(0) scaleY(1); }
+  45% { transform: translateY(-7px) scaleY(1.01); }
+}
+
+@keyframes cat-search-shadow {
+  0%, 100% { opacity: 1; transform: scaleX(1); }
+  45% { opacity: 0.55; transform: scaleX(0.82); }
+}
+
+@keyframes cat-purr-ring {
+  0% { opacity: 0; transform: scale(0.45); }
+  28% { opacity: 0.72; }
+  100% { opacity: 0; transform: scale(1.45); }
 }
 
 @keyframes cat-loss-reaction {
@@ -519,16 +629,6 @@ onBeforeUnmount(() => {
   20% { transform: translateY(3px) rotate(-2deg); filter: saturate(0.72); }
   42% { transform: translateY(2px) rotate(1deg); filter: saturate(0.72); }
   72% { transform: translateY(2px); filter: saturate(0.78); }
-}
-
-@keyframes cat-feed-accepted {
-  0%, 100% { transform: none; }
-  52% { transform: translateY(3px) scale(0.985); filter: brightness(1.08); }
-}
-
-@keyframes cat-feed-rejected {
-  0%, 100% { transform: none; }
-  50% { transform: translateX(-3px) rotate(-1deg); filter: saturate(0.78); }
 }
 
 .cat-pose-enter-active,
@@ -617,12 +717,29 @@ onBeforeUnmount(() => {
     animation: none !important;
   }
 
+  .cat-companion__motion,
+  .cat-companion__ground-shadow,
+  .cat-companion__purr-ring {
+    animation: none !important;
+  }
+
+  .cat-companion[data-motion="feeding"] .cat-companion__motion {
+    filter: brightness(1.06);
+  }
+
+  .cat-companion[data-motion="petting"] .cat-companion__purr-ring--one {
+    opacity: 0.55;
+    transform: scale(0.82);
+  }
+
+  .cat-companion[data-motion="searching"] .cat-companion__ground-shadow {
+    opacity: 0.62;
+    transform: scaleX(0.86);
+  }
+
   .cat-companion__menu-action {
     transition: none;
   }
 
-  .cat-companion[data-feed-response="accepted"] {
-    filter: drop-shadow(0 0 10px rgb(255 208 136 / 42%));
-  }
 }
 </style>

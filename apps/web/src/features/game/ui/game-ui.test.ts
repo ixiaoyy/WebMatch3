@@ -25,23 +25,20 @@ describe("fish spatial accessibility", () => {
       kind: "koi",
       layer: 2,
       higherOverlapCount: 0,
-      feedable: true,
     })).toBe(
-      "白红毛毡锦鲤，第3层，上方没有小鱼重叠；Enter或空格放入托盘，按F喂给小猫",
+      "白红毛毡锦鲤，小尺寸，第3层，上方没有小鱼重叠；Enter、空格或F放入托盘",
     );
     expect(getFishAccessibleLabel({
       kind: "whale",
       layer: 0,
       higherOverlapCount: 1,
-      feedable: false,
     })).toBe(
-      "蓝色毛毡鲸鱼，第1层，上方有1条小鱼重叠；Enter或空格放入托盘；小猫正在休息，按F可听取提示",
+      "蓝色毛毡鲸鱼，小尺寸，第1层，上方有1条小鱼重叠；Enter、空格或F放入托盘",
     );
     expect(getFishAccessibleLabel({
       kind: "betta",
       layer: 1,
       higherOverlapCount: 2,
-      feedable: true,
     })).toContain("第2层，上方有2条小鱼重叠");
   });
 
@@ -68,12 +65,10 @@ describe("fish spatial accessibility", () => {
       kind: lowerPiece.kind,
       layer: lowerPiece.layer,
       higherOverlapCount: after.get(lowerPiece.id) ?? 0,
-      feedable: true,
     })).not.toBe(getFishAccessibleLabel({
       kind: lowerPiece.kind,
       layer: lowerPiece.layer,
       higherOverlapCount: before.get(lowerPiece.id) ?? 0,
-      feedable: true,
     }));
   });
 });
@@ -86,12 +81,12 @@ describe("interaction feedback projection", () => {
     expect(getTrayPressure(7)).toBe("lost");
   });
 
-  it("keeps settle separate from plant clear and only locks terminal transitions", () => {
+  it("celebrates combinations and only locks terminal transitions", () => {
     expect(projectGameFeedback("clear")).toMatchObject({
       celebratesPlant: true,
       locksInput: false,
     });
-    expect(projectGameFeedback("settle")).toMatchObject({
+    expect(projectGameFeedback("select")).toMatchObject({
       celebratesPlant: false,
       locksInput: false,
     });
@@ -103,8 +98,6 @@ describe("interaction feedback projection", () => {
       loss: true,
       locksInput: true,
     });
-    expect(projectGameFeedback("feed").catFeedResponse).toBe("accepted");
-    expect(projectGameFeedback("feed-rejected").catFeedResponse).toBe("rejected");
   });
 
   it("targets one cross-layer match and starts only from untouched state", () => {
@@ -120,10 +113,6 @@ describe("interaction feedback projection", () => {
     expect(shouldStartIntro({
       ...game,
       tray: [{ id: "used", kind: "whale" }],
-    }, null)).toBe(false);
-    expect(shouldStartIntro({
-      ...game,
-      fed: [{ id: "fed", kind: "koi", settled: false }],
     }, null)).toBe(false);
     expect(shouldStartIntro({ ...game, level: 2 }, null)).toBe(false);
     expect(shouldStartIntro({ ...game, nextPieceId: game.nextPieceId + 36 }, null))

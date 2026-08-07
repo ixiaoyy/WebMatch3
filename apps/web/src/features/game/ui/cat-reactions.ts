@@ -10,50 +10,52 @@ export type CatReactionContext =
   | "unavailable";
 
 export type CatTravelPhase = "home" | "looking" | "travelling" | "guarding";
+export type CatBondStage = "newcomer" | "familiar" | "bonded";
 
-export type CatReactionMotion =
-  | "look"
-  | "tail"
-  | "purr"
-  | "belly"
-  | "yawn"
-  | "paw";
+export type CatMotion =
+  | "idle"
+  | "feeding"
+  | "petting"
+  | "searching"
+  | "guarding"
+  | "resting"
+  | "sleeping"
+  | "loss";
 
 export interface CatReaction {
   readonly id: string;
   readonly text: string;
-  readonly motion: CatReactionMotion;
 }
 
 const REACTIONS: Readonly<Record<CatReactionContext, readonly CatReaction[]>> = {
   idle: [
-    { id: "idle-meow", text: "喵～", motion: "tail" },
-    { id: "idle-look", text: "看看这边", motion: "look" },
-    { id: "idle-purr", text: "呼噜～", motion: "purr" },
+    { id: "idle-meow", text: "喵～" },
+    { id: "idle-look", text: "看看这边" },
+    { id: "idle-purr", text: "呼噜～" },
   ],
   fed: [
-    { id: "fed-more", text: "再来一条？", motion: "tail" },
-    { id: "fed-tasty", text: "真好吃", motion: "purr" },
+    { id: "fed-more", text: "再来一条？" },
+    { id: "fed-tasty", text: "真好吃" },
   ],
   full: [
-    { id: "full-belly", text: "好饱呀", motion: "belly" },
-    { id: "full-rest", text: "歇一会儿", motion: "belly" },
+    { id: "full-belly", text: "好饱呀" },
+    { id: "full-rest", text: "歇一会儿" },
   ],
   sleeping: [
-    { id: "sleep-purr", text: "呼噜…", motion: "purr" },
-    { id: "sleep-dream", text: "梦见小鱼", motion: "yawn" },
+    { id: "sleep-purr", text: "呼噜…" },
+    { id: "sleep-dream", text: "梦见小鱼" },
   ],
   searching: [
-    { id: "search-looking", text: "我找找", motion: "look" },
-    { id: "search-sniff", text: "在附近哦", motion: "look" },
+    { id: "search-looking", text: "我找找" },
+    { id: "search-sniff", text: "在附近哦" },
   ],
   guarding: [
-    { id: "guard-here", text: "在这里", motion: "paw" },
-    { id: "guard-found", text: "找到啦", motion: "tail" },
+    { id: "guard-here", text: "在这里" },
+    { id: "guard-found", text: "找到啦" },
   ],
   unavailable: [
-    { id: "unavailable-none", text: "暂时找不到", motion: "look" },
-    { id: "unavailable-wait", text: "等一等哦", motion: "tail" },
+    { id: "unavailable-none", text: "暂时找不到" },
+    { id: "unavailable-wait", text: "等一等哦" },
   ],
 };
 

@@ -11,7 +11,6 @@ const props = defineProps<{
   revealed: boolean;
   hinted: boolean;
   guided: boolean;
-  feedable: boolean;
   higherOverlapCount: number;
   tabIndex: number;
   disabled: boolean;
@@ -23,7 +22,6 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   activate: [pieceId: string];
-  feed: [pieceId: string];
   focus: [pieceId: string];
   navigate: [pieceId: string, event: KeyboardEvent];
   dragStart: [pieceId: string];
@@ -43,7 +41,6 @@ const label = computed(() => getFishAccessibleLabel({
   kind: props.piece.kind,
   layer: props.piece.layer,
   higherOverlapCount: props.higherOverlapCount,
-  feedable: props.feedable,
 }));
 
 function onPointerDown(event: PointerEvent): void {
@@ -115,7 +112,7 @@ function onClick(event: MouseEvent): void {
 function onKeydown(event: KeyboardEvent): void {
   if (event.key.toLowerCase() === "f") {
     event.preventDefault();
-    emit("feed", props.piece.id);
+    emit("activate", props.piece.id);
     return;
   }
   emit("navigate", props.piece.id, event);
@@ -187,7 +184,7 @@ function onKeydown(event: KeyboardEvent): void {
 .fish-piece {
   --active-x: var(--pile-x);
   --active-y: var(--pile-y);
-  --piece-visual-size: clamp(68px, 6.4vw, 88px);
+  --piece-visual-size: clamp(52px, 5vw, 70px);
   position: absolute;
   z-index: calc(2 + var(--piece-layer));
   width: var(--fish-target-size, 44px);

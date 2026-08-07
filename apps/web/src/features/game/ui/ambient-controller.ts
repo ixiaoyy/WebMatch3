@@ -2,10 +2,11 @@ import { computed, ref, shallowRef } from "vue";
 
 import {
   createLevelState,
-  feedPiece,
   getSelectablePieces,
   selectPiece,
   type AmbientGameState,
+  type FishKind,
+  type PilePiece,
   type RandomSource,
   type TrayPiece,
 } from "../engine";
@@ -14,7 +15,7 @@ import {
   loadAmbientSnapshotResult,
   resolveBrowserStorage,
   saveAmbientSnapshot,
-  type AmbientSnapshotV3,
+  type AmbientSnapshotV4,
   type StorageLike,
 } from "../session/ambient-storage";
 import {
@@ -28,6 +29,8 @@ import {
 } from "./game-ui";
 import {
   chooseCatReaction,
+  type CatBondStage,
+  type CatMotion,
   type CatReaction,
   type CatReactionContext,
   type CatTravelPhase,
@@ -48,11 +51,19 @@ export interface AmbientControllerOptions {
   readonly isSearchCandidate?: (pieceId: string) => boolean;
 }
 
+export interface CompletedFishEvent {
+  readonly id: number;
+  readonly kind: FishKind;
+  readonly combined: readonly [TrayPiece, TrayPiece, TrayPiece];
+  readonly feedCount: number;
+}
+
 const CAT_ACTIVATION_THROTTLE = 800;
 const CAT_BUBBLE_DURATION = 2_400;
 const CAT_AUTO_REACTION_MIN_DELAY = 45_000;
 const CAT_AUTO_REACTION_JITTER = 30_000;
 const DIRECT_FEEDBACK_DURATION = 220;
+const ASSEMBLY_FEEDBACK_DURATION = 700;
 const INTRO_SCAN_DURATION = 520;
 const INTRO_TARGET_DURATION = 620;
 const INTRO_TRAY_DURATION = 620;
@@ -61,8 +72,21 @@ const LOSS_FEEDBACK_DURATION = 1_200;
 
 const browserTimers: TimerApi = {
   schedule: (callback, delay) => globalThis.setTimeout(callback, delay),
-  cancel: (handle) => globalThis.clearTimeout(handle as ReturnType<typeof setTimeout>),
+  cancel: (handle) => globalThis.clearTimeout(
+    handle as ReturnType<typeof setTimeout>,
+  ),
 };
+
+/**
+ * Projects an unlimited completed-fish count into the three visible bond stages.
+ * @param fishFedCount Number of complete fish automatically fed to the cat.
+ * @returns The stable newcomer, familiar, or bonded stage.
+ */
+export function getCatBondStage(fishFedCount: number): CatBondStage {
+  if (fishFedCount >= 9) return "bonded";
+  if (fishFedCount >= 3) return "familiar";
+  return "newcomer";
+}
 
 export function createAmbientController(
   options: AmbientControllerOptions = {},
@@ -81,33 +105,27 @@ export function createAmbientController(
     stored.game,
     stored.pet.guardedPieceId,
   );
-  // A controller owns one play session; storage carries only its long-term
-  // plant progress and preferences into a newly generated level-one field.
-  const initial: AmbientSnapshotV3 = loaded.loadedFromStorage
+  // A controller owns one active play session. Durable pet, plant, and sound
+  // progress survive while the transient board and guard start clean.
+  const initial: AmbientSnapshotV4 = loaded.loadedFromStorage
     ? {
       ...stored,
-      game: createLevelState(
-        1,
-        stored.game.clearCount,
-        1,
-        random,
-      ),
-      pet: { guardedPieceId: null },
+      game: createLevelState(1, stored.game.clearCount, 1, random),
+      pet: { ...stored.pet, guardedPieceId: null },
     }
     : stored;
   const game = shallowRef<AmbientGameState>(initial.game);
   const soundEnabled = ref(initial.preferences.soundEnabled);
+  const fishFedCount = ref(initial.pet.fishFedCount);
   const status = ref("小鱼藏在桌面上。移动指针、触摸或方向键寻找它们。");
   const feedback = ref<GameFeedback>("idle");
   const introPhase = ref<IntroPhase>("idle");
   const introTargetIds = shallowRef(getIntroTargetIds(initial.game.pieces));
-  const catPose = ref<CatPose>(
-    initial.game.fed.length === 0
-      ? "idle"
-      : initial.game.fed.length < 3 ? "eating" : "sleeping",
-  );
+  const catPose = ref<CatPose>("idle");
+  const catMotion = ref<CatMotion>("idle");
   const trayPreview = shallowRef<readonly TrayPiece[] | null>(null);
   const clearingPieceIds = shallowRef<readonly string[]>([]);
+  const completedFish = shallowRef<CompletedFishEvent | null>(null);
   const catReaction = shallowRef<CatReaction | null>(null);
   const guardedPieceId = ref<string | null>(initial.pet.guardedPieceId);
   const catTravelPhase = ref<CatTravelPhase>(
@@ -125,7 +143,8 @@ export function createAmbientController(
   let petReactionSequence = 0;
   let lastCatActivationAt = Number.NEGATIVE_INFINITY;
   let reactionsStarted = false;
-  let wakeAfterSleep = false;
+  let pendingRestAfterFeed = false;
+  let completedFishSequence = 0;
   let generation = 0;
   let feedbackSequence = 0;
 
@@ -134,29 +153,32 @@ export function createAmbientController(
     0,
     Math.floor((currentTime.value - initial.plant.plantedAt) / 86_400_000),
   ));
+  const bondStage = computed(() => getCatBondStage(fishFedCount.value));
   const feedbackProjection = computed(() => projectGameFeedback(feedback.value));
-  const canSelect = computed(
-    () => !isAway.value && !feedbackProjection.value.locksInput,
+  const canSelect = computed(() =>
+    !isAway.value &&
+    completedFish.value === null &&
+    !feedbackProjection.value.locksInput
   );
   const guardedPiece = computed(() =>
-    game.value.pieces.find((piece) => piece.id === guardedPieceId.value) ?? null,
+    game.value.pieces.find((piece) => piece.id === guardedPieceId.value) ?? null
   );
   const catIsResting = computed(() =>
     catPose.value === "full" ||
     catPose.value === "lying" ||
-    catPose.value === "sleeping",
-  );
-  const catCanEat = computed(() =>
-    game.value.fed.length < 3 && !catIsResting.value && !isAway.value,
+    catPose.value === "sleeping"
   );
 
-  function snapshot(): AmbientSnapshotV3 {
+  function snapshot(): AmbientSnapshotV4 {
     return {
       version: AMBIENT_SNAPSHOT_VERSION,
       game: game.value,
       preferences: { soundEnabled: soundEnabled.value },
       plant: initial.plant,
-      pet: { guardedPieceId: guardedPieceId.value },
+      pet: {
+        guardedPieceId: guardedPieceId.value,
+        fishFedCount: fishFedCount.value,
+      },
     };
   }
 
@@ -200,10 +222,10 @@ export function createAmbientController(
     status.value = "一道柔和的光正扫向附近的小鱼。";
     scheduleIntroStep(INTRO_SCAN_DURATION, () => {
       introPhase.value = "targets";
-      status.value = "光里的三条同类小鱼轻轻抬起。";
+      status.value = "三条同种小鱼轻轻抬起。";
       scheduleIntroStep(INTRO_TARGET_DURATION, () => {
         introPhase.value = "tray";
-        status.value = "托盘的第一格正在等待一条小鱼。";
+        status.value = "托盘正等着三条同种小鱼聚在一起。";
         scheduleIntroStep(INTRO_TRAY_DURATION, () => {
           introPhase.value = "idle";
           feedback.value = "idle";
@@ -279,8 +301,8 @@ export function createAmbientController(
     catAutoReactionHandle = timers.schedule(() => {
       catAutoReactionHandle = null;
       if (token !== generation || isAway.value) return;
-      if (catTravelPhase.value === "home" && game.value.fed.length < 3) {
-        showCatReaction(game.value.fed.length > 0 ? "fed" : "idle");
+      if (catTravelPhase.value === "home") {
+        showCatReaction(fishFedCount.value > 0 ? "fed" : "idle");
       }
       scheduleCatAutoReaction();
     }, delay);
@@ -292,6 +314,24 @@ export function createAmbientController(
     scheduleCatAutoReaction();
   }
 
+  /**
+   * Synchronizes the main motion channel after a transient pose returns idle.
+   * @returns Nothing; the motion ref is updated from the current travel phase.
+   */
+  function syncCatMotionWithTravel(): void {
+    if (catPose.value !== "idle") return;
+    if (
+      catTravelPhase.value === "looking" ||
+      catTravelPhase.value === "travelling"
+    ) {
+      catMotion.value = "searching";
+    } else if (catTravelPhase.value === "guarding") {
+      catMotion.value = "guarding";
+    } else {
+      catMotion.value = "idle";
+    }
+  }
+
   function scheduleCatPose(nextPose: CatPose, delay: number): void {
     clearCatPoseTimer();
     const token = generation;
@@ -299,38 +339,42 @@ export function createAmbientController(
       catPoseHandle = null;
       if (token !== generation || isAway.value) return;
       catPose.value = nextPose;
-      if (nextPose === "lying") {
+      if (nextPose === "full") {
+        catMotion.value = "resting";
+        scheduleCatPose("lying", 520);
+      } else if (nextPose === "lying") {
+        catMotion.value = "resting";
         scheduleCatPose("sleeping", 520);
-      } else if (nextPose === "sleeping" && wakeAfterSleep) {
+      } else if (nextPose === "sleeping") {
+        catMotion.value = "sleeping";
         showCatReaction("sleeping");
         scheduleCatPose("idle", 720);
-        wakeAfterSleep = false;
-      } else if (nextPose === "sleeping") {
-        showCatReaction("sleeping");
+      } else if (nextPose === "idle") {
+        pendingRestAfterFeed = false;
+        syncCatMotionWithTravel();
       }
     }, delay);
   }
 
-  function startCatFeedReaction(feedCount: number, levelAdvanced: boolean): void {
+  function startCatFeedReaction(feedCount: number): void {
     clearCatPoseTimer();
-    wakeAfterSleep = levelAdvanced;
-    if (feedCount < 3) {
-      catPose.value = "eating";
-      if (levelAdvanced) scheduleCatPose("idle", 720);
-      return;
-    }
-    catPose.value = "full";
-    scheduleCatPose("lying", 520);
+    pendingRestAfterFeed = feedCount % 3 === 0;
+    catPose.value = "eating";
+    catMotion.value = "feeding";
+    scheduleCatPose(pendingRestAfterFeed ? "full" : "idle", 520);
   }
 
   function resumeCatPoseSequence(): void {
-    if (catPose.value === "full") {
+    if (catPose.value === "eating") {
+      scheduleCatPose(pendingRestAfterFeed ? "full" : "idle", 520);
+    } else if (catPose.value === "full") {
       scheduleCatPose("lying", 520);
     } else if (catPose.value === "lying") {
       scheduleCatPose("sleeping", 520);
-    } else if (catPose.value === "sleeping" && wakeAfterSleep) {
+    } else if (catPose.value === "sleeping") {
       scheduleCatPose("idle", 720);
-      wakeAfterSleep = false;
+    } else {
+      syncCatMotionWithTravel();
     }
   }
 
@@ -338,12 +382,13 @@ export function createAmbientController(
     clearCatSearchTimer();
     guardedPieceId.value = null;
     catTravelPhase.value = "home";
+    syncCatMotionWithTravel();
   }
 
   function resolveGuardedPiece(pieceId: string): void {
     if (guardedPieceId.value !== pieceId) return;
     returnCatHome();
-    showCatReaction(game.value.fed.length > 0 ? "fed" : "idle");
+    showCatReaction(fishFedCount.value > 0 ? "fed" : "idle");
   }
 
   function scheduleCatGuarding(delay: number): void {
@@ -358,7 +403,8 @@ export function createAmbientController(
         return;
       }
       catTravelPhase.value = "guarding";
-      status.value = "小猫找到了，正用光照着那条小鱼。";
+      catMotion.value = "guarding";
+      status.value = "小猫找到了，正用光照着需要的小鱼。";
       showCatReaction("guarding");
     }, delay);
   }
@@ -370,6 +416,7 @@ export function createAmbientController(
       catSearchHandle = null;
       if (token !== generation || isAway.value || !guardedPiece.value) return;
       catTravelPhase.value = "travelling";
+      catMotion.value = "searching";
       scheduleCatGuarding(520);
     }, delay);
   }
@@ -383,7 +430,21 @@ export function createAmbientController(
       scheduleCatTravelling(320);
     } else if (catTravelPhase.value === "travelling") {
       scheduleCatGuarding(520);
+    } else if (catTravelPhase.value === "guarding") {
+      catMotion.value = "guarding";
     }
+  }
+
+  /**
+   * Scores a hidden small fish by how close its species is to combining.
+   * @param candidate Candidate pile fish considered for cat search.
+   * @returns Priority from one for a new species to three for a completing fish.
+   */
+  function getSearchPriority(candidate: PilePiece): number {
+    const sameKindCount = game.value.tray.filter((piece) =>
+      piece.kind === candidate.kind
+    ).length;
+    return Math.min(3, sameKindCount + 1);
   }
 
   function requestCatSearch(): void {
@@ -393,34 +454,25 @@ export function createAmbientController(
     if (activatedAt - lastCatActivationAt < CAT_ACTIVATION_THROTTLE) return;
     lastCatActivationAt = activatedAt;
 
-    if (game.value.fed.length >= 3 || catIsResting.value) {
-      status.value = catPose.value === "sleeping"
-        ? "小猫已经睡着了，现在不能帮忙寻鱼。"
-        : "小猫已经吃饱，正在休息，现在不能帮忙寻鱼。";
-      showCatReaction(catPose.value === "sleeping" ? "sleeping" : "full");
-      return;
-    }
     if (guardedPiece.value) {
-      status.value = "小猫还守着刚找到的那条鱼。";
+      status.value = "小猫还守着刚找到的小鱼。";
       showCatReaction("guarding");
       return;
     }
     if (!canSelect.value) {
-      status.value = "桌面正在变化，请稍后再请小猫寻鱼。";
+      status.value = "完整鱼正在送给小猫，请稍等一下。";
       showCatReaction("unavailable");
       return;
     }
 
-    const trayKindCounts = new Map<string, number>();
-    for (const piece of game.value.tray) {
-      trayKindCounts.set(piece.kind, (trayKindCounts.get(piece.kind) ?? 0) + 1);
-    }
+    clearCatPoseTimer();
+    pendingRestAfterFeed = false;
+    catPose.value = "idle";
     const candidates = selectablePieces.value.filter((piece) =>
-      options.isSearchCandidate?.(piece.id) ?? true,
+      options.isSearchCandidate?.(piece.id) ?? true
     );
     const target = candidates.sort((first, second) => {
-      const matchPriority = (trayKindCounts.get(second.kind) ?? 0) -
-        (trayKindCounts.get(first.kind) ?? 0);
+      const matchPriority = getSearchPriority(second) - getSearchPriority(first);
       if (matchPriority !== 0) return matchPriority;
       const distancePriority =
         Math.hypot(first.pile.x - 0.12, first.pile.y - 0.74) -
@@ -430,12 +482,14 @@ export function createAmbientController(
     if (!target) {
       status.value = "小猫暂时找不到可以提示的小鱼。";
       showCatReaction("unavailable");
+      syncCatMotionWithTravel();
       return;
     }
 
     guardedPieceId.value = target.id;
     catTravelPhase.value = "looking";
-    status.value = "小猫正在寻找一条可以拿到的小鱼。";
+    catMotion.value = "searching";
+    status.value = "小猫正在寻找最接近凑齐三条的同种小鱼。";
     showCatReaction("searching");
     persist();
     scheduleCatTravelling(320);
@@ -443,8 +497,7 @@ export function createAmbientController(
 
   /**
    * Announces that keyboard activation found no fish under the spotlight.
-   * @returns Nothing; only the transient live-region status is updated.
-   * The notification changes only transient status and leaves game state intact.
+   * @returns Nothing; only transient live-region status is updated.
    */
   function announceSearchMiss(): void {
     takeOverIntro();
@@ -461,23 +514,29 @@ export function createAmbientController(
     ) {
       return;
     }
+    clearCatPoseTimer();
+    pendingRestAfterFeed = false;
+    catPose.value = "idle";
+    catMotion.value = "petting";
     petReactionSequence += 1;
+    const familiar = bondStage.value !== "newcomer";
     const next: CatReaction = {
-      id: `pet-purr-${petReactionSequence}`,
-      text: "呼噜～",
-      motion: "purr",
+      id: `pet-${familiar ? "purr" : "hello"}-${petReactionSequence}`,
+      text: familiar ? "呼噜～" : "喵～",
     };
     lastCatReactionId = next.id;
     catReaction.value = next;
-    status.value = catPose.value === "sleeping"
-      ? "小猫在睡梦里轻轻呼噜了一声。"
-      : "小猫眯起眼睛，轻轻蹭了蹭你的手。";
-    if (!isAway.value) scheduleCatReactionDismiss(CAT_BUBBLE_DURATION);
+    status.value = familiar
+      ? "小猫主动贴近你的手，发出轻轻的呼噜声。"
+      : "小猫试探着靠近你的手。";
+    scheduleCatPose("idle", 560);
+    scheduleCatReactionDismiss(CAT_BUBBLE_DURATION);
   }
 
   function clearTrayFeedback(): void {
     trayPreview.value = null;
     clearingPieceIds.value = [];
+    completedFish.value = null;
   }
 
   function interruptFeedback(): void {
@@ -506,60 +565,11 @@ export function createAmbientController(
       clearTrayFeedback();
       if (kind === "loss") {
         catPose.value = "idle";
+        catMotion.value = "idle";
         status.value = "新的第一局已经排好，可以继续寻找小鱼。";
         scheduleCatAutoReaction();
       }
     }, delay);
-  }
-
-  function feedToCat(pieceId: string): void {
-    takeOverIntro();
-    if (!canSelect.value) return;
-    interruptFeedback();
-    if (!catCanEat.value) {
-      status.value = "小猫正在休息，现在不能再喂。";
-      showCatReaction(catPose.value === "sleeping" ? "sleeping" : "full");
-      settleFeedback("feed-rejected", DIRECT_FEEDBACK_DURATION);
-      return;
-    }
-    const previousFeedCount = game.value.fed.length;
-    const result = feedPiece(game.value, pieceId, random);
-    if (result.kind === "missing") return;
-    if (result.kind === "full") {
-      status.value = "小猫已经吃饱了，不能再喂。";
-      showCatReaction(catPose.value === "sleeping" ? "sleeping" : "full");
-      settleFeedback("feed-rejected", DIRECT_FEEDBACK_DURATION);
-      return;
-    }
-    const feedCount = previousFeedCount + 1;
-    if (result.settled.length > 0) {
-      trayPreview.value = game.value.tray;
-      clearingPieceIds.value = result.settled.map((piece) => piece.id);
-    }
-    game.value = result.state;
-    if (
-      guardedPieceId.value === pieceId ||
-      feedCount === 3 ||
-      result.levelAdvanced
-    ) returnCatHome();
-    status.value = result.settled.length > 0
-      ? feedCount === 3
-        ? "小猫吃饱了，这条鱼也补足了托盘里的同类小鱼。"
-        : `${getFishPresentation(result.selected.kind).label}补足了托盘里的同类小鱼，它们一起消掉了。`
-      : feedCount === 3
-      ? "小猫吃饱了，抱着肚子趴下来，慢慢睡着了。"
-      : `小猫开心地吃下第${feedCount}条鱼。`;
-    startCatFeedReaction(feedCount, result.levelAdvanced);
-    showCatReaction(feedCount === 3 ? "full" : "fed");
-    persist();
-    if (result.settled.length > 0) {
-      settleFeedback(
-        result.levelAdvanced ? "level" : "settle",
-        result.levelAdvanced ? LEVEL_FEEDBACK_DURATION : 620,
-      );
-    } else {
-      settleFeedback("feed", DIRECT_FEEDBACK_DURATION);
-    }
   }
 
   function activate(pieceId: string): void {
@@ -570,82 +580,85 @@ export function createAmbientController(
     const result = selectPiece(game.value, pieceId, random);
     if (result.kind === "missing") return;
 
-    if (result.kind === "cleared") {
+    if (result.kind === "combined") {
+      const previousStage = bondStage.value;
       trayPreview.value = [...game.value.tray, result.selected];
-      clearingPieceIds.value = result.cleared.map((piece) => piece.id);
+      clearingPieceIds.value = result.combined.map((piece) => piece.id);
       game.value = result.state;
       resolveGuardedPiece(pieceId);
-      status.value = result.levelAdvanced
-        ? "桌面清空了，一群更有挑战的小鱼正在展开。"
-        : `三条${getFishPresentation(result.selected.kind).label}聚在一起，植物长高了一点。`;
+      fishFedCount.value = Math.min(
+        Number.MAX_SAFE_INTEGER,
+        fishFedCount.value + 1,
+      );
+      completedFishSequence += 1;
+      completedFish.value = {
+        id: completedFishSequence,
+        kind: result.fishKind,
+        combined: result.combined,
+        feedCount: fishFedCount.value,
+      };
+      if (result.levelAdvanced) returnCatHome();
+      const nextStage = bondStage.value;
+      const fishLabel = getFishPresentation(result.fishKind).label;
+      status.value = previousStage !== nextStage
+        ? `三条${fishLabel}合成一条大鱼并自动喂给小猫。你们变得更亲近了。`
+        : `三条${fishLabel}合成一条大鱼，自动送给小猫。`;
+      startCatFeedReaction(fishFedCount.value);
+      showCatReaction(fishFedCount.value % 3 === 0 ? "full" : "fed");
       persist();
-      if (result.levelAdvanced) {
-        returnCatHome();
-        catPose.value = "idle";
-        clearCatPoseTimer();
-      }
       options.onClear?.();
       settleFeedback(
         result.levelAdvanced ? "level" : "clear",
-        result.levelAdvanced ? LEVEL_FEEDBACK_DURATION : 620,
+        result.levelAdvanced
+          ? LEVEL_FEEDBACK_DURATION
+          : ASSEMBLY_FEEDBACK_DURATION,
       );
       return;
     }
-    if (result.kind === "settled") {
-      trayPreview.value = [...game.value.tray, result.selected];
-      clearingPieceIds.value = result.settled.map((piece) => piece.id);
-      game.value = result.state;
-      resolveGuardedPiece(pieceId);
-      status.value = result.levelAdvanced
-        ? "喂过的小鱼补足了最后一组，一群新的小鱼正在展开。"
-        : `${getFishPresentation(result.selected.kind).label}借助喂过的小鱼凑满三条，一起消掉了。`;
-      persist();
-      if (result.levelAdvanced) {
-        returnCatHome();
-        catPose.value = "idle";
-        clearCatPoseTimer();
-      }
-      settleFeedback(
-        result.levelAdvanced ? "level" : "settle",
-        result.levelAdvanced ? LEVEL_FEEDBACK_DURATION : 620,
-      );
-      return;
-    }
+
     game.value = result.state;
     resolveGuardedPiece(pieceId);
     if (result.kind === "lost") {
       trayPreview.value = result.tray;
       clearingPieceIds.value = [];
+      completedFish.value = null;
       returnCatHome();
       clearCatPoseTimer();
       clearCatAutoReactionTimer();
       dismissCatReaction();
-      wakeAfterSleep = false;
+      pendingRestAfterFeed = false;
       catPose.value = "lying";
+      catMotion.value = "loss";
       status.value = "托盘装满了，小鱼们安静地重新排好，从第一局再来。";
       persist();
       settleFeedback("loss", LOSS_FEEDBACK_DURATION);
       return;
     }
 
-    status.value = `${getFishPresentation(result.selected.kind).label}滑进了托盘。`;
+    status.value = `一条${
+      getFishPresentation(result.selected.kind).label
+    }滑进了托盘。`;
     persist();
     settleFeedback("select", DIRECT_FEEDBACK_DURATION);
   }
 
-  function rejectFeed(): void {
+  /**
+   * Explains why a single small fish cannot be fed directly to the cat.
+   * @returns Nothing; canonical game and durable pet progress remain unchanged.
+   */
+  function rejectDirectFeed(): void {
     takeOverIntro();
     if (!canSelect.value) return;
     interruptFeedback();
-    status.value = "没有放到小猫身上，小鱼回到了原位。";
+    status.value = "先凑齐三条同种小鱼，它们会变成大鱼自动喂给小猫。";
     showCatReaction("unavailable");
-    settleFeedback("feed-rejected", DIRECT_FEEDBACK_DURATION);
+    settleFeedback("select", DIRECT_FEEDBACK_DURATION);
   }
 
   function setSoundEnabled(enabled: boolean): void {
     takeOverIntro();
     soundEnabled.value = enabled;
-    status.value = enabled ? "清除声音已开启。" : "声音已关闭。";
+    status.value = enabled ? "小鱼合成音效已开启。" : "声音已关闭。";
     persist();
   }
 
@@ -668,7 +681,10 @@ export function createAmbientController(
       clearCatReactionTimer();
       feedback.value = "idle";
       clearTrayFeedback();
-      if (lossInterrupted) catPose.value = "idle";
+      if (lossInterrupted) {
+        catPose.value = "idle";
+        catMotion.value = "idle";
+      }
       persist();
       return;
     }
@@ -698,26 +714,28 @@ export function createAmbientController(
   return {
     game,
     soundEnabled,
+    fishFedCount,
+    bondStage,
     status,
     feedback,
     feedbackProjection,
     introPhase,
     introTargetIds,
     catPose,
+    catMotion,
     catReaction,
     guardedPiece,
     catTravelPhase,
     catIsResting,
     trayPreview,
     clearingPieceIds,
+    completedFish,
     isAway,
     selectablePieces,
     plantAgeDays,
     canSelect,
-    catCanEat,
     activate,
-    feedToCat,
-    rejectFeed,
+    rejectDirectFeed,
     petCat,
     requestCatSearch,
     announceSearchMiss,
