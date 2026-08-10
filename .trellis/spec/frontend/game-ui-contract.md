@@ -28,19 +28,32 @@ interface CompletedFishEvent {
   readonly kind: FishKind;
   readonly combined: readonly [TrayPiece, TrayPiece, TrayPiece];
   readonly feedCount: number;
+  readonly phase: "catching" | "merging" | "feeding";
 }
 
 createAmbientController(options?: AmbientControllerOptions): AmbientController
 
 interface AmbientController {
+  readonly presentedClearCount: Ref<number>;
   readonly fishFedCount: Ref<number>;
   readonly bondStage: ComputedRef<CatBondStage>;
   readonly completedFish: ShallowRef<CompletedFishEvent | null>;
-  activate(pieceId: string): void;
+  activate(pieceId: string): SelectionResult | null;
   rejectDirectFeed(): void;
   petCat(): void;
   requestCatSearch(): void;
 }
+
+const MAGNETIC_FISH_RADIUS = 40;
+const FISH_CATCH_FLIGHT_DURATION = 500;
+const FISH_MERGE_CONTACT_DURATION = 620;
+const FISH_FEED_SETTLE_DURATION = 380;
+
+findNearestMagneticFish(
+  targets: readonly MagneticFishTarget[],
+  pointer: Point,
+  radius?: number,
+): string | null
 
 createFieldProjectionScheduler(
   commit: (projection: FieldProjection) => void,
@@ -125,6 +138,14 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
   pointer or keyboard action path. Revealed overlap groups fan apart just
   enough to expose distinct pointer targets, then return to canonical render
   positions when the light leaves.
+- A revealed fish may render beyond its native 44px button. For an exact mouse
+  pointer outside that semantic core, `FishField` measures enabled revealed DOM
+  target centers and acquires the nearest one within the 40px magnetic radius.
+  Direct button events continue to own the core; the surface owns only the
+  surrounding visual body, so one press cannot activate twice. Pointer down
+  captures the acquired canonical ID through release, and equal distances use
+  the piece ID as a deterministic tie-break. Blank mouse presses only emit a
+  miss. Touch scanning and all keyboard paths remain independent of hover.
 - Each native fish button exposes its descriptive species, one-based visual
   layer, current number of higher-layer overlaps, and current Enter/Space/F
   guidance in one accessible name. Zero overlaps use explicit "none" wording;
@@ -148,11 +169,13 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
   the visual intro does not dismiss this instruction, which stays non-blocking
   and UI-local and never enters a snapshot.
 - Controller feedback is one mutually exclusive projection. Direct `select`
-  feedback lasts about 220ms; small-fish combination uses about 700ms; `level`
-  uses about 960ms so its arrival cue is readable; `loss` remains 1.2s. The
-  transient `CompletedFishEvent` also blocks a second selection until delivery
-  completes. Components consume these projections and do not start competing
-  cross-component state timers.
+  feedback lasts about 220ms. A completed fish advances through controller-
+  owned `catching` (500ms), `merging` (620ms), and `feeding` phases; ordinary
+  feeding settles after another 380ms, while `level` retains its 960ms arrival
+  cue. `loss` waits for the seventh 500ms catch before its existing 1.2s
+  response. The transient `CompletedFishEvent` blocks another selection until
+  the completed-fish transaction settles. Components consume these projections
+  and do not start competing cross-component phase timers.
   FishField may still own pointer afterglow, drag return, and nearby slip timers
   because those projections never cross its boundary.
 - When the search surface itself is focused, arrows move the light and
@@ -204,20 +227,35 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
   `fishFedCount`. `F` follows the same tray-selection path as Enter and Space.
 - Selecting the third same-species small fish produces one engine-owned
   `combined` result. The controller increments the unlimited `fishFedCount`,
-  persists both game and pet progress, emits one transient `CompletedFishEvent`,
-  and starts the cat's eating pose. There is no cat-full rejection state.
-- `FishDelivery` measures tray and cat centers in the current surface, gathers
-  three small fish at the tray, forms one visibly larger fish of the same
-  species, and sends it to the cat. Delivery geometry, event sequence IDs, and
-  the large-fish projection never enter engine or snapshot state.
+  persists both game and pet progress, and emits one transient
+  `CompletedFishEvent` in `catching`. Cat eating/full motion, the clear sound,
+  the visible plant increment, and the reaction text begin only in `feeding`,
+  near large-fish contact. There is no cat-full rejection state.
+- Before controller activation, `GameView` measures the selected DOM center and
+  its pre-selection tray slot. `activate` returns the already-applied engine
+  result so the view creates a keyed, `aria-hidden`, pointer-transparent catch
+  ghost only for a real selection. Canonical state persists immediately, but
+  every incoming ID is projected out of the visible tray until its 500ms ghost
+  completes. Multiple ordinary ghosts may coexist and retain their own IDs and
+  destinations.
+- `FishDelivery` starts only after the completed event reaches `merging` and
+  every matching incoming ghost has landed. It measures the middle clearing
+  slot and cat center in the current surface, gathers the three real tray fish,
+  forms one visibly larger fish of the same species, and sends it to the cat.
+  Delivery geometry, event sequence IDs, incoming-ID projections, and the
+  large-fish projection never enter engine or snapshot state.
 - Bond stage is derived only from the durable count: `newcomer` for `0..2`,
   `familiar` for `3..8`, and `bonded` for `9+`. Every third automatic feed runs
   `eating -> full -> lying -> sleeping -> idle`; any later combination can
   interrupt that rest and is still accepted. Away pauses and resumes the
   current pose sequence without advancing progress offline.
-- Revealed fish use their visual layer to vary lift and shadow without changing
-  hit targets. Normal selection leaves a short origin-tuck transition and the
-  entering tray image lands with restrained compression. Five tray entries use
+- Revealed and hinted fish may use deterministic, low-amplitude UI-only living
+  motion without changing canonical coordinates or hit-test identity. The
+  inner motion stops while a fish is magnetic, focused, guided, pressed, or
+  dragged, and all loops stop while away or under reduced motion. Normal
+  selection leaves a short origin response, follows a source-to-tray catch
+  flight, and then lets the entering tray image land with restrained
+  compression. Five tray entries use
   a static caution treatment; six add a low-frequency stronger pressure cue;
   seven remains the existing loss sequence. A combination uses the lavender
   reward and plant response because it increments canonical `clearCount`.
@@ -255,8 +293,10 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
   cat home. `clearCount`, `fishFedCount`, plant timestamp, and preferences
   survive; stored level, coordinates, inventory, guard, and piece IDs do not.
 - A combination persists canonical state immediately while exposing the exact
-  three small fish as an ephemeral 700ms tray/delivery preview. The small-fish
-  gather, large fish, and surface-local flight never enter storage.
+  three small fish through the UI-only catch, gather, and feed phases. Ordinary
+  completion is about 1.5 seconds from the third press through feed settlement.
+  The incoming ghosts, small-fish gather, large fish, phase, and surface-local
+  geometry never enter storage.
 - Version-three feed-credit snapshots migrate to version four by preserving
   `clearCount`, plant age, preferences, monotonic ID origin, and the recoverable
   legacy fed-entry count while rebuilding the board from whole small fish.
@@ -318,12 +358,14 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
 | `帮我抓鱼` is chosen with an eligible target | close the menu, look, travel, immediately light and guard that target on arrival |
 | Guide beam overlaps multiple canonical fish | reveal and enable only the guarded target; keep every neighbor hidden unless the independent pointer light reveals it |
 | Spotlight outer hint ring overlaps a fish | show at most a faint pointer-transparent silhouette; do not add it to the revealed/actionable set |
+| Exact mouse press lands on a revealed fish body outside its 44px button | acquire the closest revealed enabled DOM center within 40px, retain that ID through release, and activate exactly once |
+| Exact mouse press has no magnetic or direct fish target | emit one visual/status miss and leave canonical state unchanged |
 | Pointer crosses transparent cat artwork outside the pose trigger | hit the fish or surface beneath it; retain the outer geometry only for drag-to-cat drop evaluation |
 | Eligible hidden fish include tray-count priorities 2, 1, and 0 | choose from priority 2, then 1, then 0; use distance and stable ID only within a priority |
 | Escape or outside pointer activation closes the cat menu | remove the menu and its current-document listeners, then restore focus to the cat |
 | A cat action starts while a leave transition retains the menu node | make that node inert, a11y-hidden, and pointer-transparent immediately, then remove it at transition completion |
 | Guarded target is selected | return cat home and clear the guard |
-| Third same-species tray fish is selected | persist the exact combination and incremented `fishFedCount`, then render one transient large-fish delivery |
+| Third same-species tray fish is selected | persist the exact combination and incremented `fishFedCount`; land all matching catch ghosts, gather three tray fish, deliver one large fish, then begin cat/sound/plant feedback |
 | Fourth, tenth, or later complete fish is produced | accept and auto-feed it; never reject because of a capacity limit |
 | Durable count crosses 3 or 9 | derive the next bond stage without rewriting historical count |
 | Durable count is divisible by three | run the temporary rest sequence; allow the next completed fish to interrupt it |
@@ -351,6 +393,10 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
 ## 5. Good / Base / Bad Cases
 
 - Good: combination and bond progress persist before decorative delivery finishes.
+- Good: canonical selection commits immediately while the incoming ID stays
+  hidden from the tray until its keyed catch ghost reaches the measured slot.
+- Good: a visible fish edge outside the semantic button acquires one stable ID
+  at pointer down and releases that same ID even if projections move.
 - Base: unsupported PiP and blocked storage still provide complete play.
 - Good: hiding the opener does not pause an active PiP surface.
 - Good: reveal state derives from canonical coordinates but remains entirely
@@ -361,6 +407,10 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
   level-one board while lifetime `clearCount`, `fishFedCount`, and `plantedAt`
   remain intact.
 - Bad: a hidden fish keeps a pointer hit box or light coordinates are saved.
+- Bad: enlarging every overlapping native button until transparent targets
+  obscure one another, or resolving a different nearest fish on pointer up.
+- Bad: showing the canonical tray fish before its catch ghost lands, or starting
+  cat/plant/sound feedback while the large fish is still assembling.
 - Bad: the cat trigger calls `requestCatSearch` directly or pet/menu state is
   added to the persisted snapshot.
 - Bad: controller creation either resumes the stored game or calls
@@ -373,9 +423,10 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
 
 ## 6. Tests Required
 
-1. controller tray selection, exact three-fish combination IDs, automatic feed,
-   clear callback, finite inventory, level advancement, durable count
-   persistence, and default-muted sound;
+1. controller tray selection, exact three-fish combination IDs,
+   `catching -> merging -> feeding -> cleared` timing, delayed cat/plant/sound
+   feedback, finite inventory, level advancement, durable count persistence,
+   and default-muted sound;
 2. immediate stable persistence plus automatic completion, away cancellation,
    and dispose cancellation of the 1-1.5 second loss preview;
 3. version-four snapshot round-trip, load-result source metadata, full-tray
@@ -426,6 +477,10 @@ createDocumentPipController(onSurfaceChange: (surfaceWindow: Window | null) => v
 13. browser hit-test the transparent cat-artwork area against nearby fish in
     standing and lying pose groups; retain the pose trigger's 44px minimum and
     the separate outer drag-to-cat drop geometry.
+14. pure magnetic-target regressions for closest center, deterministic ties,
+    and radius rejection; browser-check a revealed visual edge outside the
+    44px core, ordinary and rapid catch flights, the third-fish landing before
+    gather, large-fish contact before cat/plant/sound, and no leftover ghosts.
 
 Run focused tests first, then one `pnpm ci:web`.
 
@@ -503,4 +558,23 @@ getRevealedPieceIds(pieces, guidedPiece.pile);
 
 // Correct: the pointer light owns radius reveal; the guide retains one ID.
 getRevealedPieceIds(pieces, pointerLight, [guidedPiece.id]);
+```
+
+Canonical state and presentation timing must also stay separate:
+
+```ts
+// Wrong: the canonical tray renders immediately and every consumer reacts now.
+game.activate(pieceId);
+startCatFeedReaction();
+
+// Correct: measure first, apply once, then project the returned result in time.
+const geometry = measureCatchGeometry(pieceId, game.game.value.tray.length);
+const result = game.activate(pieceId);
+if (result && result.kind !== "missing" && geometry) {
+  catchFlights.value = [...catchFlights.value, {
+    pieceId: result.selected.id,
+    kind: result.selected.kind,
+    ...geometry,
+  }];
+}
 ```

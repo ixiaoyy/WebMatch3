@@ -10,6 +10,7 @@ export type SpotlightMode = "inactive" | "searching" | "afterglow" | "dragging";
 export type SpotlightDirection = "up" | "right" | "down" | "left";
 export const POINTER_DRAG_THRESHOLD = 7;
 export const MINIMUM_FISH_TARGET_SIZE = 44;
+export const MAGNETIC_FISH_RADIUS = 40;
 
 const FISH_TARGET_GAP = MINIMUM_FISH_TARGET_SIZE + 4;
 const FISH_TARGET_LAYOUT_ITERATIONS = 96;
@@ -33,6 +34,11 @@ export interface FishTargetLayoutOptions {
   readonly projection: FieldProjection;
   readonly surfaceSize: FieldSurfaceSize;
   readonly minimumTargetSize?: number;
+}
+
+export interface MagneticFishTarget {
+  readonly id: string;
+  readonly center: Point;
 }
 
 export interface FieldProjectionScheduler {
@@ -401,4 +407,30 @@ export function findNearestRevealedPiece(
       Math.hypot(first.pile.x - light.x, first.pile.y - light.y) -
       Math.hypot(second.pile.x - light.x, second.pile.y - light.y)
     )[0] ?? null;
+}
+
+/**
+ * Resolves the closest rendered fish center inside a forgiving pointer radius.
+ * @param targets Currently revealed rendered targets measured in surface pixels.
+ * @param pointer Pointer position measured in the same surface pixel space.
+ * @param radius Maximum center distance that may acquire a fish target.
+ * @returns The winning canonical fish ID, or null when the pointer is outside all targets.
+ */
+export function findNearestMagneticFish(
+  targets: readonly MagneticFishTarget[],
+  pointer: Point,
+  radius: number = MAGNETIC_FISH_RADIUS,
+): string | null {
+  return [...targets]
+    .map((target) => ({
+      ...target,
+      distance: Math.hypot(
+        target.center.x - pointer.x,
+        target.center.y - pointer.y,
+      ),
+    }))
+    .filter((target) => target.distance <= radius)
+    .sort((first, second) =>
+      first.distance - second.distance || first.id.localeCompare(second.id)
+    )[0]?.id ?? null;
 }

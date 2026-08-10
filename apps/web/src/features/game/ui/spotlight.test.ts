@@ -9,6 +9,7 @@ import {
   LANDSCAPE_FIELD_PROJECTION,
   PORTRAIT_FIELD_PROJECTION,
   createFieldProjectionScheduler,
+  findNearestMagneticFish,
   findNearestRevealedPiece,
   getFieldProjection,
   getFishTargetOffsets,
@@ -113,6 +114,21 @@ describe("spotlight projection", () => {
       new Set(["near", "far"]),
       { x: 0.52, y: 0.52 },
     )?.id).toBe("near");
+  });
+
+  it("magnetically acquires the closest rendered fish with stable ties", () => {
+    const targets = [
+      { id: "fish-b", center: { x: 70, y: 50 } },
+      { id: "fish-a", center: { x: 30, y: 50 } },
+      { id: "fish-far", center: { x: 140, y: 50 } },
+    ];
+
+    expect(findNearestMagneticFish(targets, { x: 52, y: 50 }, 40))
+      .toBe("fish-b");
+    expect(findNearestMagneticFish(targets, { x: 50, y: 50 }, 40))
+      .toBe("fish-a");
+    expect(findNearestMagneticFish(targets, { x: 100, y: 120 }, 40))
+      .toBeNull();
   });
 
   it("fans crowded fish into stable independent 44px targets", () => {

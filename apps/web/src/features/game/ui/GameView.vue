@@ -8,9 +8,11 @@ import {
   watch,
 } from "vue";
 
+import type { FishKind } from "../engine";
 import { createAmbientController } from "./ambient-controller";
 import wallpaperUrl from "./assets/ambient/wallpaper.webp";
 import CatCompanion from "./components/CatCompanion.vue";
+import FishCatchFlight from "./components/FishCatchFlight.vue";
 import FishDelivery from "./components/FishDelivery.vue";
 import FishField from "./components/FishField.vue";
 import FishTray from "./components/FishTray.vue";
@@ -32,6 +34,15 @@ const anchor = ref<HTMLElement | null>(null);
 const catDropTarget = ref<HTMLElement | null>(null);
 const fishTray = ref<{ $el: HTMLElement } | null>(null);
 const draggingPieceId = ref<string | null>(null);
+const catchFlights = ref<readonly {
+  readonly id: number;
+  readonly pieceId: string;
+  readonly kind: FishKind;
+  readonly startX: number;
+  readonly startY: number;
+  readonly endX: number;
+  readonly endY: number;
+}[]>([]);
 const deliveryGeometry = ref<{
   readonly eventId: number;
   readonly startX: number;
@@ -57,12 +68,30 @@ const clearSound = createClearSound();
 let surfaceObserver: ResizeObserver | null = null;
 let projectionScheduler: FieldProjectionScheduler | null = null;
 let latestSurfaceSize = surfaceSize.value;
+let catchFlightSequence = 0;
 const game = createAmbientController({
   onClear: () => {
     if (game.soundEnabled.value) clearSound.play();
   },
   isSearchCandidate: (pieceId) => !revealedPieceIds.value.has(pieceId),
 });
+const incomingPieceIds = computed(() => new Set(
+  catchFlights.value.map((flight) => flight.pieceId),
+));
+const displayedTrayPieces = computed(() => (
+  game.trayPreview.value ?? game.game.value.tray
+).filter((piece) => !incomingPieceIds.value.has(piece.id)));
+const mergeReady = computed(() => {
+  const event = game.completedFish.value;
+  if (!event || event.phase === "catching") return false;
+  return !event.combined.some((piece) => incomingPieceIds.value.has(piece.id));
+});
+const showFishDelivery = computed(() => Boolean(
+  game.completedFish.value &&
+  game.completedFish.value.phase !== "catching" &&
+  mergeReady.value &&
+  deliveryGeometry.value,
+));
 const catGuardStyle = computed(() => {
   const target = game.guardedPiece.value;
   if (!target) return {};
@@ -102,13 +131,70 @@ const levelCue = computed(() =>
 );
 
 /**
- * Dismisses the session-only play hint after the first successful fish pick.
+ * Applies one fish pick and preserves its source-to-tray visual continuity.
  * @param pieceId Canonical fish ID emitted by the revealed field target.
- * @returns Nothing; selection remains owned by the ambient controller.
+ * @returns Nothing; canonical selection remains owned by the ambient controller.
  */
 function activateFish(pieceId: string): void {
+  const geometry = measureCatchGeometry(
+    pieceId,
+    Math.min(6, game.game.value.tray.length),
+  );
+  const result = game.activate(pieceId);
+  if (!result || result.kind === "missing") return;
   playHintDismissed.value = true;
-  game.activate(pieceId);
+  if (!geometry) return;
+  catchFlightSequence += 1;
+  catchFlights.value = [...catchFlights.value, {
+    id: catchFlightSequence,
+    pieceId: result.selected.id,
+    kind: result.selected.kind,
+    ...geometry,
+  }];
+}
+
+/**
+ * Measures a selected fish center and its pre-selection tray destination.
+ * @param pieceId Canonical fish ID whose rendered source is still mounted.
+ * @param slotIndex Zero-based tray slot that will receive the selected fish.
+ * @returns Surface-local flight endpoints, or null when geometry is unavailable.
+ */
+function measureCatchGeometry(
+  pieceId: string,
+  slotIndex: number,
+): {
+  readonly startX: number;
+  readonly startY: number;
+  readonly endX: number;
+  readonly endY: number;
+} | null {
+  const surfaceBounds = surface.value?.getBoundingClientRect();
+  const source = [...(surface.value?.querySelectorAll<HTMLElement>(
+    "[data-piece-id]",
+  ) ?? [])].find((element) => element.dataset.pieceId === pieceId);
+  const target = fishTray.value?.$el.querySelectorAll<HTMLElement>(
+    ".fish-tray__slot",
+  )[slotIndex];
+  const sourceBounds = source?.getBoundingClientRect();
+  const targetBounds = target?.getBoundingClientRect();
+  if (!surfaceBounds || !sourceBounds || !targetBounds) return null;
+  return {
+    startX: sourceBounds.left + sourceBounds.width / 2 - surfaceBounds.left,
+    startY: sourceBounds.top + sourceBounds.height / 2 - surfaceBounds.top,
+    endX: targetBounds.left + targetBounds.width / 2 - surfaceBounds.left,
+    endY: targetBounds.top + targetBounds.height / 2 - surfaceBounds.top,
+  };
+}
+
+/**
+ * Replaces a completed catch ghost with its canonical tray fish.
+ * @param flightId UI-only catch flight identifier emitted by its overlay.
+ * @returns Nothing; canonical game state is already committed.
+ */
+function completeCatchFlight(flightId: number): void {
+  catchFlights.value = catchFlights.value.filter((flight) =>
+    flight.id !== flightId
+  );
 }
 
 function isInsideCat(clientX: number, clientY: number): boolean {
@@ -143,19 +229,34 @@ function onFishDragEnd(
 }
 
 /**
- * Measures the current tray and cat centers in surface-local coordinates.
+ * Measures the current match-gather slot and cat center in surface coordinates.
  * @param eventId Completed-fish event whose delivery should use the geometry.
  * @returns Nothing; the transient delivery projection is updated in place.
  */
 function measureDelivery(eventId: number): void {
   const surfaceBounds = surface.value?.getBoundingClientRect();
   const trayBounds = fishTray.value?.$el.getBoundingClientRect();
+  const traySlots = fishTray.value?.$el.querySelectorAll<HTMLElement>(
+    ".fish-tray__slot",
+  );
   const catBounds = catDropTarget.value?.getBoundingClientRect();
   if (!surfaceBounds || !trayBounds || !catBounds) return;
+  const preview = game.trayPreview.value ?? [];
+  const clearingIndexes = preview.flatMap((piece, index) =>
+    game.clearingPieceIds.value.includes(piece.id) ? [index] : []
+  );
+  const gatherIndex = clearingIndexes[
+    Math.floor(clearingIndexes.length / 2)
+  ];
+  const gatherBounds = gatherIndex === undefined
+    ? null
+    : traySlots?.[gatherIndex]?.getBoundingClientRect();
   deliveryGeometry.value = {
     eventId,
-    startX: trayBounds.left + trayBounds.width / 2 - surfaceBounds.left,
-    startY: trayBounds.top + trayBounds.height / 2 - surfaceBounds.top,
+    startX: (gatherBounds?.left ?? trayBounds.left) +
+      (gatherBounds?.width ?? trayBounds.width) / 2 - surfaceBounds.left,
+    startY: (gatherBounds?.top ?? trayBounds.top) +
+      (gatherBounds?.height ?? trayBounds.height) / 2 - surfaceBounds.top,
     endX: catBounds.left + catBounds.width * 0.5 - surfaceBounds.left,
     endY: catBounds.top + catBounds.height * 0.52 - surfaceBounds.top,
   };
@@ -327,7 +428,7 @@ onBeforeUnmount(() => {
         </Transition>
 
         <GrowingPlant
-          :clear-count="game.game.value.clearCount"
+          :clear-count="game.presentedClearCount.value"
           :age-days="game.plantAgeDays.value"
           :celebrating="game.feedbackProjection.value.celebratesPlant"
         />
@@ -373,14 +474,26 @@ onBeforeUnmount(() => {
 
         <FishTray
           ref="fishTray"
-          :pieces="game.trayPreview.value ?? game.game.value.tray"
+          :pieces="displayedTrayPieces"
           :feedback="game.feedback.value"
           :clearing-piece-ids="game.clearingPieceIds.value"
           :intro-tray="game.introPhase.value === 'tray'"
+          :merge-ready="mergeReady"
+        />
+
+        <FishCatchFlight
+          v-for="flight in catchFlights"
+          :key="flight.id"
+          :kind="flight.kind"
+          :start-x="flight.startX"
+          :start-y="flight.startY"
+          :end-x="flight.endX"
+          :end-y="flight.endY"
+          @complete="completeCatchFlight(flight.id)"
         />
 
         <FishDelivery
-          v-if="game.completedFish.value && deliveryGeometry"
+          v-if="showFishDelivery && game.completedFish.value && deliveryGeometry"
           :key="deliveryGeometry.eventId"
           :kind="game.completedFish.value.kind"
           :start-x="deliveryGeometry.startX"

@@ -18,6 +18,8 @@ const props = defineProps<{
   slipDirection: -1 | 0 | 1;
   introTarget: boolean;
   arriving: boolean;
+  magnetic: boolean;
+  surfacePressed: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -30,6 +32,7 @@ const emit = defineEmits<{
 }>();
 
 const dragging = ref(false);
+const pressed = ref(false);
 const dragX = ref(0);
 const dragY = ref(0);
 let pointerId: number | null = null;
@@ -45,6 +48,7 @@ const label = computed(() => getFishAccessibleLabel({
 
 function onPointerDown(event: PointerEvent): void {
   if (event.button !== 0) return;
+  pressed.value = true;
   suppressClick = false;
   pointerId = event.pointerId;
   pointerStart = { x: event.clientX, y: event.clientY };
@@ -73,6 +77,7 @@ function onPointerMove(event: PointerEvent): void {
 
 function finishDrag(event: PointerEvent): void {
   if (pointerId !== event.pointerId) return;
+  pressed.value = false;
   const wasDragging = dragging.value;
   if ((event.currentTarget as HTMLElement).hasPointerCapture(event.pointerId)) {
     (event.currentTarget as HTMLElement).releasePointerCapture(event.pointerId);
@@ -92,6 +97,7 @@ function finishDrag(event: PointerEvent): void {
 
 function cancelDrag(event: PointerEvent): void {
   if (pointerId !== event.pointerId) return;
+  pressed.value = false;
   const wasDragging = dragging.value;
   pointerId = null;
   dragging.value = false;
@@ -133,6 +139,8 @@ function onKeydown(event: KeyboardEvent): void {
     :data-slipping="slipDirection !== 0"
     :data-intro-target="introTarget"
     :data-arriving="arriving"
+    :data-magnetic="magnetic"
+    :data-pressed="pressed || surfacePressed"
     :disabled="disabled"
     :tabindex="tabIndex"
     :aria-label="label"
@@ -156,6 +164,10 @@ function onKeydown(event: KeyboardEvent): void {
       '--drag-y': `${dragY}px`,
       '--slip-x': `${slipDirection * 9}px`,
       '--slip-rotation': `${slipDirection * 3}deg`,
+      '--swim-x': `${piece.layer % 2 === 0 ? 4 : -4}px`,
+      '--swim-y': `${2 + (piece.layer % 3)}px`,
+      '--swim-delay': `${-(piece.layer % 6) * 0.61}s`,
+      '--swim-duration': `${4.2 + (piece.layer % 4) * 0.45}s`,
     }"
     @click="onClick"
     @focus="emit('focus', piece.id)"
@@ -166,13 +178,15 @@ function onKeydown(event: KeyboardEvent): void {
     @pointercancel="cancelDrag"
   >
     <span class="fish-piece__visual" aria-hidden="true">
-      <img
-        :src="presentation.assetUrl"
-        alt=""
-        width="512"
-        height="512"
-        draggable="false"
-      />
+      <span class="fish-piece__body">
+        <img
+          :src="presentation.assetUrl"
+          alt=""
+          width="512"
+          height="512"
+          draggable="false"
+        />
+      </span>
     </span>
     <span v-if="guided" class="fish-piece__guide-label" aria-hidden="true">
       这里
@@ -258,6 +272,24 @@ function onKeydown(event: KeyboardEvent): void {
     );
   }
 
+  &__body {
+    display: block;
+    width: 100%;
+    height: 100%;
+    transform-origin: 50% 70%;
+    transition: transform 180ms var(--ease-out);
+  }
+
+  &[data-revealed="true"]:not([data-magnetic="true"]):not([data-guided="true"]):not([data-dragging="true"]):not([data-pressed="true"]):not(:focus-visible) &__body {
+    animation: fish-living-drift var(--swim-duration) ease-in-out
+      var(--swim-delay) infinite;
+  }
+
+  &[data-hinted="true"]:not([data-revealed="true"]):not([data-magnetic="true"]) &__body {
+    animation: fish-living-drift calc(var(--swim-duration) * 1.35) ease-in-out
+      var(--swim-delay) infinite;
+  }
+
   &[data-hinted="true"]:not([data-revealed="true"]) &__visual {
     filter: grayscale(0.3) blur(0.35px)
       drop-shadow(0 5px 8px rgb(57 70 112 / 10%));
@@ -269,6 +301,34 @@ function onKeydown(event: KeyboardEvent): void {
 
   &[data-guided="true"] {
     z-index: 10;
+  }
+
+  &[data-magnetic="true"] {
+    z-index: 9;
+  }
+
+  &[data-magnetic="true"] &__visual {
+    transform:
+      translate(-50%, -55%)
+      rotate(var(--piece-rotation))
+      scale(calc(var(--piece-scale) * 1.075));
+    filter:
+      drop-shadow(0 0 4px rgb(255 248 205 / 76%))
+      drop-shadow(0 11px 14px rgb(78 87 126 / 22%));
+  }
+
+  &[data-pressed="true"] &__visual {
+    transform:
+      translate(-50%, -48%)
+      rotate(var(--piece-rotation))
+      scale(
+        calc(var(--piece-scale) * 0.95),
+        calc(var(--piece-scale) * 0.9)
+      );
+    filter:
+      brightness(1.09)
+      drop-shadow(0 5px 7px rgb(78 87 126 / 20%));
+    transition-duration: 100ms;
   }
 
   &[data-guided="true"] &__visual {
@@ -300,7 +360,7 @@ function onKeydown(event: KeyboardEvent): void {
     z-index: 8;
   }
 
-  &:hover:not(:disabled):not([data-dragging="true"]) &__visual {
+  &:hover:not(:disabled):not([data-dragging="true"]):not([data-pressed="true"]) &__visual {
     transform:
       translate(-50%, -54%)
       rotate(var(--piece-rotation))
@@ -423,6 +483,16 @@ function onKeydown(event: KeyboardEvent): void {
   }
 }
 
+@keyframes fish-living-drift {
+  0%, 100% { transform: translate(0, 0) rotate(-0.7deg); }
+  34% {
+    transform: translate(var(--swim-x), calc(var(--swim-y) * -1)) rotate(1deg);
+  }
+  68% {
+    transform: translate(calc(var(--swim-x) * -0.55), var(--swim-y)) rotate(-1.15deg);
+  }
+}
+
 @media (max-width: 620px) {
   .fish-piece {
     --piece-visual-size: clamp(62px, 20vw, 78px);
@@ -437,6 +507,11 @@ function onKeydown(event: KeyboardEvent): void {
   .fish-piece__visual {
     transition: none;
     animation: none !important;
+  }
+
+  .fish-piece__body {
+    animation: none !important;
+    transition: none;
   }
 
   .fish-piece[data-guided="true"] .fish-piece__visual {

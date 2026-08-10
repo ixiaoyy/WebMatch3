@@ -8,6 +8,7 @@ import {
   type FishKind,
   type PilePiece,
   type RandomSource,
+  type SelectionResult,
   type TrayPiece,
 } from "../engine";
 import {
@@ -21,6 +22,9 @@ import {
 import {
   getFishPresentation,
   getIntroTargetIds,
+  FISH_CATCH_FLIGHT_DURATION,
+  FISH_FEED_SETTLE_DURATION,
+  FISH_MERGE_CONTACT_DURATION,
   projectGameFeedback,
   shouldStartIntro,
   type CatPose,
@@ -56,6 +60,7 @@ export interface CompletedFishEvent {
   readonly kind: FishKind;
   readonly combined: readonly [TrayPiece, TrayPiece, TrayPiece];
   readonly feedCount: number;
+  readonly phase: "catching" | "merging" | "feeding";
 }
 
 const CAT_ACTIVATION_THROTTLE = 800;
@@ -63,7 +68,6 @@ const CAT_BUBBLE_DURATION = 2_400;
 const CAT_AUTO_REACTION_MIN_DELAY = 45_000;
 const CAT_AUTO_REACTION_JITTER = 30_000;
 const DIRECT_FEEDBACK_DURATION = 220;
-const ASSEMBLY_FEEDBACK_DURATION = 700;
 const INTRO_SCAN_DURATION = 520;
 const INTRO_TARGET_DURATION = 620;
 const INTRO_TRAY_DURATION = 620;
@@ -115,6 +119,7 @@ export function createAmbientController(
     }
     : stored;
   const game = shallowRef<AmbientGameState>(initial.game);
+  const presentedClearCount = ref(initial.game.clearCount);
   const soundEnabled = ref(initial.preferences.soundEnabled);
   const fishFedCount = ref(initial.pet.fishFedCount);
   const status = ref("小鱼藏在桌面上。移动指针、触摸或方向键寻找它们。");
@@ -126,6 +131,7 @@ export function createAmbientController(
   const trayPreview = shallowRef<readonly TrayPiece[] | null>(null);
   const clearingPieceIds = shallowRef<readonly string[]>([]);
   const completedFish = shallowRef<CompletedFishEvent | null>(null);
+  const lossPending = ref(false);
   const catReaction = shallowRef<CatReaction | null>(null);
   const guardedPieceId = ref<string | null>(initial.pet.guardedPieceId);
   const catTravelPhase = ref<CatTravelPhase>(
@@ -157,6 +163,7 @@ export function createAmbientController(
   const feedbackProjection = computed(() => projectGameFeedback(feedback.value));
   const canSelect = computed(() =>
     !isAway.value &&
+    !lossPending.value &&
     completedFish.value === null &&
     !feedbackProjection.value.locksInput
   );
@@ -192,6 +199,23 @@ export function createAmbientController(
       timers.cancel(feedbackHandle);
       feedbackHandle = null;
     }
+  }
+
+  /**
+   * Schedules one guarded presentation step on the current feedback sequence.
+   * @param delay Milliseconds to wait before advancing the presentation.
+   * @param next Callback that owns the next phase or final cleanup.
+   * @returns Nothing; stale, away, or disposed controller callbacks are ignored.
+   */
+  function scheduleFeedbackStep(delay: number, next: () => void): void {
+    const token = generation;
+    const sequence = feedbackSequence;
+    feedbackHandle = timers.schedule(() => {
+      if (sequence !== feedbackSequence) return;
+      feedbackHandle = null;
+      if (token !== generation || isAway.value) return;
+      next();
+    }, delay);
   }
 
   function takeOverIntro(): void {
@@ -537,6 +561,7 @@ export function createAmbientController(
     trayPreview.value = null;
     clearingPieceIds.value = [];
     completedFish.value = null;
+    lossPending.value = false;
   }
 
   function interruptFeedback(): void {
@@ -554,13 +579,8 @@ export function createAmbientController(
   ): void {
     clearFeedbackTimer();
     introPhase.value = "idle";
-    const token = generation;
-    const sequence = feedbackSequence;
     feedback.value = kind;
-    feedbackHandle = timers.schedule(() => {
-      if (sequence !== feedbackSequence) return;
-      feedbackHandle = null;
-      if (token !== generation || isAway.value) return;
+    scheduleFeedbackStep(delay, () => {
       feedback.value = "idle";
       clearTrayFeedback();
       if (kind === "loss") {
@@ -569,16 +589,98 @@ export function createAmbientController(
         status.value = "新的第一局已经排好，可以继续寻找小鱼。";
         scheduleCatAutoReaction();
       }
-    }, delay);
+    });
   }
 
-  function activate(pieceId: string): void {
+  /**
+   * Runs the ordered catch, merge, and feed phases for one completed fish.
+   * @param event Completed-fish payload beginning in the catching phase.
+   * @param levelAdvanced Whether feeding should reveal the next fish field.
+   * @param previousStage Bond stage before this completed fish was recorded.
+   * @param nextStage Bond stage after this completed fish was recorded.
+   * @param fishLabel Human-readable species label used by visible status feedback.
+   * @returns Nothing; controller refs advance through timed UI-only phases.
+   */
+  function startCompletedFishPresentation(
+    event: CompletedFishEvent,
+    levelAdvanced: boolean,
+    previousStage: CatBondStage,
+    nextStage: CatBondStage,
+    fishLabel: string,
+  ): void {
+    clearFeedbackTimer();
+    introPhase.value = "idle";
+    completedFish.value = event;
+    feedback.value = "select";
+    status.value = `第三条${fishLabel}正在滑进托盘。`;
+    scheduleFeedbackStep(FISH_CATCH_FLIGHT_DURATION, () => {
+      if (completedFish.value?.id !== event.id) return;
+      completedFish.value = { ...event, phase: "merging" };
+      status.value = `三条${fishLabel}正在聚拢成一条大鱼。`;
+      scheduleFeedbackStep(FISH_MERGE_CONTACT_DURATION, () => {
+        if (completedFish.value?.id !== event.id) return;
+        completedFish.value = { ...event, phase: "feeding" };
+        presentedClearCount.value = game.value.clearCount;
+        feedback.value = levelAdvanced ? "level" : "clear";
+        status.value = previousStage !== nextStage
+          ? `大${fishLabel}被小猫接住了。你们变得更亲近了。`
+          : `大${fishLabel}被小猫接住了。`;
+        startCatFeedReaction(event.feedCount);
+        showCatReaction(event.feedCount % 3 === 0 ? "full" : "fed");
+        options.onClear?.();
+        const settleDuration = levelAdvanced
+          ? LEVEL_FEEDBACK_DURATION
+          : FISH_FEED_SETTLE_DURATION;
+        scheduleFeedbackStep(settleDuration, () => {
+          feedback.value = "idle";
+          clearTrayFeedback();
+          if (levelAdvanced) {
+            status.value = "新的鱼群已经展开，可以继续寻找小鱼。";
+          }
+        });
+      });
+    });
+  }
+
+  /**
+   * Lets the seventh incoming fish land before the tray loss response begins.
+   * @returns Nothing; the restarted canonical field remains locked until cleanup.
+   */
+  function startLossPresentation(): void {
+    clearFeedbackTimer();
+    introPhase.value = "idle";
+    lossPending.value = true;
+    feedback.value = "select";
+    status.value = "最后一条小鱼正在落入托盘。";
+    scheduleFeedbackStep(FISH_CATCH_FLIGHT_DURATION, () => {
+      lossPending.value = false;
+      catPose.value = "lying";
+      catMotion.value = "loss";
+      feedback.value = "loss";
+      status.value = "托盘装满了，小鱼们安静地重新排好，从第一局再来。";
+      scheduleFeedbackStep(LOSS_FEEDBACK_DURATION, () => {
+        feedback.value = "idle";
+        clearTrayFeedback();
+        catPose.value = "idle";
+        catMotion.value = "idle";
+        status.value = "新的第一局已经排好，可以继续寻找小鱼。";
+        scheduleCatAutoReaction();
+      });
+    });
+  }
+
+  /**
+   * Applies one legal fish selection and returns its pure engine outcome.
+   * @param pieceId Canonical fish ID chosen by pointer, touch, or keyboard input.
+   * @returns The applied engine result, or null while transient input is locked.
+   */
+  function activate(pieceId: string): SelectionResult | null {
     takeOverIntro();
-    if (!canSelect.value) return;
+    if (!canSelect.value) return null;
     currentTime.value = now();
     interruptFeedback();
     const result = selectPiece(game.value, pieceId, random);
-    if (result.kind === "missing") return;
+    if (result.kind === "missing") return result;
 
     if (result.kind === "combined") {
       const previousStage = bondStage.value;
@@ -591,29 +693,25 @@ export function createAmbientController(
         fishFedCount.value + 1,
       );
       completedFishSequence += 1;
-      completedFish.value = {
+      const completedEvent: CompletedFishEvent = {
         id: completedFishSequence,
         kind: result.fishKind,
         combined: result.combined,
         feedCount: fishFedCount.value,
+        phase: "catching",
       };
       if (result.levelAdvanced) returnCatHome();
       const nextStage = bondStage.value;
       const fishLabel = getFishPresentation(result.fishKind).label;
-      status.value = previousStage !== nextStage
-        ? `三条${fishLabel}合成一条大鱼并自动喂给小猫。你们变得更亲近了。`
-        : `三条${fishLabel}合成一条大鱼，自动送给小猫。`;
-      startCatFeedReaction(fishFedCount.value);
-      showCatReaction(fishFedCount.value % 3 === 0 ? "full" : "fed");
       persist();
-      options.onClear?.();
-      settleFeedback(
-        result.levelAdvanced ? "level" : "clear",
-        result.levelAdvanced
-          ? LEVEL_FEEDBACK_DURATION
-          : ASSEMBLY_FEEDBACK_DURATION,
+      startCompletedFishPresentation(
+        completedEvent,
+        result.levelAdvanced,
+        previousStage,
+        nextStage,
+        fishLabel,
       );
-      return;
+      return result;
     }
 
     game.value = result.state;
@@ -627,12 +725,9 @@ export function createAmbientController(
       clearCatAutoReactionTimer();
       dismissCatReaction();
       pendingRestAfterFeed = false;
-      catPose.value = "lying";
-      catMotion.value = "loss";
-      status.value = "托盘装满了，小鱼们安静地重新排好，从第一局再来。";
       persist();
-      settleFeedback("loss", LOSS_FEEDBACK_DURATION);
-      return;
+      startLossPresentation();
+      return result;
     }
 
     status.value = `一条${
@@ -640,6 +735,7 @@ export function createAmbientController(
     }滑进了托盘。`;
     persist();
     settleFeedback("select", DIRECT_FEEDBACK_DURATION);
+    return result;
   }
 
   /**
@@ -681,6 +777,7 @@ export function createAmbientController(
       clearCatReactionTimer();
       feedback.value = "idle";
       clearTrayFeedback();
+      presentedClearCount.value = game.value.clearCount;
       if (lossInterrupted) {
         catPose.value = "idle";
         catMotion.value = "idle";
@@ -713,6 +810,7 @@ export function createAmbientController(
 
   return {
     game,
+    presentedClearCount,
     soundEnabled,
     fishFedCount,
     bondStage,

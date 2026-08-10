@@ -423,7 +423,11 @@ onBeforeUnmount(() => {
   }
 
   &[data-motion="feeding"] &__motion {
-    animation: cat-chew 260ms ease-in-out infinite alternate;
+    animation: cat-catch-and-chew 520ms var(--ease-out) both;
+  }
+
+  &[data-motion="feeding"] &__ground-shadow {
+    animation: cat-feed-shadow 520ms var(--ease-out) both;
   }
 
   &[data-motion="petting"] &__motion {
@@ -528,6 +532,17 @@ onBeforeUnmount(() => {
     animation-delay: 90ms;
   }
 
+  &[data-motion="feeding"] &__purr-ring {
+    top: 32%;
+    right: 16%;
+    border-color: rgb(244 183 103 / 72%);
+    animation: cat-bite-ring 430ms ease-out both;
+  }
+
+  &[data-motion="feeding"] &__purr-ring--two {
+    animation-delay: 70ms;
+  }
+
   &__menu {
     position: absolute;
     z-index: 5;
@@ -598,9 +613,28 @@ onBeforeUnmount(() => {
   50% { transform: translateY(-1px) scaleY(1.012); }
 }
 
-@keyframes cat-chew {
-  from { transform: translateY(0) scale(1); }
-  to { transform: translateY(2px) scale(1.006, 0.994); }
+@keyframes cat-catch-and-chew {
+  0%, 100% { transform: translate(0) scale(1) rotate(0); }
+  14% { transform: translate(-2px, 4px) scale(1.035, 0.965) rotate(-0.8deg); }
+  29% { transform: translate(-8px, -6px) scale(0.985, 1.045) rotate(-1.4deg); }
+  45% { transform: translate(-1px, 1px) scale(1.025, 0.98) rotate(0.5deg); }
+  62% { transform: translateY(-3px) scale(0.995, 1.018); }
+  76% { transform: translateY(2px) scale(1.014, 0.986); }
+  88% { transform: translateY(-1px) scale(0.998, 1.008); }
+}
+
+@keyframes cat-feed-shadow {
+  0%, 100% { opacity: 1; transform: scaleX(1); }
+  16% { opacity: 0.88; transform: scaleX(1.08); }
+  31% { opacity: 0.58; transform: translateX(-5px) scaleX(0.82); }
+  48% { opacity: 0.92; transform: scaleX(1.05); }
+}
+
+@keyframes cat-bite-ring {
+  0% { opacity: 0; transform: scale(0.35); }
+  28% { opacity: 0; transform: scale(0.35); }
+  44% { opacity: 0.86; }
+  100% { opacity: 0; transform: scale(1.28); }
 }
 
 @keyframes cat-nuzzle {
@@ -725,6 +759,11 @@ onBeforeUnmount(() => {
 
   .cat-companion[data-motion="feeding"] .cat-companion__motion {
     filter: brightness(1.06);
+  }
+
+  .cat-companion[data-motion="feeding"] .cat-companion__purr-ring--one {
+    opacity: 0.58;
+    transform: scale(0.76);
   }
 
   .cat-companion[data-motion="petting"] .cat-companion__purr-ring--one {

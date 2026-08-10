@@ -15,11 +15,13 @@ import {
   type IntroPhase,
 } from "../game-ui";
 import {
+  findNearestMagneticFish,
   findNearestRevealedPiece,
   getFishTargetOffsets,
   getHintedPieceIds,
   getRevealedPieceIds,
   isPointerTap,
+  MAGNETIC_FISH_RADIUS,
   MINIMUM_FISH_TARGET_SIZE,
   moveSpotlight,
   projectFieldPoint,
@@ -63,11 +65,20 @@ const draggedPieceId = ref<string | null>(null);
 const pointerInside = ref(false);
 const focusInside = ref(false);
 const slipDirections = ref<ReadonlyMap<string, -1 | 1>>(new Map());
+const magneticPieceId = ref<string | null>(null);
+const surfacePressedPieceId = ref<string | null>(null);
+const pointerRipple = ref<{
+  readonly id: number;
+  readonly x: number;
+  readonly y: number;
+  readonly hit: boolean;
+} | null>(null);
 let searchPointerId: number | null = null;
 let searchPointerStart: Point | null = null;
 let searchPointerMoved = false;
 let afterglowHandle: ReturnType<typeof setTimeout> | null = null;
 let slipHandle: ReturnType<typeof setTimeout> | null = null;
+let pointerRippleSequence = 0;
 
 const selectable = computed(() => getSelectablePieces(props.pieces));
 const higherOverlapCounts = computed(() => getHigherOverlapCounts(props.pieces));
@@ -136,7 +147,12 @@ watch(
 
 watch(
   revealedPieceIds,
-  (ids) => emit("revealedChange", [...ids]),
+  (ids) => {
+    emit("revealedChange", [...ids]);
+    if (magneticPieceId.value && !ids.has(magneticPieceId.value)) {
+      magneticPieceId.value = null;
+    }
+  },
   { immediate: true },
 );
 
@@ -157,6 +173,8 @@ watch(() => props.away, (away) => {
   spotlightMode.value = "inactive";
   draggedPieceId.value = null;
   activeFocusedId.value = null;
+  magneticPieceId.value = null;
+  surfacePressedPieceId.value = null;
   pointerInside.value = false;
   focusInside.value = false;
 });
@@ -218,6 +236,7 @@ function releaseSearchPointerCapture(): void {
   searchPointerId = null;
   searchPointerStart = null;
   searchPointerMoved = false;
+  surfacePressedPieceId.value = null;
 }
 
 function findPieceElement(target: EventTarget | null): HTMLElement | null {
@@ -334,12 +353,78 @@ function onSurfaceKeydown(event: KeyboardEvent): void {
 
 function onPointerDown(event: PointerEvent): void {
   if (props.away || props.disabled) return;
-  if (event.target !== cluster.value || event.pointerType === "mouse") return;
+  if (event.button !== 0) return;
+  const directPiece = findPieceElement(event.target);
+  const magneticTarget = findMagneticPiece(event.clientX, event.clientY);
+  showPointerRipple(event.clientX, event.clientY, Boolean(
+    directPiece?.dataset.pieceId ?? magneticTarget,
+  ));
+  if (directPiece || event.target !== cluster.value) return;
   searchPointerId = event.pointerId;
   searchPointerStart = { x: event.clientX, y: event.clientY };
   searchPointerMoved = false;
+  surfacePressedPieceId.value = magneticTarget;
   cluster.value?.setPointerCapture(event.pointerId);
   moveLight(event.clientX, event.clientY);
+}
+
+/**
+ * Finds the closest currently revealed fish from rendered target centers.
+ * @param clientX Pointer x coordinate in the active document viewport.
+ * @param clientY Pointer y coordinate in the active document viewport.
+ * @returns The canonical fish ID inside the magnetic radius, or null.
+ */
+function findMagneticPiece(clientX: number, clientY: number): string | null {
+  const bounds = cluster.value?.getBoundingClientRect();
+  if (!bounds) return null;
+  const selectableIds = new Set(selectable.value.map((piece) => piece.id));
+  const elements = cluster.value?.querySelectorAll<HTMLElement>(
+    '[data-piece-id][data-revealed="true"]:not(:disabled)',
+  ) ?? [];
+  const targets = [...elements]
+    .filter((element) => {
+      const pieceId = element.dataset.pieceId;
+      return pieceId ? selectableIds.has(pieceId) : false;
+    })
+    .flatMap((element) => {
+      const pieceId = element.dataset.pieceId;
+      if (!pieceId) return [];
+      const targetBounds = element.getBoundingClientRect();
+      return [{
+        id: pieceId,
+        center: {
+          x: targetBounds.left + targetBounds.width / 2 - bounds.left,
+          y: targetBounds.top + targetBounds.height / 2 - bounds.top,
+        },
+      }];
+    });
+  return findNearestMagneticFish(targets, {
+    x: clientX - bounds.left,
+    y: clientY - bounds.top,
+  }, MAGNETIC_FISH_RADIUS);
+}
+
+/**
+ * Restarts the decorative pointer ripple at a surface-local position.
+ * @param clientX Pointer x coordinate in the active document viewport.
+ * @param clientY Pointer y coordinate in the active document viewport.
+ * @param hit Whether this press already acquired a fish target.
+ * @returns Nothing; only transient decorative state changes.
+ */
+function showPointerRipple(
+  clientX: number,
+  clientY: number,
+  hit: boolean,
+): void {
+  const bounds = cluster.value?.getBoundingClientRect();
+  if (!bounds) return;
+  pointerRippleSequence += 1;
+  pointerRipple.value = {
+    id: pointerRippleSequence,
+    x: clientX - bounds.left,
+    y: clientY - bounds.top,
+    hit,
+  };
 }
 
 function onPointerMove(event: PointerEvent): void {
@@ -357,6 +442,9 @@ function onPointerMove(event: PointerEvent): void {
     }
     pointerInside.value = true;
     moveLight(event.clientX, event.clientY);
+    if (event.pointerType === "mouse" && searchPointerId === null) {
+      magneticPieceId.value = findMagneticPiece(event.clientX, event.clientY);
+    }
   }
 }
 
@@ -364,15 +452,30 @@ function onPointerEnd(event: PointerEvent): void {
   if (searchPointerId !== event.pointerId) return;
   const shouldActivate = !searchPointerMoved && light.value !== null;
   const localLight = light.value;
+  const capturedPieceId = surfacePressedPieceId.value;
   releaseSearchPointerCapture();
   pointerInside.value = false;
   if (shouldActivate && localLight) {
+    if (capturedPieceId) {
+      onActivate(capturedPieceId);
+      startAfterglow();
+      return;
+    }
+    if (event.pointerType === "mouse") {
+      emit("searchMiss");
+      startAfterglow();
+      return;
+    }
     const target = findNearestRevealedPiece(
       selectable.value,
       getRevealedPieceIds(selectable.value, localLight),
       localLight,
     );
-    if (target) onActivate(target.id);
+    if (target) {
+      onActivate(target.id);
+    } else {
+      emit("searchMiss");
+    }
   }
   startAfterglow();
 }
@@ -386,6 +489,7 @@ function onPointerCancel(event: PointerEvent): void {
 
 function onPointerLeave(): void {
   pointerInside.value = false;
+  if (searchPointerId === null) magneticPieceId.value = null;
   if (!focusInside.value && !draggedPieceId.value) {
     light.value = null;
     spotlightMode.value = "inactive";
@@ -480,6 +584,18 @@ onBeforeUnmount(() => {
       <span class="fish-field__spotlight-lens" />
     </div>
 
+    <span
+      v-if="pointerRipple"
+      :key="pointerRipple.id"
+      class="fish-field__pointer-ripple"
+      :data-hit="pointerRipple.hit"
+      :style="{
+        '--ripple-x': `${pointerRipple.x}px`,
+        '--ripple-y': `${pointerRipple.y}px`,
+      }"
+      aria-hidden="true"
+    />
+
     <TransitionGroup name="fish-field-piece">
       <FishPiece
         v-for="piece in pieces"
@@ -497,6 +613,8 @@ onBeforeUnmount(() => {
           introPhase === 'targets' && introTargetIds.includes(piece.id)
         "
         :arriving="transitioning"
+        :magnetic="magneticPieceId === piece.id"
+        :surface-pressed="surfacePressedPieceId === piece.id"
         :tab-index="piece.id === focusedId ? 0 : -1"
         @activate="onActivate"
         @focus="revealFocusedPiece"
@@ -644,6 +762,28 @@ onBeforeUnmount(() => {
       inset 0 0 28px rgb(255 238 176 / 22%),
       0 0 20px rgb(255 223 148 / 18%);
   }
+
+  &__pointer-ripple {
+    position: absolute;
+    z-index: 7;
+    left: var(--ripple-x);
+    top: var(--ripple-y);
+    width: 24px;
+    height: 14px;
+    border: 1.5px solid rgb(109 139 184 / 34%);
+    border-radius: 50%;
+    box-shadow: 0 4px 10px rgb(70 92 142 / 8%);
+    pointer-events: none;
+    transform: translate(-50%, -50%);
+    animation: fish-pointer-ripple 420ms var(--ease-out) both;
+
+    &[data-hit="true"] {
+      border-color: rgb(255 244 190 / 72%);
+      box-shadow:
+        0 0 0 3px rgb(255 244 190 / 10%),
+        0 5px 13px rgb(94 100 145 / 12%);
+    }
+  }
 }
 
 .fish-field[data-feedback="select"] :deep(.fish-field-piece-leave-active),
@@ -692,6 +832,12 @@ onBeforeUnmount(() => {
   50% { filter: brightness(1.08); }
 }
 
+@keyframes fish-pointer-ripple {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.42); }
+  24% { opacity: 0.86; }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(2.25, 1.7); }
+}
+
 @keyframes fish-origin-tuck {
   0% {
     opacity: 1;
@@ -724,6 +870,10 @@ onBeforeUnmount(() => {
   .fish-field__spotlight {
     transition: none;
     animation: none !important;
+  }
+
+  .fish-field__pointer-ripple {
+    animation-duration: 180ms;
   }
 
   .fish-field :deep(.fish-field-piece-leave-active) {

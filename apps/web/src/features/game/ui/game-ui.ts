@@ -39,6 +39,10 @@ export type GameFeedback =
   | "loss"
   | "level";
 
+export const FISH_CATCH_FLIGHT_DURATION = 500;
+export const FISH_MERGE_CONTACT_DURATION = 620;
+export const FISH_FEED_SETTLE_DURATION = 380;
+
 export interface GameFeedbackProjection {
   readonly locksInput: boolean;
   readonly celebratesPlant: boolean;

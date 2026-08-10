@@ -13,12 +13,15 @@ const props = defineProps<{
   feedback: GameFeedback;
   clearingPieceIds: readonly string[];
   introTray: boolean;
+  mergeReady: boolean;
 }>();
 
 const pressure = computed(() => getTrayPressure(props.pieces.length));
 
 function isClearing(piece: TrayPiece | undefined): boolean {
-  return piece ? props.clearingPieceIds.includes(piece.id) : false;
+  return piece
+    ? props.mergeReady && props.clearingPieceIds.includes(piece.id)
+    : false;
 }
 
 const clearingSlots = computed(() => props.pieces
@@ -45,6 +48,7 @@ function clearStyle(index: number): Record<string, string | number> {
     :data-pressure="pressure"
     :data-intro-tray="introTray"
     :data-empty="pieces.length === 0"
+    :data-merge-ready="mergeReady"
     aria-label="小鱼托盘"
   >
     <li

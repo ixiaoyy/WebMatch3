@@ -18,6 +18,11 @@ import {
   getCatBondStage,
   type TimerApi,
 } from "./ambient-controller";
+import {
+  FISH_CATCH_FLIGHT_DURATION,
+  FISH_FEED_SETTLE_DURATION,
+  FISH_MERGE_CONTACT_DURATION,
+} from "./game-ui";
 
 interface MemoryStorage extends StorageLike {
   readonly values: Map<string, string>;
@@ -66,7 +71,33 @@ function controlledTimers() {
     callback?.();
   }
 
-  return { callbacks, delays, runDelay, timers };
+  /**
+   * Advances one completed fish through catch and merge into cat contact.
+   * @returns Nothing; the harness runs the two ordered controller callbacks.
+   */
+  function advanceCompletedFishToFeeding(): void {
+    runDelay(FISH_CATCH_FLIGHT_DURATION);
+    runDelay(FISH_MERGE_CONTACT_DURATION);
+  }
+
+  /**
+   * Completes one staged fish presentation after its canonical selection.
+   * @param levelAdvanced Whether the feeding phase owns the longer level cue.
+   * @returns Nothing; the completed-fish controller event is fully settled.
+   */
+  function finishCompletedFish(levelAdvanced = false): void {
+    advanceCompletedFishToFeeding();
+    runDelay(levelAdvanced ? 960 : FISH_FEED_SETTLE_DURATION);
+  }
+
+  return {
+    advanceCompletedFishToFeeding,
+    callbacks,
+    delays,
+    finishCompletedFish,
+    runDelay,
+    timers,
+  };
 }
 
 /**
@@ -130,7 +161,7 @@ describe("ambient controller", () => {
     controller.dispose();
   });
 
-  it("combines three small fish, auto-feeds once, and persists before feedback", () => {
+  it("persists a combination before its staged catch and feed feedback", () => {
     const storage = memoryStorage();
     const harness = controlledTimers();
     const onClear = vi.fn();
@@ -148,10 +179,11 @@ describe("ambient controller", () => {
     controller.activate(triple[1].id);
     controller.activate(triple[2].id);
 
-    expect(controller.feedback.value).toBe("clear");
+    expect(controller.feedback.value).toBe("select");
     expect(controller.completedFish.value).toMatchObject({
       kind: triple[0].kind,
       feedCount: 1,
+      phase: "catching",
     });
     expect(controller.completedFish.value?.combined.map((piece) => piece.id))
       .toEqual(triple.map((piece) => piece.id));
@@ -159,17 +191,31 @@ describe("ambient controller", () => {
     expect(controller.game.value.tray).toEqual([]);
     expect(controller.game.value.clearCount).toBe(1);
     expect(controller.fishFedCount.value).toBe(1);
-    expect(controller.catPose.value).toBe("eating");
-    expect(controller.catMotion.value).toBe("feeding");
+    expect(controller.presentedClearCount.value).toBe(0);
+    expect(controller.catPose.value).toBe("idle");
+    expect(controller.catMotion.value).toBe("idle");
     expect(controller.canSelect.value).toBe(false);
-    expect(onClear).toHaveBeenCalledOnce();
+    expect(onClear).not.toHaveBeenCalled();
 
     const persisted = JSON.parse(
       storage.values.get(AMBIENT_STORAGE_KEY) ?? "null",
     ) as { pet?: { fishFedCount?: number } };
     expect(persisted.pet?.fishFedCount).toBe(1);
 
-    harness.runDelay(700);
+    harness.runDelay(FISH_CATCH_FLIGHT_DURATION);
+    expect(controller.completedFish.value?.phase).toBe("merging");
+    expect(controller.catPose.value).toBe("idle");
+    expect(onClear).not.toHaveBeenCalled();
+
+    harness.runDelay(FISH_MERGE_CONTACT_DURATION);
+    expect(controller.completedFish.value?.phase).toBe("feeding");
+    expect(controller.feedback.value).toBe("clear");
+    expect(controller.presentedClearCount.value).toBe(1);
+    expect(controller.catPose.value).toBe("eating");
+    expect(controller.catMotion.value).toBe("feeding");
+    expect(onClear).toHaveBeenCalledOnce();
+
+    harness.runDelay(FISH_FEED_SETTLE_DURATION);
     expect(controller.completedFish.value).toBeNull();
     expect(controller.trayPreview.value).toBeNull();
     expect(controller.canSelect.value).toBe(true);
@@ -185,13 +231,14 @@ describe("ambient controller", () => {
     });
 
     for (let count = 1; count <= 10; count += 1) {
+      const previousLevel = controller.game.value.level;
       const triple = findTriple(controller.game.value);
       expect(triple, `feed ${count} has a triple`).not.toBeNull();
       if (!triple) return;
       for (const piece of triple) controller.activate(piece.id);
       expect(controller.fishFedCount.value).toBe(count);
       expect(controller.completedFish.value?.feedCount).toBe(count);
-      harness.runDelay(controller.feedback.value === "level" ? 960 : 700);
+      harness.finishCompletedFish(controller.game.value.level > previousLevel);
     }
 
     expect(controller.fishFedCount.value).toBe(10);
@@ -217,7 +264,7 @@ describe("ambient controller", () => {
       expect(triple).not.toBeNull();
       if (!triple) return;
       for (const piece of triple) controller.activate(piece.id);
-      harness.runDelay(700);
+      harness.finishCompletedFish();
     }
 
     expect(controller.fishFedCount.value).toBe(3);
@@ -250,7 +297,7 @@ describe("ambient controller", () => {
       expect(triple).not.toBeNull();
       if (!triple) return;
       for (const piece of triple) controller.activate(piece.id);
-      harness.runDelay(700);
+      harness.finishCompletedFish();
     }
     harness.runDelay(520);
     expect(controller.catPose.value).toBe("full");
@@ -261,6 +308,9 @@ describe("ambient controller", () => {
     for (const piece of fourth) controller.activate(piece.id);
 
     expect(controller.fishFedCount.value).toBe(4);
+    expect(controller.completedFish.value?.phase).toBe("catching");
+    expect(controller.catPose.value).toBe("full");
+    harness.advanceCompletedFishToFeeding();
     expect(controller.catPose.value).toBe("eating");
     expect(controller.catMotion.value).toBe("feeding");
     controller.dispose();
@@ -417,11 +467,17 @@ describe("ambient controller", () => {
 
     for (const piece of finalPieces) controller.activate(piece.id);
 
-    expect(controller.feedback.value).toBe("level");
+    expect(controller.feedback.value).toBe("select");
     expect(controller.game.value.level).toBe(2);
     expect(controller.game.value.clearCount).toBe(1);
     expect(controller.fishFedCount.value).toBe(1);
     expect(controller.completedFish.value?.kind).toBe("whale");
+    expect(controller.completedFish.value?.phase).toBe("catching");
+    harness.runDelay(FISH_CATCH_FLIGHT_DURATION);
+    expect(controller.completedFish.value?.phase).toBe("merging");
+    harness.runDelay(FISH_MERGE_CONTACT_DURATION);
+    expect(controller.feedback.value).toBe("level");
+    expect(controller.completedFish.value?.phase).toBe("feeding");
     controller.dispose();
   });
 
@@ -456,10 +512,14 @@ describe("ambient controller", () => {
 
     controller.activate(target.id);
 
-    expect(controller.feedback.value).toBe("loss");
+    expect(controller.feedback.value).toBe("select");
     expect(controller.game.value.level).toBe(1);
     expect(controller.game.value.tray).toEqual([]);
     expect(controller.fishFedCount.value).toBe(12);
+    expect(controller.canSelect.value).toBe(false);
+    expect(controller.catMotion.value).toBe("idle");
+    harness.runDelay(FISH_CATCH_FLIGHT_DURATION);
+    expect(controller.feedback.value).toBe("loss");
     expect(controller.catMotion.value).toBe("loss");
     harness.runDelay(1_200);
     expect(controller.feedback.value).toBe("idle");
