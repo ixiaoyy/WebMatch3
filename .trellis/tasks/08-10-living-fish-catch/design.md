@@ -1,74 +1,40 @@
-# 活鱼捕捉交互改造 — Technical Design
+# 鱼群寻物与分波通关 — Technical Design
 
-## Architecture and boundaries
+## State contract
 
-The pure engine remains authoritative and unchanged. Vue owns a presentation transaction layered over the immediate engine result:
+`AmbientGameState` 增加当前关卡已完成组数 `levelProgress`。`clearCount` 继续代表累计喂鱼数并驱动植物；两者生命周期分离。
 
-1. `FishField` resolves one pointer target from currently revealed rendered fish and emits the canonical ID.
-2. `GameView` measures the source fish and pre-selection destination slot before calling the controller.
-3. `ambient-controller.activate` returns the existing engine `SelectionResult` after applying it, allowing the view to create a catch flight only for a real selection.
-4. `GameView` holds a small array of UI-only catch flights. While a piece ID is incoming, the tray projection omits that canonical/preview piece.
-5. Flight completion removes the incoming ID, allowing the real tray piece to enter and land in its slot.
-6. A combined result enters explicit controller presentation phases. The match waits until the catch interval has elapsed, then merges and delivers; cat/plant feedback begins only near delivery contact.
+纯引擎提供：
 
-No transient geometry, phase or animation ID enters engine state or persistence.
+- `getLevelGoal(level)`：生成 `3、5、8、13、21、34…` 目标序列；
+- `getLevelConfig(level)`：第一关固定 3 种/9 条，后续逐步增加到 8 种，单波数量为 `3 + 2 × (kindCount - 1)`；
+- `createLevelState(...)`：第一关生成三组三条，后续生成唯一三条加若干两条；
+- `selectPiece(...)`：第一关清完三组才升级；后续每次组合重建同关下一波，达到目标后升级；
+- `restartAfterLoss(...)`：重建当前波，保留 `level`、`levelProgress` 和累计进度。
 
-## Pointer target projection
+## Authored school layout
 
-`FishField` derives magnetic candidates from visible enabled `[data-piece-id]` elements. Each candidate contributes its rendered center; the closest candidate inside the acquisition radius wins. Direct button events continue to own clicks inside the semantic `44×44px` core. Surface events only resolve when the original event target is not already a fish, preventing duplicate activation.
+使用最多 17 个经过检查的标准化点位构成三段 S 形迁徙路线。不同鱼数从对应覆盖序列取点，避免随机拒绝采样、碰撞计算和堆叠关系。鱼种调度按多轮交错分配，使同种鱼跨区域分散。
 
-The active magnetic ID is passed to `FishPiece` for exact preselection styling. Pointer down captures that ID until release so target fan/separation or idle motion cannot change the selected identity mid-gesture. Touch tap continues using the field light and nearest revealed canonical fish; keyboard uses existing semantic buttons and light navigation.
+为兼容既有 UI 与旧快照，`PilePiece` 暂时保留 `layer`、`spread` 和 `blockerIds` 字段，但新生成状态统一为 `layer: 0`、`blockerIds: []`、`spread === pile`；它们不再表达玩法层级。
 
-The distance chooser is a pure helper with deterministic tie-breaking tests. DOM discovery and geometry measurement stay inside `FishField`.
+## Presentation transaction
 
-## Fish motion composition
+引擎可立即提交新波状态，控制器使用 UI-only `fieldPreview` 暂时保留旧波未选中的鱼。第三条鱼完成落盘、聚拢并抵达小猫后，控制器清空 `fieldPreview`，让新波统一入场。第一关未完成时不建立预览，因为旧场本身只是减少一组三条。
 
-Add an inner body wrapper below the existing position/rotation/scale wrapper:
+`CombinedSelection` 增加 `fieldRefreshed`，区分“同一场继续”“同关换波”“升级换关”。控制器据此决定状态文案、鱼群入场和关卡反馈，但不把动画阶段写入持久化。
 
-- outer `.fish-piece` — canonical/UI target position and drag offset;
-- `.fish-piece__visual` — existing species rotation, scale, hover, guide and press states;
-- `.fish-piece__body` — deterministic low-amplitude living motion only.
+## Visibility and interaction
 
-Revealed fish drift a few pixels over a multi-second loop; hinted fish use a slower, lower-amplitude variant. Magnetic, focused, guided, pressed and dragged fish pause the inner loop and settle at the origin. The loop is absent under away/reduced-motion because those states are not revealed/hinted or CSS disables it.
+`FishField` 将全部合法鱼视为 revealed；探照灯只保留为轻微指针光感，不再决定可见性。移除邻鱼分离和层级滑动投影。`FishPiece` 使用单层阴影、统一生命漂移和更大的桌面视觉尺寸，旋转来自引擎的 `-8°～8°`。
 
-## Catch flight transaction
+## Storage compatibility
 
-Introduce `FishCatchFlight.vue`, an `aria-hidden`, pointer-transparent surface overlay. Each event contains:
+保持 snapshot version 4，新增 `levelProgress` 作为向后兼容字段：旧快照缺少时按 0 解析。放宽旧完整三消库存校验，因为控制器加载后仍按产品约定重建第一关；永久植物、喂鱼数和声音偏好不丢失。
 
-- UI event ID and canonical piece ID;
-- species kind;
-- surface-local source and destination centers;
-- whether the selection completed a match or loss.
+## Verification
 
-The overlay uses a dynamic transform path with a short source ripple and an arc expressed with transform/opacity. A component timer emits completion after the declared duration; reduced-motion uses a short staged crossfade and the same completion contract.
-
-`GameView` computes `displayedTrayPieces` by removing all pending flight IDs from `trayPreview ?? game.tray`. Exact target slot geometry is measured before controller activation from the current tray count. Multiple ordinary flights can coexist. A matching triple does not start its merge while any clearing ID remains incoming.
-
-## Completed-fish presentation phases
-
-Extend the UI-only `CompletedFishEvent` with a presentation phase:
-
-1. `catching` — third fish and any preceding rapid catches finish; field source leaves, tray merge is idle.
-2. `merging` — all three real tray pieces are visible and run the gather animation; `FishDelivery` forms the large fish and travels toward the cat.
-3. `feeding` — near delivery contact, cat pose/motion, optional reaction bubble, clear sound callback and plant celebration begin.
-
-Controller timers own these phases so tests can prove ordering and cleanup. Input stays locked only for the complete-fish transaction, as it already is via `completedFish !== null`; normal moved selections remain non-blocking. Away/dispose/interruption cancel the current phase timer and clear transient presentation state.
-
-Level feedback begins at `feeding`, so the next fish field does not celebrate before the prior large fish reaches the cat. Loss keeps its existing rule but the final incoming fish lands before the tray loss response becomes visually dominant.
-
-## Compatibility and accessibility
-
-- Engine types and transitions stay unchanged except that the controller method returns their already-produced result.
-- Snapshot version and stored payload are unchanged.
-- Visual ghosts and ripples are `aria-hidden`, non-focusable and pointer-transparent.
-- Semantic fish buttons retain accessible names, focus ring, arrow navigation, Enter/Space and `F`.
-- Reduced motion removes idle loops and long translation while keeping sequential state changes and minimum readable holds.
-- Geometry is recalculated per activation from the mounted surface, so Document PiP and responsive layouts share the same implementation.
-
-## Validation and rollback
-
-- Unit-test magnetic nearest-target selection, deterministic ties and boundary rejection.
-- Controller tests assert `catching → merging → feeding → cleared`, cat/plant ordering, level timing, interruption and cleanup.
-- Existing engine/storage tests must remain unchanged and green.
-- Browser QA covers target edges, rapid double selection, first triple, loss and level advance on desktop and compact layouts.
-- `FishCatchFlight.vue`, magnetic surface handling and controller phases are separable UI changes; none requires data migration, so each can be reverted without snapshot recovery.
+- 引擎验证每关目标、鱼种计数、位置安全、单层和刷新/升级边界。
+- 控制器验证旧场保留到 feeding、新波随后显示、失败保留关卡进度。
+- 存储验证旧 v4 快照可读且新字段往返。
+- 浏览器以选定融合稿对照桌面构图，并验证第一关完整 3 组流程与第二关换波流程。

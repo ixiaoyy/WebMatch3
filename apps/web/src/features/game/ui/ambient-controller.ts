@@ -2,6 +2,7 @@ import { computed, ref, shallowRef } from "vue";
 
 import {
   createLevelState,
+  getLevelGoal,
   getSelectablePieces,
   selectPiece,
   type AmbientGameState,
@@ -122,13 +123,14 @@ export function createAmbientController(
   const presentedClearCount = ref(initial.game.clearCount);
   const soundEnabled = ref(initial.preferences.soundEnabled);
   const fishFedCount = ref(initial.pet.fishFedCount);
-  const status = ref("小鱼藏在桌面上。移动指针、触摸或方向键寻找它们。");
+  const status = ref("鱼群已经展开。找出三条同种小鱼，把本关的鱼全部找完。");
   const feedback = ref<GameFeedback>("idle");
   const introPhase = ref<IntroPhase>("idle");
   const introTargetIds = shallowRef(getIntroTargetIds(initial.game.pieces));
   const catPose = ref<CatPose>("idle");
   const catMotion = ref<CatMotion>("idle");
   const trayPreview = shallowRef<readonly TrayPiece[] | null>(null);
+  const fieldPreview = shallowRef<readonly PilePiece[] | null>(null);
   const clearingPieceIds = shallowRef<readonly string[]>([]);
   const completedFish = shallowRef<CompletedFishEvent | null>(null);
   const lossPending = ref(false);
@@ -223,7 +225,7 @@ export function createAmbientController(
     clearFeedbackTimer();
     introPhase.value = "idle";
     feedback.value = "idle";
-    status.value = "小鱼藏在桌面上。移动指针、触摸或方向键寻找它们。";
+    status.value = "鱼群还在原处，继续寻找三条同种小鱼。";
   }
 
   function scheduleIntroStep(delay: number, next: () => void): void {
@@ -243,17 +245,17 @@ export function createAmbientController(
     if (!introEligible) return;
     feedback.value = "intro";
     introPhase.value = "scan";
-    status.value = "一道柔和的光正扫向附近的小鱼。";
+    status.value = "第一关只有三种小鱼，每一种都有三条。";
     scheduleIntroStep(INTRO_SCAN_DURATION, () => {
       introPhase.value = "targets";
-      status.value = "三条同种小鱼轻轻抬起。";
+      status.value = "先找到任意一种的三条小鱼。";
       scheduleIntroStep(INTRO_TARGET_DURATION, () => {
         introPhase.value = "tray";
-        status.value = "托盘正等着三条同种小鱼聚在一起。";
+        status.value = "三组都找完，才会进入下一关。";
         scheduleIntroStep(INTRO_TRAY_DURATION, () => {
           introPhase.value = "idle";
           feedback.value = "idle";
-          status.value = "小鱼藏在桌面上。移动指针、触摸或方向键寻找它们。";
+          status.value = "鱼群已经展开，把桌上的三组小鱼全部找完。";
         });
       });
     });
@@ -460,15 +462,18 @@ export function createAmbientController(
   }
 
   /**
-   * Scores a hidden small fish by how close its species is to combining.
+   * Scores a visible fish by selected matches first, then total wave count.
    * @param candidate Candidate pile fish considered for cat search.
-   * @returns Priority from one for a new species to three for a completing fish.
+   * @returns A larger priority for a completing or uniquely tripled species.
    */
   function getSearchPriority(candidate: PilePiece): number {
-    const sameKindCount = game.value.tray.filter((piece) =>
+    const selectedCount = game.value.tray.filter((piece) =>
       piece.kind === candidate.kind
     ).length;
-    return Math.min(3, sameKindCount + 1);
+    const fieldCount = game.value.pieces.filter((piece) =>
+      piece.kind === candidate.kind
+    ).length;
+    return selectedCount * 10 + fieldCount;
   }
 
   function requestCatSearch(): void {
@@ -526,7 +531,7 @@ export function createAmbientController(
   function announceSearchMiss(): void {
     takeOverIntro();
     if (isAway.value || !canSelect.value) return;
-    status.value = "这里还没有照到小鱼，继续移动探照灯。";
+    status.value = "这里没有小鱼，沿着鱼群的流线继续找。";
   }
 
   function petCat(): void {
@@ -559,6 +564,7 @@ export function createAmbientController(
 
   function clearTrayFeedback(): void {
     trayPreview.value = null;
+    fieldPreview.value = null;
     clearingPieceIds.value = [];
     completedFish.value = null;
     lossPending.value = false;
@@ -586,7 +592,7 @@ export function createAmbientController(
       if (kind === "loss") {
         catPose.value = "idle";
         catMotion.value = "idle";
-        status.value = "新的第一局已经排好，可以继续寻找小鱼。";
+        status.value = "这一波重新排好了，本关已经找到的组数会保留。";
         scheduleCatAutoReaction();
       }
     });
@@ -596,6 +602,7 @@ export function createAmbientController(
    * Runs the ordered catch, merge, and feed phases for one completed fish.
    * @param event Completed-fish payload beginning in the catching phase.
    * @param levelAdvanced Whether feeding should reveal the next fish field.
+   * @param fieldRefreshed Whether feeding swaps the outgoing field for a new wave.
    * @param previousStage Bond stage before this completed fish was recorded.
    * @param nextStage Bond stage after this completed fish was recorded.
    * @param fishLabel Human-readable species label used by visible status feedback.
@@ -604,6 +611,7 @@ export function createAmbientController(
   function startCompletedFishPresentation(
     event: CompletedFishEvent,
     levelAdvanced: boolean,
+    fieldRefreshed: boolean,
     previousStage: CatBondStage,
     nextStage: CatBondStage,
     fishLabel: string,
@@ -620,11 +628,21 @@ export function createAmbientController(
       scheduleFeedbackStep(FISH_MERGE_CONTACT_DURATION, () => {
         if (completedFish.value?.id !== event.id) return;
         completedFish.value = { ...event, phase: "feeding" };
+        fieldPreview.value = null;
         presentedClearCount.value = game.value.clearCount;
-        feedback.value = levelAdvanced ? "level" : "clear";
-        status.value = previousStage !== nextStage
-          ? `大${fishLabel}被小猫接住了。你们变得更亲近了。`
+        feedback.value = levelAdvanced
+          ? "level"
+          : fieldRefreshed
+          ? "refresh"
+          : "clear";
+        const feedStatus = previousStage !== nextStage
+          ? `大${fishLabel}被小猫接住了，你们变得更亲近了。`
           : `大${fishLabel}被小猫接住了。`;
+        status.value = levelAdvanced
+          ? `${feedStatus} 本关的鱼已经全部找完。`
+          : fieldRefreshed
+          ? `${feedStatus} 下一波鱼群正在展开。`
+          : `${feedStatus} 继续找完桌上的其余小鱼。`;
         startCatFeedReaction(event.feedCount);
         showCatReaction(event.feedCount % 3 === 0 ? "full" : "fed");
         options.onClear?.();
@@ -635,7 +653,15 @@ export function createAmbientController(
           feedback.value = "idle";
           clearTrayFeedback();
           if (levelAdvanced) {
-            status.value = "新的鱼群已经展开，可以继续寻找小鱼。";
+            status.value = "新一关已经开始；这一波只有一个鱼种有三条。";
+          } else if (fieldRefreshed) {
+            const remaining = getLevelGoal(game.value.level) -
+              game.value.levelProgress;
+            status.value = `鱼群换好了，找出唯一的三条同种鱼；本关还剩${remaining}组。`;
+          } else {
+            const remaining = getLevelGoal(game.value.level) -
+              game.value.levelProgress;
+            status.value = `这一组找齐了，继续找完桌上的另外${remaining}组。`;
           }
         });
       });
@@ -657,13 +683,13 @@ export function createAmbientController(
       catPose.value = "lying";
       catMotion.value = "loss";
       feedback.value = "loss";
-      status.value = "托盘装满了，小鱼们安静地重新排好，从第一局再来。";
+      status.value = "托盘装满了，这一波小鱼安静地重新排好。";
       scheduleFeedbackStep(LOSS_FEEDBACK_DURATION, () => {
         feedback.value = "idle";
         clearTrayFeedback();
         catPose.value = "idle";
         catMotion.value = "idle";
-        status.value = "新的第一局已经排好，可以继续寻找小鱼。";
+        status.value = "这一波重新排好了，本关已经找到的组数会保留。";
         scheduleCatAutoReaction();
       });
     });
@@ -684,6 +710,11 @@ export function createAmbientController(
 
     if (result.kind === "combined") {
       const previousStage = bondStage.value;
+      if (result.fieldRefreshed) {
+        fieldPreview.value = game.value.pieces.filter((piece) =>
+          piece.id !== pieceId
+        );
+      }
       trayPreview.value = [...game.value.tray, result.selected];
       clearingPieceIds.value = result.combined.map((piece) => piece.id);
       game.value = result.state;
@@ -707,6 +738,7 @@ export function createAmbientController(
       startCompletedFishPresentation(
         completedEvent,
         result.levelAdvanced,
+        result.fieldRefreshed,
         previousStage,
         nextStage,
         fishLabel,
@@ -826,6 +858,7 @@ export function createAmbientController(
     catTravelPhase,
     catIsResting,
     trayPreview,
+    fieldPreview,
     clearingPieceIds,
     completedFish,
     isAway,

@@ -2,14 +2,12 @@
 import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
 
 import {
-  getBlockerIds,
   getSelectablePieces,
   INITIAL_DISCOVERY_POINT,
   type PilePiece,
   type Point,
 } from "../../engine";
 import {
-  getHigherOverlapCounts,
   type FocusDirection,
   type GameFeedback,
   type IntroPhase,
@@ -17,9 +15,6 @@ import {
 import {
   findNearestMagneticFish,
   findNearestRevealedPiece,
-  getFishTargetOffsets,
-  getHintedPieceIds,
-  getRevealedPieceIds,
   isPointerTap,
   MAGNETIC_FISH_RADIUS,
   MINIMUM_FISH_TARGET_SIZE,
@@ -35,6 +30,7 @@ import FishPiece from "./FishPiece.vue";
 
 const props = defineProps<{
   pieces: readonly PilePiece[];
+  waveSize: number;
   disabled: boolean;
   transitioning: boolean;
   loss: boolean;
@@ -64,7 +60,6 @@ const spotlightMode = ref<SpotlightMode>("inactive");
 const draggedPieceId = ref<string | null>(null);
 const pointerInside = ref(false);
 const focusInside = ref(false);
-const slipDirections = ref<ReadonlyMap<string, -1 | 1>>(new Map());
 const magneticPieceId = ref<string | null>(null);
 const surfacePressedPieceId = ref<string | null>(null);
 const pointerRipple = ref<{
@@ -77,11 +72,9 @@ let searchPointerId: number | null = null;
 let searchPointerStart: Point | null = null;
 let searchPointerMoved = false;
 let afterglowHandle: ReturnType<typeof setTimeout> | null = null;
-let slipHandle: ReturnType<typeof setTimeout> | null = null;
 let pointerRippleSequence = 0;
 
 const selectable = computed(() => getSelectablePieces(props.pieces));
-const higherOverlapCounts = computed(() => getHigherOverlapCounts(props.pieces));
 const guidedPiece = computed(() =>
   props.away || !props.guidedPieceId
     ? null
@@ -93,35 +86,8 @@ const activeSearchLight = computed(() => {
   return props.introPhase === "idle" ? light.value : INITIAL_DISCOVERY_POINT;
 });
 const revealedPieceIds = computed(() => {
-  if (props.away) return new Set<string>();
-  if (props.transitioning) return new Set(props.pieces.map((piece) => piece.id));
-
-  const revealed = new Set(getRevealedPieceIds(
-    props.pieces,
-    activeSearchLight.value,
-    [
-      activeFocusedId.value,
-      draggedPieceId.value,
-      guidedPiece.value?.id ?? null,
-    ],
-  ));
-  return revealed;
+  return new Set(props.pieces.map((piece) => piece.id));
 });
-const hintedPieceIds = computed(() =>
-  props.transitioning
-    ? new Set<string>()
-    : getHintedPieceIds(props.pieces, activeSearchLight.value)
-);
-const separationOffsets = computed(() =>
-  props.disabled
-    ? new Map<string, Point>()
-    : getFishTargetOffsets({
-      pieces: props.pieces,
-      revealedIds: revealedPieceIds.value,
-      projection: props.projection,
-      surfaceSize: props.surfaceSize,
-    })
-);
 const projectedLight = computed(() => projectFieldPoint(
   activeSearchLight.value ?? INITIAL_DISCOVERY_POINT,
   props.projection,
@@ -167,7 +133,6 @@ watch(() => props.away, (away) => {
     return;
   }
   clearAfterglow();
-  clearNearbySlip();
   releaseSearchPointerCapture();
   light.value = null;
   spotlightMode.value = "inactive";
@@ -186,43 +151,7 @@ function clearAfterglow(): void {
   }
 }
 
-function clearNearbySlip(): void {
-  if (slipHandle !== null) {
-    globalThis.clearTimeout(slipHandle);
-    slipHandle = null;
-  }
-  slipDirections.value = new Map();
-}
-
-function showNearbySlip(pieceId: string): void {
-  const selectedPiece = props.pieces.find((piece) => piece.id === pieceId);
-  if (!selectedPiece) return;
-  const upperIds = new Set(getBlockerIds(props.pieces, pieceId));
-  const relatedPieces = props.pieces.filter((piece) =>
-    piece.id !== pieceId &&
-    (
-      upperIds.has(piece.id) ||
-      getBlockerIds(props.pieces, piece.id).includes(pieceId)
-    )
-  );
-  if (relatedPieces.length === 0) return;
-
-  clearNearbySlip();
-  slipDirections.value = new Map(relatedPieces.map((piece, index) => {
-    const horizontalDelta = piece.pile.x - selectedPiece.pile.x;
-    const direction: -1 | 1 = Math.abs(horizontalDelta) < 0.008
-      ? index % 2 === 0 ? -1 : 1
-      : horizontalDelta < 0 ? -1 : 1;
-    return [piece.id, direction];
-  }));
-  slipHandle = globalThis.setTimeout(() => {
-    slipHandle = null;
-    slipDirections.value = new Map();
-  }, 380);
-}
-
 function onActivate(pieceId: string): void {
-  showNearbySlip(pieceId);
   emit("activate", pieceId);
 }
 
@@ -468,7 +397,7 @@ function onPointerEnd(event: PointerEvent): void {
     }
     const target = findNearestRevealedPiece(
       selectable.value,
-      getRevealedPieceIds(selectable.value, localLight),
+      revealedPieceIds.value,
       localLight,
     );
     if (target) {
@@ -538,7 +467,6 @@ function onDragEnd(pieceId: string, clientX: number, clientY: number): void {
 
 onBeforeUnmount(() => {
   clearAfterglow();
-  clearNearbySlip();
   releaseSearchPointerCapture();
 });
 </script>
@@ -552,13 +480,14 @@ onBeforeUnmount(() => {
     :data-loss="loss"
     :data-feedback="feedback"
     :data-intro="introPhase"
+    :data-wave-size="waveSize"
     :style="{
       '--light-x': projectedLight.x,
       '--light-y': projectedLight.y,
       '--fish-target-size': `${MINIMUM_FISH_TARGET_SIZE}px`,
     }"
     tabindex="0"
-    aria-label="小鱼搜索桌面。移动指针或用方向键移动探照灯，Enter选择显影小鱼。"
+    aria-label="小鱼搜索桌面。所有小鱼都可选择；用方向键移动焦点，Enter选择小鱼。"
     @pointerdown="onPointerDown"
     @pointermove="onPointerMove"
     @pointerup="onPointerEnd"
@@ -603,12 +532,12 @@ onBeforeUnmount(() => {
         :piece="piece"
         :position="projectFieldPoint(piece.pile, projection)"
         :revealed="revealedPieceIds.has(piece.id)"
-        :hinted="hintedPieceIds.has(piece.id)"
+        :hinted="false"
         :guided="guidedPiece?.id === piece.id"
-        :higher-overlap-count="higherOverlapCounts.get(piece.id) ?? 0"
+        :higher-overlap-count="0"
         :disabled="disabled"
-        :separation="separationOffsets.get(piece.id) ?? { x: 0, y: 0 }"
-        :slip-direction="slipDirections.get(piece.id) ?? 0"
+        :separation="{ x: 0, y: 0 }"
+        :slip-direction="0"
         :intro-target="
           introPhase === 'targets' && introTargetIds.includes(piece.id)
         "
@@ -633,6 +562,7 @@ onBeforeUnmount(() => {
   --spotlight-radius-y: 17%;
   --spotlight-width: 24%;
   --spotlight-height: 34%;
+  --fish-visual-size: clamp(72px, min(8.4vw, 13.5vh), 128px);
 
   position: absolute;
   z-index: 3;
@@ -640,6 +570,22 @@ onBeforeUnmount(() => {
   isolation: isolate;
   outline: none;
   touch-action: none;
+
+  &[data-wave-size="11"] {
+    --fish-visual-size: clamp(68px, min(7.4vw, 12vh), 112px);
+  }
+
+  &[data-wave-size="13"] {
+    --fish-visual-size: clamp(64px, min(6.8vw, 11vh), 100px);
+  }
+
+  &[data-wave-size="15"] {
+    --fish-visual-size: clamp(60px, min(6.2vw, 10vh), 90px);
+  }
+
+  &[data-wave-size="17"] {
+    --fish-visual-size: clamp(56px, min(5.6vw, 9vh), 82px);
+  }
 
   &:focus-visible {
     outline: none;
@@ -788,6 +734,7 @@ onBeforeUnmount(() => {
 
 .fish-field[data-feedback="select"] :deep(.fish-field-piece-leave-active),
 .fish-field[data-feedback="clear"] :deep(.fish-field-piece-leave-active),
+.fish-field[data-feedback="refresh"] :deep(.fish-field-piece-leave-active),
 .fish-field[data-feedback="level"] :deep(.fish-field-piece-leave-active) {
   pointer-events: none;
   animation: fish-origin-tuck 220ms var(--ease-out) both;

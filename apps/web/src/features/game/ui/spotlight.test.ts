@@ -231,6 +231,18 @@ describe("spotlight projection", () => {
     expect(restored.y).toBeCloseTo(canonical.y);
   });
 
+  it("spreads the authored school across the left landscape scene", () => {
+    const topLeft = projectFieldPoint({ x: 0.12, y: 0.12 },
+      LANDSCAPE_FIELD_PROJECTION);
+    const bottomRight = projectFieldPoint({ x: 0.63, y: 0.71 },
+      LANDSCAPE_FIELD_PROJECTION);
+
+    expect(topLeft.x).toBeCloseTo(0.1584);
+    expect(topLeft.y).toBeCloseTo(0.1352);
+    expect(bottomRight.x).toBeCloseTo(0.5766);
+    expect(bottomRight.y).toBeCloseTo(0.7016);
+  });
+
   it("coalesces resize projection commits and cancels pending work", () => {
     const frames = new Map<number, () => void>();
     const cancelled: number[] = [];

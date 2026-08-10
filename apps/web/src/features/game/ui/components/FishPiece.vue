@@ -87,8 +87,6 @@ function finishDrag(event: PointerEvent): void {
   dragX.value = 0;
   dragY.value = 0;
   if (!wasDragging) {
-    suppressClick = true;
-    emit("activate", props.piece.id);
     return;
   }
   suppressClick = true;
@@ -157,17 +155,17 @@ function onKeydown(event: KeyboardEvent): void {
       '--layer-lift': `${piece.layer * -3}px`,
       '--layer-shadow-y': `${7 + piece.layer * 3}px`,
       '--layer-shadow-blur': `${7 + piece.layer * 2}px`,
-      '--layer-delay': `${piece.layer * 70}ms`,
+      '--layer-delay': `${Math.round((piece.pile.x + piece.pile.y) * 110)}ms`,
       '--separation-x': `${separation.x}px`,
       '--separation-y': `${separation.y}px`,
       '--drag-x': `${dragX}px`,
       '--drag-y': `${dragY}px`,
       '--slip-x': `${slipDirection * 9}px`,
       '--slip-rotation': `${slipDirection * 3}deg`,
-      '--swim-x': `${piece.layer % 2 === 0 ? 4 : -4}px`,
-      '--swim-y': `${2 + (piece.layer % 3)}px`,
-      '--swim-delay': `${-(piece.layer % 6) * 0.61}s`,
-      '--swim-duration': `${4.2 + (piece.layer % 4) * 0.45}s`,
+      '--swim-x': `${piece.pile.y < 0.42 ? 4 : -4}px`,
+      '--swim-y': `${1.5 + piece.pile.x * 2}px`,
+      '--swim-delay': `${-((piece.pile.x * 3.7 + piece.pile.y * 2.9) % 3.8)}s`,
+      '--swim-duration': `${4.4 + piece.pile.y * 2}s`,
     }"
     @click="onClick"
     @focus="emit('focus', piece.id)"
@@ -198,11 +196,20 @@ function onKeydown(event: KeyboardEvent): void {
 .fish-piece {
   --active-x: var(--pile-x);
   --active-y: var(--pile-y);
-  --piece-visual-size: clamp(52px, 5vw, 70px);
+  --piece-visual-size: var(
+    --fish-visual-size,
+    clamp(72px, min(8.4vw, 13.5vh), 128px)
+  );
   position: absolute;
   z-index: calc(2 + var(--piece-layer));
-  width: var(--fish-target-size, 44px);
-  height: var(--fish-target-size, 44px);
+  width: max(
+    var(--fish-target-size, 44px),
+    calc(var(--piece-visual-size) * 0.86)
+  );
+  height: max(
+    var(--fish-target-size, 44px),
+    calc(var(--piece-visual-size) * 0.86)
+  );
   padding: 0;
   border: 0;
   border-radius: 44%;
@@ -495,7 +502,15 @@ function onKeydown(event: KeyboardEvent): void {
 
 @media (max-width: 620px) {
   .fish-piece {
-    --piece-visual-size: clamp(62px, 20vw, 78px);
+    --piece-visual-size: clamp(46px, 15vw, 58px);
+    width: max(
+      var(--fish-target-size, 44px),
+      calc(var(--piece-visual-size) * 0.76)
+    );
+    height: max(
+      var(--fish-target-size, 44px),
+      calc(var(--piece-visual-size) * 0.76)
+    );
   }
 }
 

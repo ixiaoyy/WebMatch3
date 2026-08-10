@@ -56,17 +56,17 @@ export const FULL_FIELD_PROJECTION: FieldProjection = Object.freeze({
 });
 
 export const LANDSCAPE_FIELD_PROJECTION: FieldProjection = Object.freeze({
-  left: 0.24,
-  top: 0.4,
-  width: 0.48,
-  height: 0.36,
+  left: 0.06,
+  top: 0.02,
+  width: 0.82,
+  height: 0.96,
 });
 
 export const PORTRAIT_FIELD_PROJECTION: FieldProjection = Object.freeze({
-  left: 0.08,
-  top: 0.49,
-  width: 0.56,
-  height: 0.3,
+  left: 0.02,
+  top: 0.1,
+  width: 0.68,
+  height: 0.7,
 });
 
 export function getFieldProjection(

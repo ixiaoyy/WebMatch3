@@ -6,6 +6,7 @@ export {
   DISCOVERY_RADIUS_Y,
   getBlockerIds,
   getLevelConfig,
+  getLevelGoal,
   getSelectablePieces,
   hasDiscoverableMatch,
   hasQuickMatch,

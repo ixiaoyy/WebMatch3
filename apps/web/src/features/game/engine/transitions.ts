@@ -1,4 +1,4 @@
-import { createLevelState } from "./pile";
+import { createLevelState, getLevelGoal } from "./pile";
 import {
   type AmbientGameState,
   type FishKind,
@@ -11,7 +11,13 @@ export function restartAfterLoss(
   state: AmbientGameState,
   random: RandomSource = Math.random,
 ): AmbientGameState {
-  return createLevelState(1, state.clearCount, state.nextPieceId, random);
+  return createLevelState(
+    state.level,
+    state.clearCount,
+    state.nextPieceId,
+    random,
+    state.levelProgress,
+  );
 }
 
 /**
@@ -50,16 +56,31 @@ export function selectPiece(
       !combinedIds.has(candidate.id)
     );
     const clearCount = state.clearCount + 1;
-    const levelAdvanced = pieces.length === 0 && remainingTray.length === 0;
+    const levelProgress = state.levelProgress + 1;
+    const levelAdvanced = levelProgress >= getLevelGoal(state.level);
+    const fieldRefreshed = state.level > 1 || levelAdvanced;
     return {
       kind: "combined",
       selected,
       combined,
       fishKind: selected.kind,
       levelAdvanced,
-      state: levelAdvanced
-        ? createLevelState(state.level + 1, clearCount, state.nextPieceId, random)
-        : { ...state, pieces, tray: remainingTray, clearCount },
+      fieldRefreshed,
+      state: fieldRefreshed
+        ? createLevelState(
+          levelAdvanced ? state.level + 1 : state.level,
+          clearCount,
+          state.nextPieceId,
+          random,
+          levelAdvanced ? 0 : levelProgress,
+        )
+        : {
+          ...state,
+          pieces,
+          tray: remainingTray,
+          clearCount,
+          levelProgress,
+        },
     };
   }
 

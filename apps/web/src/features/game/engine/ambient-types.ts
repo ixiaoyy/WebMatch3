@@ -37,6 +37,7 @@ export interface AmbientGameState {
   readonly tray: readonly TrayPiece[];
   readonly clearCount: number;
   readonly level: number;
+  readonly levelProgress: number;
   readonly nextPieceId: number;
 }
 
@@ -58,6 +59,7 @@ export interface CombinedSelection {
   readonly combined: readonly [TrayPiece, TrayPiece, TrayPiece];
   readonly fishKind: FishKind;
   readonly levelAdvanced: boolean;
+  readonly fieldRefreshed: boolean;
 }
 
 export interface LostSelection {

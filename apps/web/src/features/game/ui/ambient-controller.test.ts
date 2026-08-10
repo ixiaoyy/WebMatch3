@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   FISH_KINDS,
   createInitialState,
+  createLevelState,
   createSeededRandom,
   type AmbientGameState,
   type PilePiece,
@@ -260,11 +261,12 @@ describe("ambient controller", () => {
     });
 
     for (let count = 1; count <= 3; count += 1) {
+      const previousLevel = controller.game.value.level;
       const triple = findTriple(controller.game.value);
       expect(triple).not.toBeNull();
       if (!triple) return;
       for (const piece of triple) controller.activate(piece.id);
-      harness.finishCompletedFish();
+      harness.finishCompletedFish(controller.game.value.level > previousLevel);
     }
 
     expect(controller.fishFedCount.value).toBe(3);
@@ -293,11 +295,12 @@ describe("ambient controller", () => {
     });
 
     for (let count = 1; count <= 3; count += 1) {
+      const previousLevel = controller.game.value.level;
       const triple = findTriple(controller.game.value);
       expect(triple).not.toBeNull();
       if (!triple) return;
       for (const piece of triple) controller.activate(piece.id);
-      harness.finishCompletedFish();
+      harness.finishCompletedFish(controller.game.value.level > previousLevel);
     }
     harness.runDelay(520);
     expect(controller.catPose.value).toBe("full");
@@ -429,7 +432,7 @@ describe("ambient controller", () => {
     const snapshot = createFreshSnapshot(createSeededRandom(111), 1_000);
     expect(saveAmbientSnapshot(storage, {
       ...snapshot,
-      game: { ...snapshot.game, level: 4, clearCount: 18 },
+      game: { ...snapshot.game, clearCount: 18 },
       pet: { guardedPieceId: null, fishFedCount: 9 },
     })).toBe(true);
 
@@ -463,6 +466,7 @@ describe("ambient controller", () => {
       ...controller.game.value,
       pieces: finalPieces,
       tray: [],
+      levelProgress: 2,
     };
 
     for (const piece of finalPieces) controller.activate(piece.id);
@@ -473,11 +477,13 @@ describe("ambient controller", () => {
     expect(controller.fishFedCount.value).toBe(1);
     expect(controller.completedFish.value?.kind).toBe("whale");
     expect(controller.completedFish.value?.phase).toBe("catching");
+    expect(controller.fieldPreview.value).toEqual([]);
     harness.runDelay(FISH_CATCH_FLIGHT_DURATION);
     expect(controller.completedFish.value?.phase).toBe("merging");
     harness.runDelay(FISH_MERGE_CONTACT_DURATION);
     expect(controller.feedback.value).toBe("level");
     expect(controller.completedFish.value?.phase).toBe("feeding");
+    expect(controller.fieldPreview.value).toBeNull();
     controller.dispose();
   });
 
@@ -489,13 +495,14 @@ describe("ambient controller", () => {
       timers: harness.timers,
     });
     controller.fishFedCount.value = 12;
+    const wave = createLevelState(3, 7, 101, createSeededRandom(132), 3);
     const target = {
-      ...controller.game.value.pieces[0],
+      ...wave.pieces[0],
       id: "loss-target",
       kind: "pufferfish" as const,
     };
     controller.game.value = {
-      ...controller.game.value,
+      ...wave,
       pieces: [target],
       tray: [
         "whale",
@@ -513,7 +520,9 @@ describe("ambient controller", () => {
     controller.activate(target.id);
 
     expect(controller.feedback.value).toBe("select");
-    expect(controller.game.value.level).toBe(1);
+    expect(controller.game.value.level).toBe(3);
+    expect(controller.game.value.levelProgress).toBe(3);
+    expect(controller.game.value.clearCount).toBe(7);
     expect(controller.game.value.tray).toEqual([]);
     expect(controller.fishFedCount.value).toBe(12);
     expect(controller.canSelect.value).toBe(false);

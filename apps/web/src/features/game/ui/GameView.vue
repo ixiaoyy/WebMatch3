@@ -8,7 +8,7 @@ import {
   watch,
 } from "vue";
 
-import type { FishKind } from "../engine";
+import { getLevelConfig, type FishKind } from "../engine";
 import { createAmbientController } from "./ambient-controller";
 import wallpaperUrl from "./assets/ambient/wallpaper.webp";
 import CatCompanion from "./components/CatCompanion.vue";
@@ -51,7 +51,6 @@ const deliveryGeometry = ref<{
   readonly endY: number;
 } | null>(null);
 const playHintDismissed = ref(false);
-const revealedPieceIds = ref<ReadonlySet<string>>(new Set());
 const pipOpen = ref(false);
 const activePipWindow = ref<Window | null>(null);
 const fieldProjection = ref(
@@ -73,8 +72,13 @@ const game = createAmbientController({
   onClear: () => {
     if (game.soundEnabled.value) clearSound.play();
   },
-  isSearchCandidate: (pieceId) => !revealedPieceIds.value.has(pieceId),
 });
+const displayedFieldPieces = computed(() =>
+  game.fieldPreview.value ?? game.game.value.pieces
+);
+const fieldWaveSize = computed(() =>
+  getLevelConfig(game.game.value.level).pieceCount
+);
 const incomingPieceIds = computed(() => new Set(
   catchFlights.value.map((flight) => flight.pieceId),
 ));
@@ -123,11 +127,9 @@ const showPlayHint = computed(() =>
   game.feedback.value !== "level" &&
   game.feedback.value !== "loss"
 );
-const fieldKindCount = computed(() =>
-  new Set(game.game.value.pieces.map((piece) => piece.kind)).size
-);
-const levelCue = computed(() =>
-  `新鱼群 · ${fieldKindCount.value} 种鱼 · 更深堆叠`
+const levelCue = computed(() => game.game.value.level === 2
+  ? "新规则 · 每一波只有一个鱼种有三条"
+  : "新一关 · 继续寻找唯一的三条"
 );
 
 /**
@@ -275,10 +277,6 @@ watch(
   { flush: "post" },
 );
 
-function onRevealedChange(pieceIds: readonly string[]): void {
-  revealedPieceIds.value = new Set(pieceIds);
-}
-
 function onPipFocus(): void {
   game.setAway(false);
 }
@@ -413,7 +411,7 @@ onBeforeUnmount(() => {
 
         <Transition name="play-hint">
           <p v-if="showPlayHint" class="play-hint" aria-hidden="true">
-            找到三条同种小鱼，合成大鱼喂猫
+            把桌上的三组三条鱼全部找完
           </p>
         </Transition>
 
@@ -454,7 +452,8 @@ onBeforeUnmount(() => {
 
         <FishField
           :key="game.game.value.level"
-          :pieces="game.game.value.pieces"
+          :pieces="displayedFieldPieces"
+          :wave-size="fieldWaveSize"
           :disabled="!game.canSelect.value"
           :transitioning="game.feedbackProjection.value.levelArriving"
           :loss="game.feedbackProjection.value.loss"
@@ -467,7 +466,6 @@ onBeforeUnmount(() => {
           :intro-target-ids="game.introTargetIds.value"
           @activate="activateFish"
           @search-miss="game.announceSearchMiss"
-          @revealed-change="onRevealedChange"
           @drag-start="onFishDragStart"
           @drag-end="onFishDragEnd"
         />
@@ -539,9 +537,9 @@ onBeforeUnmount(() => {
   --scene-plant-base: calc(
     var(--scene-companion-base) + clamp(60px, 6vh, 88px)
   );
-  --plant-right: clamp(24px, 5vw, 76px);
-  --plant-width: clamp(196px, 20vw, 286px);
-  --cat-plant-overlap: clamp(24px, 3vw, 42px);
+  --plant-right: clamp(18px, 2.2vw, 34px);
+  --plant-width: clamp(180px, 16vw, 236px);
+  --cat-plant-overlap: clamp(18px, 1.8vw, 26px);
 
   overflow: hidden;
   transition: filter 240ms ease;
@@ -629,7 +627,7 @@ onBeforeUnmount(() => {
 }
 
 .cat-companion-slot {
-  --cat-companion-width: clamp(320px, 35vw, 500px);
+  --cat-companion-width: clamp(300px, 27vw, 380px);
 
   position: absolute;
   z-index: 7;

@@ -287,7 +287,7 @@ function parseLegacyFedFish(
 }
 
 /**
- * Validates the canonical v4 game inventory and match-three balance.
+ * Validates the canonical v4 game inventory and the current wave contract.
  * @param value Unknown persisted game object.
  * @returns A canonical game state, or null when any invariant fails.
  */
@@ -304,6 +304,13 @@ function parseGame(value: unknown): AmbientGameState | null {
   ) {
     return null;
   }
+  const isLegacyTripleBoard = value.levelProgress === undefined;
+  const levelProgress = isLegacyTripleBoard
+    ? 0
+    : isSafeCounter(value.levelProgress, 0)
+    ? value.levelProgress
+    : null;
+  if (levelProgress === null) return null;
 
   const pieces = value.pieces.map(parsePilePiece);
   const tray = value.tray.map(parseTrayPiece);
@@ -314,20 +321,43 @@ function parseGame(value: unknown): AmbientGameState | null {
   const parsedTray = tray.filter((piece): piece is TrayPiece => piece !== null);
   const inventory = [...parsedPieces, ...parsedTray];
   const ids = inventory.map((piece) => piece.id);
-  const maximum = getLevelConfig(value.level).pieceCount;
+  const config = getLevelConfig(value.level);
+  const maximum = isLegacyTripleBoard
+    ? MAX_PIECE_COUNT
+    : config.pieceCount;
   if (
     new Set(ids).size !== ids.length ||
     inventory.length === 0 ||
     inventory.length > maximum ||
-    inventory.length % 3 !== 0
+    levelProgress >= config.targetCount
   ) {
     return null;
   }
 
-  for (const kind of FISH_KINDS) {
-    if (inventory.filter((piece) => piece.kind === kind).length % 3 !== 0) {
+  const kindCounts = FISH_KINDS.map((kind) =>
+    inventory.filter((piece) => piece.kind === kind).length
+  ).filter((count) => count > 0);
+  if (isLegacyTripleBoard) {
+    if (
+      inventory.length % 3 !== 0 ||
+      kindCounts.some((count) => count % 3 !== 0)
+    ) {
       return null;
     }
+  } else if (value.level === 1) {
+    if (
+      inventory.length !== (config.targetCount - levelProgress) * 3 ||
+      kindCounts.some((count) => count !== 3)
+    ) {
+      return null;
+    }
+  } else if (
+    inventory.length !== config.pieceCount ||
+    kindCounts.length !== config.kindCount ||
+    kindCounts.filter((count) => count === 3).length !== 1 ||
+    kindCounts.some((count) => count !== 2 && count !== 3)
+  ) {
+    return null;
   }
 
   return {
@@ -335,6 +365,7 @@ function parseGame(value: unknown): AmbientGameState | null {
     tray: parsedTray,
     clearCount: value.clearCount,
     level: value.level,
+    levelProgress,
     nextPieceId: value.nextPieceId,
   };
 }
@@ -421,7 +452,7 @@ function parseLegacyGame(
   const unsettledFed = parts.fed.filter((piece) => !piece.settled);
   const inventory = [...parts.pieces, ...parts.tray, ...unsettledFed];
   const recordedTotal = parts.pieces.length + parts.tray.length + parts.fed.length;
-  const maximum = getLevelConfig(value.level).pieceCount;
+  const maximum = MAX_PIECE_COUNT;
   if (
     inventory.length === 0 ||
     inventory.length > maximum ||

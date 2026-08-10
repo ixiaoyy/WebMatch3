@@ -1,8 +1,5 @@
 import {
-  DISCOVERY_RADIUS_X,
-  DISCOVERY_RADIUS_Y,
   getBlockerIds,
-  INITIAL_DISCOVERY_POINT,
   type AmbientGameState,
   type FishKind,
   type PilePiece,
@@ -36,6 +33,7 @@ export type GameFeedback =
   | "intro"
   | "select"
   | "clear"
+  | "refresh"
   | "loss"
   | "level";
 
@@ -103,15 +101,8 @@ export function getFishPresentation(kind: FishKind): FishPresentation {
 
 export function getFishAccessibleLabel({
   kind,
-  layer,
-  higherOverlapCount,
 }: FishAccessibleLabelOptions): string {
-  const overlapLabel = higherOverlapCount === 0
-    ? "上方没有小鱼重叠"
-    : `上方有${higherOverlapCount}条小鱼重叠`;
-  return `${getFishPresentation(kind).label}，小尺寸，第${
-    layer + 1
-  }层，${overlapLabel}；Enter、空格或F放入托盘`;
+  return `${getFishPresentation(kind).label}；Enter、空格或F放入托盘`;
 }
 
 export function getHigherOverlapCounts(
@@ -143,8 +134,9 @@ export function projectGameFeedback(
 ): GameFeedbackProjection {
   return {
     locksInput: feedback === "loss" || feedback === "level",
-    celebratesPlant: feedback === "clear",
-    levelArriving: feedback === "level",
+    celebratesPlant:
+      feedback === "clear" || feedback === "refresh" || feedback === "level",
+    levelArriving: feedback === "refresh" || feedback === "level",
     loss: feedback === "loss",
   };
 }
@@ -154,21 +146,12 @@ export function getIntroTargetIds(
 ): readonly string[] {
   const candidatesByKind = new Map<FishKind, PilePiece[]>();
   for (const piece of pieces) {
-    const distance = Math.hypot(
-      (piece.pile.x - INITIAL_DISCOVERY_POINT.x) / DISCOVERY_RADIUS_X,
-      (piece.pile.y - INITIAL_DISCOVERY_POINT.y) / DISCOVERY_RADIUS_Y,
-    );
-    if (distance > 1) continue;
     const candidates = candidatesByKind.get(piece.kind) ?? [];
     candidates.push(piece);
     candidatesByKind.set(piece.kind, candidates);
   }
   for (const candidates of candidatesByKind.values()) {
-    const first = candidates[0];
-    const second = candidates.find((piece) => piece.layer !== first?.layer);
-    const third = candidates.find((piece) =>
-      piece.id !== first?.id && piece.id !== second?.id
-    );
+    const [first, second, third] = candidates;
     if (first && second && third) return [first.id, second.id, third.id];
   }
   return [];
@@ -180,6 +163,7 @@ export function shouldStartIntro(
 ): boolean {
   return game.level === 1 &&
     game.clearCount === 0 &&
+    game.levelProgress === 0 &&
     game.tray.length === 0 &&
     guardedPieceId === null &&
     game.nextPieceId === game.pieces.length + 1 &&

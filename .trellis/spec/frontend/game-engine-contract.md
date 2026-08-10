@@ -2,33 +2,35 @@
 
 ## 1. Scope / Trigger
 
-Apply this contract when changing finite level generation, field-geometry
-overlap relationships, small-fish tray selection, same-species combination,
-progressive difficulty, full-tray loss restart, or any consumer of those
-transitions. The engine lives in `apps/web/src/features/game/engine` and stays
-independent from Vue, DOM APIs, timers, storage, sound, cat state, and
-Picture-in-Picture.
+Apply this contract when changing fish-wave construction, level goals, tray
+selection, same-species combination, wave refresh, level advancement, or loss
+restart. The engine lives in `apps/web/src/features/game/engine` and must stay
+independent from Vue, DOM APIs, timers, storage, audio, and pet presentation.
 
 ## 2. Signatures
 
 Consumers import only from `@/features/game/engine`:
 
 ```ts
-createInitialState(random?: RandomSource): AmbientGameState
-createLevelState(level: number, clearCount: number, nextPieceId: number, random?: RandomSource): AmbientGameState
+getLevelGoal(level: number): number
 getLevelConfig(level: number): LevelConfig
-MAX_PIECE_COUNT: number
-getBlockerIds(pieces: readonly PilePiece[], pieceId: string): readonly string[]
-getSelectablePieces(pieces: readonly PilePiece[]): readonly PilePiece[]
-hasQuickMatch(pieces: readonly PilePiece[]): boolean
-hasDiscoverableMatch(pieces: readonly PilePiece[]): boolean
-isSafeFieldPoint(point: Point): boolean
-INITIAL_DISCOVERY_POINT: Point
-DISCOVERY_RADIUS_X: number
-DISCOVERY_RADIUS_Y: number
-selectPiece(state: AmbientGameState, pieceId: string, random?: RandomSource): SelectionResult
-restartAfterLoss(state: AmbientGameState, random?: RandomSource): AmbientGameState
-createSeededRandom(seed: number): RandomSource
+createInitialState(random?: RandomSource): AmbientGameState
+createLevelState(
+  level: number,
+  clearCount: number,
+  nextPieceId: number,
+  random?: RandomSource,
+  levelProgress?: number,
+): AmbientGameState
+selectPiece(
+  state: AmbientGameState,
+  pieceId: string,
+  random?: RandomSource,
+): SelectionResult
+restartAfterLoss(
+  state: AmbientGameState,
+  random?: RandomSource,
+): AmbientGameState
 ```
 
 ```ts
@@ -37,6 +39,7 @@ interface AmbientGameState {
   readonly tray: readonly TrayPiece[];
   readonly clearCount: number;
   readonly level: number;
+  readonly levelProgress: number;
   readonly nextPieceId: number;
 }
 
@@ -47,149 +50,109 @@ interface CombinedSelection {
   readonly combined: readonly [TrayPiece, TrayPiece, TrayPiece];
   readonly fishKind: FishKind;
   readonly levelAdvanced: boolean;
+  readonly fieldRefreshed: boolean;
 }
-
-type SelectionResult =
-  | MissingSelection
-  | MovedSelection
-  | CombinedSelection
-  | LostSelection;
 ```
 
 ## 3. Contracts
 
-- `FISH_KINDS` is the single ordered species registry: whale, koi, sardine,
-  pufferfish, goldfish, clownfish, angelfish, and betta. Legacy color keys are
-  accepted only by versioned storage migration and never enter the engine.
-- Engine pieces are complete small fish. Cutting, fish-part identity, direct
-  cat feeding, feed credits, cat fullness, and the visual large fish do not
-  exist in canonical engine state.
-- Level one contains 36 unique pieces, three active kinds, constrained
-  randomized coordinates, and two shallow layers. Each subsequent level adds
-  six pieces through the shared 60-piece cap; levels two through six expose one
-  additional kind per level, level three introduces the third layer, and level
-  six exposes all eight kinds.
-- `MAX_PIECE_COUNT` is the generation cap and is reused by snapshot parsing.
-  Never maintain a separate storage-only inventory cap.
-- Every level consists of complete same-kind triples dealt across three-kind
-  spatial groups. Groups receive balanced layer quotas and shuffled layer
-  order. Each generated level preserves a complete removal path and exposes
-  one same-kind triple inside the initial discovery spotlight across at least
-  two layers.
-- Generation samples shuffled safe regions with a finite rejection limit. It
-  keeps group centers apart using the canonical fish footprint, reserves the
-  cat/plant/tray corner, covers all four field quadrants, and uses a finite
-  deterministic eight-region lattice fallback when random candidates
-  degenerate. The same seed reproduces positions, layers, species, scale, and
-  rotation.
-- New levels use one stable normalized field position (`pile === spread`) and
-  persist explicit higher-layer `blockerIds`. Those IDs describe visual overlap
-  for UI settling motion but never gate selection. Old snapshots without them
-  retain legacy overlap calculation until migration or level replacement.
-- The normalized overlap rectangle tracks the rendered small-fish footprint
-  (`0.20 × 0.29` of the field at scale `1`). Only meaningful overlap from a
-  strictly higher layer is recorded. Rotation does not change this conservative
-  footprint.
-- New pieces sample rotation across `[0, 360)`. Migrated snapshots may retain
-  legacy negative rotations accepted by the storage boundary.
-- Every remaining pile piece is selectable regardless of layer. Public
-  transitions never mutate their input, and a missing selection returns the
-  original state object.
-- A selection removes one pile fish and appends its `{ id, kind }` entry to the
-  ordered tray. When the selected species reaches three, `selectPiece` removes
-  the earliest three entries of that species, increments `clearCount` once,
-  and returns `kind: "combined"` with that exact ordered triple.
-- Same-species combination has priority over the seven-slot loss rule. Other
-  species remain in tray order. Mixed species and one/two matching fish never
-  combine.
-- Canonical active inventory is `pieces + tray`; its total and each species
-  count remain divisible by three. The large fish is a transient UI projection
-  of `CombinedSelection`, not a fourth inventory object.
-- Combining the final three active fish creates the next level atomically and
-  sets `levelAdvanced: true`. Incomplete levels never advance.
-- A seventh unmatched tray entry loses immediately. The result contains a
-  readonly seven-piece preview plus a newly generated stable level-one state.
-- Loss restart clears the tray and current field while preserving `clearCount`
-  and using the previous `nextPieceId` as the first ID of the replacement
-  level. IDs remain monotonic and plant progress never decreases.
-- Tests inject seeded randomness. Production may use `Math.random` only at the
-  public default boundary.
+- `FISH_KINDS` is the single ordered eight-species registry. Legacy color keys
+  are accepted only inside versioned storage migration.
+- `getLevelGoal` returns `3, 5, 8, 13, 21, 34…` for levels one through six and
+  continues the same recurrence. Invalid non-positive or unsafe levels throw.
+- Level one contains exactly 9 pieces: 3 species, each appearing 3 times. It
+  advances only after all three groups combine. Its first two combinations
+  keep the remaining field and set `fieldRefreshed: false`.
+- Level two starts with 5 species and 11 pieces. Later levels use 6/13, 7/15,
+  then 8/17 pieces and remain capped at eight species.
+- Every level-two-or-later wave has exactly one species count of 3; every other
+  active species has count 2. A completed triple always replaces that wave and
+  sets `fieldRefreshed: true`.
+- `levelProgress` counts completed groups in the current level only.
+  `clearCount` is lifetime plant/feed progress. Advancing resets only
+  `levelProgress`; loss preserves both counters and the current level.
+- New pieces use authored S-curve points, `pile === spread`, `layer: 0`, empty
+  `blockerIds`, scale `0.96..1.06`, and rotation `-8..8` degrees. Generation
+  never creates gameplay stacking or occlusion.
+- Species passes are interleaved so repeated fish do not occupy adjacent route
+  slots. Geometry is deterministic for a seeded random source.
+- A selection removes one field fish and appends `{ id, kind }` to the ordered
+  tray. The earliest three entries of the selected species combine first.
+- Combination takes priority over the seven-slot loss rule. On later waves,
+  combination intentionally clears unrelated tray entries as part of the new
+  wave transaction.
+- A seventh unmatched fish returns a seven-piece loss preview and a fresh copy
+  of the current wave. `level`, `levelProgress`, `clearCount`, and monotonic ID
+  allocation remain intact.
+- `MAX_PIECE_COUNT` remains the legacy snapshot ceiling, not the active wave
+  size. New wave validation uses `getLevelConfig(level).pieceCount`.
+- Public transitions are immutable. Missing IDs return the original state
+  object, and production randomness enters only through public defaults.
 
 ## 4. Validation & Error Matrix
 
 | Condition | Required outcome |
 |---|---|
-| Missing piece ID | `SelectionResult { kind: "missing", state }` with original state identity |
-| Existing piece has higher-layer overlap metadata | remove it normally; UI may animate related neighbors |
-| Existing piece, tray below seven, fewer than three of its kind | append it and return `kind: "moved"` |
-| Selected kind reaches three before level end | remove its earliest three entries, increment once, return `kind: "combined"` |
-| Mixed kinds occupy the tray | preserve them in order; never combine across species |
-| Matching third fish makes tray length seven | combine first; do not lose |
-| Selected kind combines the last active triple | create the harder next level and set `levelAdvanced: true` |
-| Tray reaches seven without a combination | return `kind: "lost"`, seven-piece preview, and stable level-one restart |
+| Invalid level or out-of-range `levelProgress` | throw `RangeError` |
+| Missing piece ID | `kind: "missing"` with original state identity |
+| First/second level-one triple | increment counters, retain remaining pieces, no refresh |
+| Third level-one triple | create level two with 11 pieces and reset progress |
+| Later triple below the goal | rebuild same-level wave and increment progress |
+| Later triple reaches the goal | create next-level wave and reset progress |
+| Seventh unmatched tray entry | rebuild current wave and preserve level progress |
+| Matching third fish is seventh entry | combine first; do not lose |
 | Random value is non-finite or outside `[0, 1)` | throw `AmbientEngineError` |
 
 ## 5. Good / Base / Bad Cases
 
-- Good: the UI consumes `CombinedSelection.combined` to render three small fish
-  becoming one large fish, while the engine stores no visual large-fish record.
-- Base: a fresh state exposes a discoverable same-species triple and a complete
-  removal path without a timer, score, level label, or failure page.
-- Good: the UI asks `getBlockerIds` only to animate related neighbors after a
-  fish leaves; all native fish buttons stay actionable.
-- Good: the UI renders canonical `pile` coordinates without regenerating or
-  mutating state; legacy `spread` remains snapshot-compatible only.
-- Bad: a component groups fish by DOM position or constructs its own triple.
-- Bad: a component removes one fish directly for the cat or stores a large fish
-  in engine state.
-- Bad: a combination appends replacements and makes the current level endless.
-- Bad: loss restart persists a seven-piece tray, resets `clearCount`, reuses
-  generated IDs, or waits for confirmation.
+- Good: level two progress `4/5` combines once, returns a 13-piece level-three
+  wave, and keeps lifetime `clearCount` monotonic.
+- Base: level one starts with three easy, fully visible triples and no hidden
+  dependency on UI reveal state.
+- Good: a loss at level three progress `3/8` rebuilds a 13-piece wave at `3/8`.
+- Bad: advancing level one after its first triple.
+- Bad: creating a later wave with two triple species or retaining a species
+  with only one copy.
+- Bad: using `MAX_PIECE_COUNT` as the current generated piece count.
+- Bad: a component computes its own goal, triple, refresh, or loss transition.
 
 ## 6. Tests Required
 
-1. unique IDs, level-one 36-piece mixed layout, explicit blockers, and layers
-   limited to `0..2`;
-2. meaningful higher-layer overlap metadata, lower-layer selection, and the
-   vertically offset case governed by the canonical rendered footprint;
-3. missing-result identity and complete input immutability;
-4. ordered tray movement, same-species combination, exact earliest-three IDs,
-   mixed-species non-combination, and `clearCount` increment;
-5. combination priority over seventh-entry loss, unmatched loss preview,
-   level-one restart, preserved progress, and monotonic IDs;
-6. complete solver traversal across progressive levels and atomic advancement;
-7. piece-count progression `36, 42, 48, 54, 60`, unique safe positions at the
-   cap, and active kind counts `3, 4, 5, 6, 7, 8` capped at eight;
-8. invalid random values, deterministic seeded repetition, and a finite unique
-   fallback under a degenerate constant random source;
-9. multi-seed safe bounds, broad coverage, bounded overlap, balanced shuffled
-   layers, all rotation quadrants, initial discoverable triples, and complete
-   clearing paths;
-10. per-species divisibility after every move, combination, loss, and level
-    advance.
+1. exact goals `3, 5, 8, 13, 21, 34` and configs `9, 11, 13, 15, 17`;
+2. level-one three-by-three inventory and advancement only after group three;
+3. exactly one triple and all remaining pairs for every later seeded wave;
+4. unique authored points, single layer, empty blockers, safe bounds, restrained
+   scale/rotation, and separated repeated species;
+5. same-level refresh below the goal and next-level creation at the goal;
+6. ordered tray movement, earliest-three combination, and combination before
+   seventh-slot loss;
+7. current-wave loss restart with preserved level, `levelProgress`,
+   `clearCount`, empty tray, and monotonic IDs;
+8. deterministic seeded results, immutable inputs, and invalid-random errors.
 
-Run focused `ambient-game` tests before the final `pnpm ci:web` gate.
+Run focused engine tests, then the repository frontend quality gate.
 
 ## 7. Wrong vs Correct
 
 ### Wrong
 
 ```ts
-const matching = tray.filter((item) => item.kind === selected.kind);
-if (matching.length === 3) componentState.largeFish = selected.kind;
+if (result.kind === "combined") {
+  level.value += 1;
+  pieces.value = generateRandomPile(60);
+}
 ```
 
-This duplicates the combination rule in a component and creates a second
-canonical state owner.
+This duplicates progression in the UI and reintroduces random piling.
 
 ### Correct
 
 ```ts
 const result = selectPiece(game, pieceId, random);
 if (result.kind === "combined") {
-  renderDelivery(result.combined, result.fishKind);
+  game = result.state;
+  presentWaveChange(result.fieldRefreshed, result.levelAdvanced);
 }
 ```
 
-The engine owns the exact ordered triple; the UI owns only its temporary
-small-to-large delivery projection.
+The engine owns counters and wave identity; the UI owns only presentation time.

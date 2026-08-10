@@ -1,51 +1,34 @@
-# 活鱼捕捉交互改造 — Implementation Plan
+# 鱼群寻物与分波通关 — Implementation Plan
 
-## Phase 1 — target identity and living feedback
+## Phase 1 — engine contract
 
-- [x] Add a pure nearest rendered-target helper and focused unit tests for radius, closest winner and stable ties.
-- [x] Add FishField magnetic hover/press capture without duplicating direct fish-button activation.
-- [x] Add FishPiece magnetic/pressed states, inner living-motion wrapper and reduced-motion/away-safe styling.
-- [x] Verify mouse body-edge clicks, touch tap/scan and keyboard paths retain one canonical activation.
+- [x] Add level goals and per-level progress to canonical state.
+- [x] Replace triple-only piled generation with first-level triples and later unique-triple waves.
+- [x] Replace random pile geometry with authored, non-overlapping school points and restrained rotation.
+- [x] Make combination refresh/advance and soft loss restart pure and deterministic.
 
-## Phase 2 — source-to-tray continuity
+## Phase 2 — presentation and interaction
 
-- [x] Make `ambient-controller.activate` return its existing selection result and add method contract documentation.
-- [x] Add the pointer-transparent `FishCatchFlight.vue` overlay with normal and reduced-motion completion timing.
-- [x] Measure source and exact pre-selection destination slot in `GameView`; support multiple concurrent UI flight events.
-- [x] Project incoming IDs out of `FishTray` until each flight completes, then run slot landing feedback.
-- [x] Delay loss emphasis until its final incoming fish has reached slot seven.
+- [x] Keep all fish visible and remove overlap/fanning behavior from the active UI path.
+- [x] Preserve the selected reference composition: S-curve fish field, generous whitespace, right-side vignette, quiet tray.
+- [x] Hold the outgoing field until catch/merge/feed completes, then reveal the next wave.
+- [x] Update intro, level, accessibility, cat-search and live-region copy for the new find-the-only-triple rules.
 
-## Phase 3 — readable match and cat delivery
+## Phase 3 — compatibility and verification
 
-- [x] Add completed-fish presentation phases and deterministic controller timers.
-- [x] Start tray gather only after all clearing flights complete; render large-fish delivery from the merge phase.
-- [x] Start cat eating/full motion, optional bubble, clear sound and plant celebration at delivery contact rather than selection time.
-- [x] Preserve level advance, bond progression, persistence and input cleanup under away/dispose/interruption.
-- [x] Update controller tests for phase ordering, duration and repeated combinations.
-
-## Phase 4 — validation and polish
-
-- [x] Run focused game UI tests after implementation.
-- [x] Run lint and type-check once the focused suite is green.
-- [x] Run the Impeccable mechanical detector once over changed UI targets.
-- [x] Start the local app and visually test desktop plus compact viewports, including reduced motion where the browser supports it.
-- [x] Run final `pnpm ci:web` once on the final code state.
-- [x] Inspect the full task diff, preserve unrelated `.trellis/qa/` and `design-qa.md`, and stage only production code immediately; leave tests/docs/QA unstaged unless requested.
-
-## Risk and rollback points
-
-- Magnetic surface events can double-fire with child buttons; guard by original event target and cover with single-activation tests.
-- Multiple flights can reorder the projected tray; key every flight and incoming piece by canonical ID and compute each destination before state mutation.
-- Controller phase timers can leak or leave input locked; route cancellation through existing feedback cleanup and test dispose/away paths.
-- CSS transforms can compete; keep idle motion on a new inner wrapper and presentation positioning on existing outer wrappers.
-- Reduced motion may not emit CSS animation events; use an explicit component completion timer with cleanup rather than relying only on `animationend`.
+- [x] Update storage parsing for `levelProgress` and legacy v4 boards.
+- [x] Update engine, controller, UI and storage tests.
+- [x] Run focused tests, lint, type-check and build.
+- [x] Test the first level and one later-wave refresh in the browser at desktop and compact sizes.
+- [x] Compare the rendered desktop state against the selected fusion image and record QA without modifying user-owned QA artifacts.
+- [x] Stage production code only; keep task docs, tests and QA evidence unstaged unless explicitly approved.
 
 ## Validation commands
 
 ```powershell
-pnpm --dir apps/web test -- spotlight.test.ts ambient-controller.test.ts game-ui.test.ts
+pnpm --dir apps/web test -- ambient-game.test.ts ambient-controller.test.ts ambient-storage.test.ts game-ui.test.ts
 pnpm lint:web
 pnpm typecheck:web
-node C:\Users\phpxi\.codex\skills\impeccable\scripts\detect.mjs --json <changed-ui-targets>
+pnpm build:web
 pnpm ci:web
 ```

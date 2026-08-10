@@ -20,56 +20,31 @@ import {
 } from "./game-ui";
 
 describe("fish spatial accessibility", () => {
-  it("describes one-based layer, higher overlaps, and the current actions", () => {
+  it("describes the species and direct keyboard actions without layer jargon", () => {
     expect(getFishAccessibleLabel({
       kind: "koi",
       layer: 2,
       higherOverlapCount: 0,
-    })).toBe(
-      "白红毛毡锦鲤，小尺寸，第3层，上方没有小鱼重叠；Enter、空格或F放入托盘",
-    );
+    })).toBe("白红毛毡锦鲤；Enter、空格或F放入托盘");
     expect(getFishAccessibleLabel({
       kind: "whale",
       layer: 0,
       higherOverlapCount: 1,
-    })).toBe(
-      "蓝色毛毡鲸鱼，小尺寸，第1层，上方有1条小鱼重叠；Enter、空格或F放入托盘",
-    );
+    })).toBe("蓝色毛毡鲸鱼；Enter、空格或F放入托盘");
     expect(getFishAccessibleLabel({
       kind: "betta",
       layer: 1,
       higherOverlapCount: 2,
-    })).toContain("第2层，上方有2条小鱼重叠");
+    })).not.toContain("层");
   });
 
-  it("reprojects overlap counts from the current remaining pieces", () => {
+  it("reports zero overlap for every remaining fish", () => {
     const pieces = createInitialState(createSeededRandom(38)).pieces;
-    const lowerPiece = pieces.find(
-      (piece) => getBlockerIds(pieces, piece.id).length > 0,
-    );
-    expect(lowerPiece).toBeDefined();
-    if (!lowerPiece) return;
+    const counts = getHigherOverlapCounts(pieces);
 
-    const blockerId = getBlockerIds(pieces, lowerPiece.id)[0];
-    expect(blockerId).toBeDefined();
-    if (!blockerId) return;
-
-    const before = getHigherOverlapCounts(pieces);
-    const remainingPieces = pieces.filter((piece) => piece.id !== blockerId);
-    const after = getHigherOverlapCounts(remainingPieces);
-
-    expect(after.get(lowerPiece.id)).toBe(
-      (before.get(lowerPiece.id) ?? 0) - 1,
-    );
-    expect(getFishAccessibleLabel({
-      kind: lowerPiece.kind,
-      layer: lowerPiece.layer,
-      higherOverlapCount: after.get(lowerPiece.id) ?? 0,
-    })).not.toBe(getFishAccessibleLabel({
-      kind: lowerPiece.kind,
-      layer: lowerPiece.layer,
-      higherOverlapCount: before.get(lowerPiece.id) ?? 0,
-    }));
+    expect(pieces.every((piece) => getBlockerIds(pieces, piece.id).length === 0))
+      .toBe(true);
+    expect([...counts.values()].every((count) => count === 0)).toBe(true);
   });
 });
 
@@ -94,20 +69,25 @@ describe("interaction feedback projection", () => {
       levelArriving: true,
       locksInput: true,
     });
+    expect(projectGameFeedback("refresh")).toMatchObject({
+      celebratesPlant: true,
+      levelArriving: true,
+      locksInput: false,
+    });
     expect(projectGameFeedback("loss")).toMatchObject({
       loss: true,
       locksInput: true,
     });
   });
 
-  it("targets one cross-layer match and starts only from untouched state", () => {
+  it("targets one opening triple and starts only from untouched state", () => {
     const game = createInitialState(createSeededRandom(38));
     const targetIds = getIntroTargetIds(game.pieces);
     const targets = game.pieces.filter((piece) => targetIds.includes(piece.id));
 
     expect(targetIds).toHaveLength(3);
     expect(new Set(targets.map((piece) => piece.kind)).size).toBe(1);
-    expect(new Set(targets.map((piece) => piece.layer)).size).toBeGreaterThan(1);
+    expect(new Set(targets.map((piece) => piece.layer))).toEqual(new Set([0]));
     expect(shouldStartIntro(game, null)).toBe(true);
     expect(shouldStartIntro({ ...game, clearCount: 1 }, null)).toBe(false);
     expect(shouldStartIntro({
@@ -115,12 +95,12 @@ describe("interaction feedback projection", () => {
       tray: [{ id: "used", kind: "whale" }],
     }, null)).toBe(false);
     expect(shouldStartIntro({ ...game, level: 2 }, null)).toBe(false);
-    expect(shouldStartIntro({ ...game, nextPieceId: game.nextPieceId + 36 }, null))
+    expect(shouldStartIntro({ ...game, nextPieceId: game.nextPieceId + 9 }, null))
       .toBe(false);
     expect(shouldStartIntro(game, targetIds[0])).toBe(false);
   });
 
-  it("selects a cross-layer intro triple for every validated initial seed", () => {
+  it("selects one dispersed intro triple for every validated initial seed", () => {
     for (let seed = 1; seed <= 64; seed += 1) {
       const game = createInitialState(createSeededRandom(seed));
       const targetIds = getIntroTargetIds(game.pieces);
@@ -134,10 +114,13 @@ describe("interaction feedback projection", () => {
         new Set(targets.map((piece) => piece?.kind)).size,
         `seed ${seed} uses one fish kind`,
       ).toBe(1);
-      expect(
-        new Set(targets.map((piece) => piece?.layer)).size,
-        `seed ${seed} spans layers`,
-      ).toBeGreaterThan(1);
+      expect(new Set(targets.map((piece) => piece?.layer))).toEqual(new Set([0]));
+      const indexes = targetIds.map((pieceId) =>
+        game.pieces.findIndex((piece) => piece.id === pieceId)
+      );
+      expect(Math.min(...indexes.slice(1).map((value, index) =>
+        value - indexes[index]
+      ))).toBeGreaterThan(1);
       expect(shouldStartIntro(game, null)).toBe(true);
     }
   });
