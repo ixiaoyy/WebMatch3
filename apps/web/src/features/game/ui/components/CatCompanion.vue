@@ -1,241 +1,108 @@
 <script setup lang="ts">
-import {
-  computed,
-  nextTick,
-  onBeforeUnmount,
-  ref,
-  watch,
-} from "vue";
+import { computed } from "vue";
 
-import { getCatPresentation, type CatPose } from "../game-ui";
 import catCushionUrl from "../assets/cat/cat-cushion.webp";
 import catYarnBallUrl from "../assets/cat/cat-yarn-ball.webp";
-import type {
-  CatBondStage,
-  CatMotion,
-  CatReaction,
-  CatTravelPhase,
+import {
+  resolveCatPetZone,
+  type CatBondStage,
+  type CatMotion,
+  type CatPetZone,
+  type CatPlayVariant,
+  type CatReaction,
 } from "../cat-reactions";
+import {
+  CAT_CURIOUS_DURATION,
+  CAT_PET_DURATION,
+  CAT_PLAY_DURATION,
+  getCatPresentation,
+  type CatPose,
+} from "../game-ui";
 
 const props = defineProps<{
   pose: CatPose;
   motion: CatMotion;
   bondStage: CatBondStage;
+  petZone: CatPetZone;
+  playVariant: CatPlayVariant;
   reaction: CatReaction | null;
-  travelPhase: CatTravelPhase;
   loss: boolean;
 }>();
-const emit = defineEmits<{ pet: []; search: [] }>();
-const root = ref<HTMLElement | null>(null);
-const trigger = ref<HTMLButtonElement | null>(null);
-const petAction = ref<HTMLButtonElement | null>(null);
-const searchAction = ref<HTMLButtonElement | null>(null);
-const interactionOpen = ref(false);
-const keyboardInteraction = ref(false);
-let interactionDocument: Document | null = null;
-let focusRestoreWindow: Window | null = null;
-let focusRestoreFrame: number | null = null;
+const emit = defineEmits<{ pet: [zone: CatPetZone]; play: [] }>();
 
 const presentation = computed(() => getCatPresentation(props.pose));
+const interactionDisabled = computed(() =>
+  props.loss || props.motion === "feeding"
+);
 const actionLabel = computed(() => {
   if (props.loss) {
     return `${presentation.value.label}，托盘已经装满，小鱼正在重新布置`;
   }
-  if (props.travelPhase === "looking" || props.travelPhase === "travelling") {
-    return `${presentation.value.label}，正在帮你寻找小鱼`;
-  }
   if (props.motion === "feeding") {
     return `${presentation.value.label}，正在吃三条小鱼合成的大鱼`;
   }
-  if (props.motion === "resting" || props.motion === "sleeping") {
-    return `${presentation.value.label}，吃饱后正在短暂休息；点击打开互动选项`;
+  if (props.motion === "playing") {
+    return `${presentation.value.label}，正在和毛线球玩`;
   }
-  if (props.travelPhase === "guarding") {
-    return `${presentation.value.label}，正守着找到的小鱼`;
+  if (props.motion === "petting") {
+    return `${presentation.value.label}，正在回应你的抚摸`;
   }
-  return `${presentation.value.label}，点击打开互动选项`;
+  if (props.motion === "curious") {
+    return `${presentation.value.label}，正好奇地看着你`;
+  }
+  return `${presentation.value.label}，轻点头、肚子或脚边会有不同回应`;
 });
+const yarnLabel = computed(() => interactionDisabled.value
+  ? "毛线球暂时不能玩"
+  : "毛线球，点击陪小猫玩；每次会有不同回应"
+);
 
-function detachInteractionListeners(): void {
-  interactionDocument?.removeEventListener(
-    "pointerdown",
-    onDocumentPointerDown,
-  );
-  interactionDocument?.removeEventListener("keydown", onDocumentKeyDown);
-  interactionDocument = null;
-}
-
-function cancelScheduledFocus(): void {
-  if (focusRestoreWindow && focusRestoreFrame !== null) {
-    focusRestoreWindow.cancelAnimationFrame(focusRestoreFrame);
-  }
-  focusRestoreWindow = null;
-  focusRestoreFrame = null;
-}
-
-function scheduleTriggerFocus(): void {
-  cancelScheduledFocus();
-  void nextTick(() => {
-    const frameWindow = trigger.value?.ownerDocument.defaultView;
-    if (!frameWindow) {
-      trigger.value?.focus();
-      return;
-    }
-    focusRestoreWindow = frameWindow;
-    focusRestoreFrame = frameWindow.requestAnimationFrame(() => {
-      focusRestoreWindow = null;
-      focusRestoreFrame = null;
-      trigger.value?.focus();
-    });
-  });
-}
-
-function closeInteraction(restoreFocus: boolean): void {
-  if (!interactionOpen.value) return;
-  interactionOpen.value = false;
-  keyboardInteraction.value = false;
-  detachInteractionListeners();
-  if (restoreFocus) scheduleTriggerFocus();
-}
-
-function onDocumentPointerDown(event: PointerEvent): void {
-  if (root.value?.contains(event.target as Node)) return;
-  closeInteraction(true);
-}
-
-function onDocumentKeyDown(event: KeyboardEvent): void {
-  if (event.key !== "Escape" || !interactionOpen.value) return;
-  event.preventDefault();
-  event.stopPropagation();
-  closeInteraction(true);
-}
-
-function openInteraction(focusFirstAction: boolean): void {
-  if (props.travelPhase !== "home" || props.loss) return;
-  cancelScheduledFocus();
-  keyboardInteraction.value = focusFirstAction;
-  interactionOpen.value = true;
-  void nextTick(() => {
-    const nextDocument = root.value?.ownerDocument ?? null;
-    if (interactionDocument !== nextDocument) {
-      detachInteractionListeners();
-      interactionDocument = nextDocument;
-      interactionDocument?.addEventListener(
-        "pointerdown",
-        onDocumentPointerDown,
-      );
-      interactionDocument?.addEventListener("keydown", onDocumentKeyDown);
-    }
-    petAction.value?.focus();
-  });
-}
-
-function toggleInteraction(event: MouseEvent): void {
-  if (props.travelPhase !== "home") return;
-  if (interactionOpen.value) {
-    closeInteraction(true);
-  } else {
-    openInteraction(keyboardInteraction.value || event.detail === 0);
-  }
-}
-
-function onTriggerKeydown(event: KeyboardEvent): void {
-  if (event.key === "Enter" || event.key === " ") {
-    keyboardInteraction.value = true;
-  }
-}
-
-function choosePet(): void {
-  closeInteraction(true);
-  emit("pet");
-}
-
-function chooseSearch(): void {
-  closeInteraction(true);
-  emit("search");
-}
-
-function onFocusOut(event: FocusEvent): void {
-  if (!interactionOpen.value) return;
-  const nextTarget = event.relatedTarget as Node | null;
-  if (nextTarget && root.value?.contains(nextTarget)) return;
-  closeInteraction(false);
-}
-
-function onMenuKeyDown(event: KeyboardEvent): void {
-  keyboardInteraction.value = true;
-  const actions = [petAction.value, searchAction.value].filter(
-    (action): action is HTMLButtonElement => action !== null,
-  );
-  if (actions.length === 0) return;
-  const currentIndex = actions.indexOf(
-    event.target as HTMLButtonElement,
-  );
-  let nextIndex: number | null = null;
-  if (event.key === "ArrowRight" || event.key === "ArrowDown") {
-    nextIndex = (currentIndex + 1) % actions.length;
-  } else if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
-    nextIndex = (currentIndex - 1 + actions.length) % actions.length;
-  } else if (event.key === "Home") {
-    nextIndex = 0;
-  } else if (event.key === "End") {
-    nextIndex = actions.length - 1;
-  }
-  if (nextIndex === null) return;
-  event.preventDefault();
-  actions[nextIndex]?.focus();
+/**
+ * Resolves the clicked body region and requests its tactile cat response.
+ * @param event Native button click; keyboard activation defaults to the head.
+ * @returns Nothing; the semantic body zone is emitted to the controller.
+ */
+function choosePet(event: MouseEvent): void {
+  if (interactionDisabled.value) return;
+  const target = event.currentTarget as HTMLButtonElement | null;
+  const bounds = target?.getBoundingClientRect();
+  const normalizedY = event.detail === 0 || !bounds || bounds.height === 0
+    ? 0.25
+    : (event.clientY - bounds.top) / bounds.height;
+  emit("pet", resolveCatPetZone(normalizedY));
 }
 
 /**
- * Makes the transition-retained menu inert before its visual exit completes.
- * @param element Menu element retained by Vue during the leave transition.
- * @returns Nothing; the element is deactivated in place.
+ * Requests the next yarn-play variant from the parent controller.
+ * @returns Nothing; the controller owns variant rotation and timing.
  */
-function deactivateLeavingMenu(element: Element): void {
-  const menu = element as HTMLElement;
-  menu.inert = true;
-  menu.setAttribute("inert", "");
-  menu.setAttribute("aria-hidden", "true");
+function choosePlay(): void {
+  if (interactionDisabled.value) return;
+  emit("play");
 }
-
-watch(
-  () => [props.travelPhase, props.loss] as const,
-  ([travelPhase, loss]) => {
-    if (travelPhase !== "home" || loss) closeInteraction(false);
-  },
-);
-
-onBeforeUnmount(() => {
-  detachInteractionListeners();
-  cancelScheduledFocus();
-});
 </script>
 
 <template>
   <div
-    ref="root"
     class="cat-companion"
     :data-pose="pose"
     :data-motion="motion"
+    :data-pet-zone="petZone"
+    :data-play-variant="playVariant"
     :data-bond-stage="bondStage"
-    :data-travel-phase="travelPhase"
     :data-loss="loss"
-    :data-interaction-open="interactionOpen"
-    :data-keyboard-interaction="keyboardInteraction"
-    @focusout="onFocusOut"
+    :style="{
+      '--cat-curious-duration': `${CAT_CURIOUS_DURATION}ms`,
+      '--cat-pet-duration': `${CAT_PET_DURATION}ms`,
+      '--cat-play-duration': `${CAT_PLAY_DURATION}ms`,
+    }"
   >
     <button
-      ref="trigger"
       class="cat-companion__trigger"
       type="button"
       :aria-label="actionLabel"
-      :aria-haspopup="travelPhase === 'home' ? 'menu' : undefined"
-      :aria-expanded="travelPhase === 'home' ? interactionOpen : undefined"
-      :aria-controls="travelPhase === 'home' ? 'cat-interaction-menu' : undefined"
-      :aria-disabled="travelPhase !== 'home' || loss"
-      :disabled="loss"
-      @click="toggleInteraction"
-      @keydown="onTriggerKeydown"
+      :disabled="interactionDisabled"
+      @click="choosePet"
     />
 
     <img
@@ -248,15 +115,22 @@ onBeforeUnmount(() => {
       draggable="false"
     />
 
-    <img
-      v-else-if="bondStage === 'familiar'"
-      class="cat-companion__keepsake cat-companion__keepsake--yarn"
-      :src="catYarnBallUrl"
-      alt=""
-      width="1254"
-      height="1254"
-      draggable="false"
-    />
+    <button
+      class="cat-companion__yarn-trigger"
+      type="button"
+      :aria-label="yarnLabel"
+      :disabled="interactionDisabled"
+      @click="choosePlay"
+    >
+      <img
+        class="cat-companion__keepsake cat-companion__keepsake--yarn"
+        :src="catYarnBallUrl"
+        alt=""
+        width="1254"
+        height="1254"
+        draggable="false"
+      />
+    </button>
 
     <span class="cat-companion__ground-shadow" aria-hidden="true" />
 
@@ -297,36 +171,6 @@ onBeforeUnmount(() => {
         {{ reaction.text }}
       </span>
     </Transition>
-
-    <Transition name="cat-menu" @before-leave="deactivateLeavingMenu">
-      <div
-        v-if="interactionOpen"
-        id="cat-interaction-menu"
-        class="cat-companion__menu"
-        role="menu"
-        aria-label="和小猫互动"
-        @keydown="onMenuKeyDown"
-      >
-        <button
-          ref="petAction"
-          class="cat-companion__menu-action"
-          type="button"
-          role="menuitem"
-          @click="choosePet"
-        >
-          摸一下
-        </button>
-        <button
-          ref="searchAction"
-          class="cat-companion__menu-action"
-          type="button"
-          role="menuitem"
-          @click="chooseSearch"
-        >
-          帮我抓鱼
-        </button>
-      </div>
-    </Transition>
   </div>
 </template>
 
@@ -342,11 +186,11 @@ onBeforeUnmount(() => {
     position: absolute;
     z-index: 2;
     bottom: 2%;
-    left: 50%;
+    left: 61%;
     display: block;
-    width: 68%;
+    width: 64%;
     min-width: 44px;
-    height: 84%;
+    height: 58%;
     min-height: 44px;
     padding: 0;
     border: 0;
@@ -363,11 +207,51 @@ onBeforeUnmount(() => {
   }
 
   &[data-pose="lying"] &__trigger,
-  &[data-pose="sleeping"] &__trigger {
+  &[data-pose="sleeping"] &__trigger,
+  &[data-pose="cuddling"] &__trigger {
     bottom: 8%;
-    width: 92%;
+    left: 64%;
+    width: 68%;
     height: 62%;
     border-radius: 46% 48% 42% 40%;
+  }
+
+  &__trigger:disabled,
+  &__yarn-trigger:disabled {
+    cursor: default;
+  }
+
+  &__yarn-trigger {
+    position: absolute;
+    z-index: 4;
+    bottom: 1%;
+    left: -8%;
+    display: block;
+    width: 28%;
+    min-width: 44px;
+    aspect-ratio: 1;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    cursor: pointer;
+    opacity: 0.92;
+    pointer-events: auto;
+    transition:
+      opacity 150ms ease,
+      transform 180ms var(--ease-out),
+      filter 180ms ease;
+  }
+
+  &__yarn-trigger:not(:disabled):hover {
+    opacity: 1;
+    transform: translateY(-2px) scale(1.04);
+  }
+
+  &__yarn-trigger:focus-visible {
+    outline: 2px solid rgb(248 250 255 / 92%);
+    outline-offset: 2px;
+    filter: drop-shadow(0 0 5px rgb(72 86 134 / 46%));
   }
 
   &__keepsake {
@@ -380,10 +264,9 @@ onBeforeUnmount(() => {
   }
 
   &__keepsake--yarn {
-    bottom: 2%;
-    left: 2%;
-    width: 28%;
-    height: 28%;
+    inset: 0;
+    width: 100%;
+    height: 100%;
     filter: drop-shadow(0 7px 6px rgb(57 70 112 / 15%));
   }
 
@@ -422,6 +305,11 @@ onBeforeUnmount(() => {
     animation: cat-idle-breathe 3.8s ease-in-out infinite;
   }
 
+  &[data-motion="curious"] &__motion {
+    animation: cat-curious var(--cat-curious-duration) var(--ease-out) both;
+    will-change: transform, filter;
+  }
+
   &[data-motion="feeding"] &__motion {
     animation: cat-catch-and-chew 520ms var(--ease-out) both;
   }
@@ -430,20 +318,55 @@ onBeforeUnmount(() => {
     animation: cat-feed-shadow 520ms var(--ease-out) both;
   }
 
-  &[data-motion="petting"] &__motion {
-    animation: cat-nuzzle 560ms var(--ease-out) both;
+  &[data-motion="petting"][data-pet-zone="head"] &__motion {
+    animation: cat-head-nuzzle var(--cat-pet-duration) var(--ease-out) both;
+    will-change: transform;
   }
 
-  &[data-motion="searching"] &__motion {
-    animation: cat-search-hop 520ms var(--ease-out) infinite;
+  &[data-motion="petting"][data-pet-zone="belly"] &__motion {
+    animation: cat-belly-giggle var(--cat-pet-duration) var(--ease-out) both;
+    will-change: transform;
   }
 
-  &[data-motion="searching"] &__ground-shadow {
-    animation: cat-search-shadow 520ms var(--ease-out) infinite;
+  &[data-motion="petting"][data-pet-zone="paws"] &__motion {
+    animation: cat-paws-boop var(--cat-pet-duration) var(--ease-out) both;
+    will-change: transform;
   }
 
-  &[data-motion="guarding"] &__motion {
-    filter: drop-shadow(0 0 15px rgb(255 224 153 / 32%));
+  &[data-motion="playing"][data-play-variant="pounce"] &__motion {
+    animation: cat-play-pounce var(--cat-play-duration) var(--ease-out) both;
+    will-change: transform;
+  }
+
+  &[data-motion="playing"][data-play-variant="bat"] &__motion {
+    animation: cat-play-bat var(--cat-play-duration) var(--ease-out) both;
+    will-change: transform;
+  }
+
+  &[data-motion="playing"][data-play-variant="cuddle"] &__motion {
+    animation: cat-play-cuddle var(--cat-play-duration) var(--ease-out) both;
+    will-change: transform, filter;
+  }
+
+  &[data-motion="playing"] &__ground-shadow {
+    animation: cat-play-shadow var(--cat-play-duration) var(--ease-out) both;
+  }
+
+  &[data-motion="playing"] &__yarn-trigger {
+    z-index: 4;
+    will-change: transform, filter;
+  }
+
+  &[data-motion="playing"][data-play-variant="pounce"] &__yarn-trigger {
+    animation: cat-yarn-pounce var(--cat-play-duration) var(--ease-out) both;
+  }
+
+  &[data-motion="playing"][data-play-variant="bat"] &__yarn-trigger {
+    animation: cat-yarn-bat var(--cat-play-duration) var(--ease-out) both;
+  }
+
+  &[data-motion="playing"][data-play-variant="cuddle"] &__yarn-trigger {
+    animation: cat-yarn-cuddle var(--cat-play-duration) var(--ease-out) both;
   }
 
   &[data-motion="loss"] &__motion {
@@ -491,9 +414,9 @@ onBeforeUnmount(() => {
 
   &__bubble {
     position: absolute;
-    z-index: 3;
-    top: -8px;
-    left: 50%;
+    z-index: 5;
+    top: 26%;
+    left: 52%;
     width: max-content;
     max-width: 112px;
     padding: 6px 9px;
@@ -525,11 +448,22 @@ onBeforeUnmount(() => {
   }
 
   &[data-motion="petting"] &__purr-ring {
-    animation: cat-purr-ring 560ms ease-out both;
+    animation: cat-purr-ring var(--cat-pet-duration) ease-out both;
   }
 
   &[data-motion="petting"] &__purr-ring--two {
     animation-delay: 90ms;
+  }
+
+  &[data-motion="petting"][data-pet-zone="belly"] &__purr-ring {
+    top: 48%;
+    right: 34%;
+  }
+
+  &[data-motion="petting"][data-pet-zone="paws"] &__purr-ring {
+    top: 36%;
+    right: 31%;
+    border-color: rgb(244 183 103 / 70%);
   }
 
   &[data-motion="feeding"] &__purr-ring {
@@ -541,69 +475,6 @@ onBeforeUnmount(() => {
 
   &[data-motion="feeding"] &__purr-ring--two {
     animation-delay: 70ms;
-  }
-
-  &__menu {
-    position: absolute;
-    z-index: 5;
-    top: 16%;
-    left: 71%;
-    display: flex;
-    flex-direction: column;
-    width: 136px;
-    max-width: calc(100vw - 24px);
-    padding: 8px 11px 7px;
-    border: 0;
-    background: url("../assets/cat/cat-menu-bubble.webp") center / 100% 100%
-      no-repeat;
-    box-shadow: 0 12px 30px rgb(70 77 125 / 12%);
-    backdrop-filter: blur(12px) saturate(1.08);
-    pointer-events: auto;
-  }
-
-  &__menu-action {
-    width: 100%;
-    min-height: 46px;
-    padding: 8px 4px;
-    border: 0;
-    border-bottom: 1px dashed rgb(106 116 157 / 28%);
-    border-radius: 0;
-    color: #48516d;
-    background: transparent;
-    font: inherit;
-    font-size: 14px;
-    font-weight: 650;
-    line-height: 1;
-    white-space: nowrap;
-    cursor: pointer;
-    transition:
-      color 150ms ease,
-      background-color 150ms ease,
-      transform 150ms var(--ease-out);
-
-    &:last-child {
-      border-bottom: 0;
-      font-size: 15px;
-      font-weight: 760;
-    }
-
-    &:hover {
-      color: #394461;
-      background: rgb(255 255 255 / 38%);
-    }
-
-    &:active {
-      transform: translateY(1px);
-    }
-
-    &:focus-visible {
-      outline: 0;
-      box-shadow: inset 3px 0 0 rgb(105 116 163 / 46%);
-    }
-  }
-
-  &[data-keyboard-interaction="false"] &__menu-action:focus-visible {
-    box-shadow: none;
   }
 
 }
@@ -637,19 +508,99 @@ onBeforeUnmount(() => {
   100% { opacity: 0; transform: scale(1.28); }
 }
 
-@keyframes cat-nuzzle {
-  0%, 100% { transform: translateX(0); }
-  46% { transform: translateX(-5px) translateY(1px); }
+@keyframes cat-curious {
+  0%, 100% { transform: translate(0) rotate(0); filter: brightness(1); }
+  24% { transform: translateY(1%) rotate(-1deg); }
+  52% { transform: translateY(-2%) rotate(2deg); filter: brightness(1.035); }
+  78% { transform: translateY(-1%) rotate(0.5deg); }
 }
 
-@keyframes cat-search-hop {
-  0%, 100% { transform: translateY(0) scaleY(1); }
-  45% { transform: translateY(-7px) scaleY(1.01); }
+@keyframes cat-head-nuzzle {
+  0%, 100% { transform: translate(0) rotate(0) scale(1); }
+  22% { transform: translate(1.5%, 0) rotate(0.8deg) scale(0.995, 1.008); }
+  52% { transform: translate(-4.5%, 1%) rotate(-2.2deg) scale(1.018, 0.982); }
+  76% { transform: translate(-2%, -0.5%) rotate(-0.7deg) scale(0.995, 1.01); }
 }
 
-@keyframes cat-search-shadow {
-  0%, 100% { opacity: 1; transform: scaleX(1); }
-  45% { opacity: 0.55; transform: scaleX(0.82); }
+@keyframes cat-belly-giggle {
+  0%, 100% { transform: translateY(0) rotate(0) scale(1); }
+  22% { transform: translateY(1.5%) rotate(-1.8deg) scale(1.025, 0.98); }
+  42% { transform: translateY(-1%) rotate(2deg) scale(0.99, 1.025); }
+  62% { transform: translateY(0.8%) rotate(-1.2deg) scale(1.015, 0.99); }
+  80% { transform: translateY(-0.5%) rotate(0.7deg) scale(0.998, 1.008); }
+}
+
+@keyframes cat-paws-boop {
+  0%, 100% { transform: translateY(0) rotate(0) scale(1); }
+  28% { transform: translateY(2%) rotate(-0.8deg) scale(0.975, 1.02); }
+  52% { transform: translateY(-4%) rotate(1deg) scale(1.04, 0.98); }
+  74% { transform: translateY(-1%) rotate(-0.4deg) scale(0.995, 1.012); }
+}
+
+@keyframes cat-play-pounce {
+  0%, 100% { transform: translate(0) rotate(0) scale(1); }
+  14% { transform: translate(2%, 1%) rotate(1deg) scale(0.975, 1.025); }
+  38% { transform: translate(-9%, 3%) rotate(-3deg) scale(1.04, 0.96); }
+  56% { transform: translate(-6%, -2%) rotate(-1.2deg) scale(0.985, 1.025); }
+  78% { transform: translate(-2%, 0) rotate(0.5deg) scale(1.01, 0.99); }
+}
+
+@keyframes cat-play-bat {
+  0%, 100% { transform: translateY(0) rotate(0) scale(1); }
+  16% { transform: translateY(2%) rotate(-1deg) scale(0.98, 1.02); }
+  34% { transform: translateY(-6%) rotate(2deg) scale(1.04, 0.97); }
+  52% { transform: translateY(-2%) rotate(-1.2deg) scale(0.99, 1.015); }
+  72% { transform: translateY(-4%) rotate(0.8deg) scale(1.02, 0.985); }
+}
+
+@keyframes cat-play-cuddle {
+  0%, 100% { transform: translate(0) scale(1); filter: brightness(1); }
+  22% { transform: translate(-2%, 1%) scale(1.015, 0.985); }
+  48% { transform: translate(-4%, 2%) scale(1.025, 0.975); filter: brightness(1.035); }
+  72% { transform: translate(-2%, 1%) scale(0.995, 1.008); }
+}
+
+@keyframes cat-play-shadow {
+  0%, 100% { opacity: 1; transform: translateX(0) scaleX(1); }
+  42% { opacity: 0.72; transform: translateX(-5%) scaleX(1.08); }
+  62% { opacity: 0.58; transform: translate(-3%, -2%) scaleX(0.88); }
+}
+
+@keyframes cat-yarn-pounce {
+  0%, 100% {
+    filter: drop-shadow(0 7px 6px rgb(57 70 112 / 15%));
+    transform: translate(0) rotate(0) scale(1);
+  }
+
+  24% {
+    filter: drop-shadow(0 10px 8px rgb(57 70 112 / 18%)) brightness(1.04);
+    transform: translate(38%, -12%) rotate(22deg) scale(1.04);
+  }
+
+  52% {
+    filter: drop-shadow(0 6px 5px rgb(57 70 112 / 16%)) brightness(1.02);
+    transform: translate(78%, 5%) rotate(62deg) scale(0.97);
+  }
+
+  78% {
+    filter: drop-shadow(0 9px 7px rgb(57 70 112 / 17%));
+    transform: translate(34%, -6%) rotate(24deg) scale(1.015);
+  }
+}
+
+@keyframes cat-yarn-bat {
+  0%, 100% { transform: translate(0) rotate(0) scale(1); }
+  18% { transform: translate(36%, -16%) rotate(20deg) scale(1.03); }
+  38% { transform: translate(82%, -72%) rotate(72deg) scale(0.94); }
+  58% { transform: translate(96%, -28%) rotate(118deg) scale(1.02); }
+  76% { transform: translate(52%, -54%) rotate(164deg) scale(0.97); }
+}
+
+@keyframes cat-yarn-cuddle {
+  0%, 100% { transform: translate(0) rotate(0) scale(1); }
+  24% { transform: translate(42%, -8%) rotate(24deg) scale(1.02); }
+  52% { transform: translate(92%, 4%) rotate(56deg) scale(0.92); }
+  78% { transform: translate(76%, 1%) rotate(42deg) scale(0.96); }
 }
 
 @keyframes cat-purr-ring {
@@ -700,37 +651,20 @@ onBeforeUnmount(() => {
   transform: translateX(-50%) translateY(3px) scale(0.96);
 }
 
-.cat-menu-enter-active,
-.cat-menu-leave-active {
-  transition: opacity 150ms ease, transform 180ms var(--ease-out);
-}
-
-.cat-menu-leave-active {
-  pointer-events: none;
-}
-
-.cat-menu-enter-from,
-.cat-menu-leave-to {
-  opacity: 0;
-  transform: translateY(5px) scale(0.97);
-}
-
 @media (max-width: 620px) {
   .cat-companion {
     width: var(--cat-companion-width, 118px);
     height: var(--cat-companion-height, 142px);
 
-    &__menu {
-      top: -24px;
-      bottom: auto;
-      left: 68%;
-      width: 124px;
-      padding: 7px 9px 6px;
+    &__yarn-trigger {
+      bottom: 28%;
     }
 
-    &__menu-action {
-      min-height: 44px;
-      padding-inline: 3px;
+    &__bubble {
+      top: 10%;
+      left: 52%;
+      max-width: 96px;
+      font-size: 11px;
     }
   }
 }
@@ -741,9 +675,7 @@ onBeforeUnmount(() => {
   .cat-sleep-mark-enter-active,
   .cat-sleep-mark-leave-active,
   .cat-bubble-enter-active,
-  .cat-bubble-leave-active,
-  .cat-menu-enter-active,
-  .cat-menu-leave-active {
+  .cat-bubble-leave-active {
     transition: none;
   }
 
@@ -753,7 +685,8 @@ onBeforeUnmount(() => {
 
   .cat-companion__motion,
   .cat-companion__ground-shadow,
-  .cat-companion__purr-ring {
+  .cat-companion__purr-ring,
+  .cat-companion__yarn-trigger {
     animation: none !important;
   }
 
@@ -771,12 +704,20 @@ onBeforeUnmount(() => {
     transform: scale(0.82);
   }
 
-  .cat-companion[data-motion="searching"] .cat-companion__ground-shadow {
-    opacity: 0.62;
-    transform: scaleX(0.86);
+  .cat-companion[data-motion="curious"] .cat-companion__motion,
+  .cat-companion[data-motion="petting"] .cat-companion__motion {
+    filter: brightness(1.035);
   }
 
-  .cat-companion__menu-action {
+  .cat-companion[data-motion="playing"] .cat-companion__motion {
+    filter: brightness(1.035);
+  }
+
+  .cat-companion[data-motion="playing"] .cat-companion__yarn-trigger {
+    filter: drop-shadow(0 8px 7px rgb(57 70 112 / 18%)) brightness(1.04);
+  }
+
+  .cat-companion__yarn-trigger {
     transition: none;
   }
 

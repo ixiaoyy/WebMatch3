@@ -20,6 +20,9 @@ import {
   type TimerApi,
 } from "./ambient-controller";
 import {
+  CAT_CURIOUS_DURATION,
+  CAT_PET_DURATION,
+  CAT_PLAY_DURATION,
   FISH_CATCH_FLIGHT_DURATION,
   FISH_FEED_SETTLE_DURATION,
   FISH_MERGE_CONTACT_DURATION,
@@ -319,96 +322,95 @@ describe("ambient controller", () => {
     controller.dispose();
   });
 
-  it("pets without changing progress and unlocks a purr after familiarity", () => {
+  it("responds differently to each pet zone without changing progress", () => {
     const setItem = vi.fn();
     const harness = controlledTimers();
     const controller = createAmbientController({
       random: createSeededRandom(81),
+      reactionRandom: () => 0,
       storage: { getItem: () => null, setItem },
       timers: harness.timers,
     });
     const gameBefore = controller.game.value;
 
-    controller.petCat();
+    controller.petCat("head");
+    expect(controller.catPetZone.value).toBe("head");
+    expect(controller.catPose.value).toBe("idle");
     expect(controller.catMotion.value).toBe("petting");
-    expect(controller.catReaction.value?.text).toBe("喵～");
+    expect(controller.catReaction.value?.text).toBe("呼噜～");
+
+    harness.runDelay(CAT_PET_DURATION);
+    controller.petCat("belly");
+    expect(controller.catPetZone.value).toBe("belly");
+    expect(controller.catPose.value).toBe("sitting");
+    expect(controller.catReaction.value?.text).toBe("痒痒的！");
+
+    harness.runDelay(CAT_PET_DURATION);
+    controller.petCat("paws");
+    expect(controller.catPetZone.value).toBe("paws");
+    expect(controller.catPose.value).toBe("excited");
+    expect(controller.catReaction.value?.text).toBe("碰个爪");
     expect(controller.game.value).toBe(gameBefore);
     expect(controller.fishFedCount.value).toBe(0);
     expect(setItem).not.toHaveBeenCalled();
-
-    harness.runDelay(560);
-    controller.fishFedCount.value = 3;
-    controller.petCat();
-    expect(controller.catReaction.value?.text).toBe("呼噜～");
-    expect(controller.catMotion.value).toBe("petting");
     controller.dispose();
   });
 
-  it("prioritizes a hidden fish that completes the strongest tray pair", () => {
-    const controller = createAmbientController({
-      random: createSeededRandom(91),
-      storage: null,
-      isSearchCandidate: () => true,
-    });
-    const source = controller.game.value.pieces[0];
-    expect(source).toBeDefined();
-    if (!source) return;
-    const unmatched = {
-      ...source,
-      id: "unmatched",
-      kind: "sardine" as const,
-      pile: { x: 0.12, y: 0.74 },
-    };
-    const oneMatch = {
-      ...source,
-      id: "one-match",
-      kind: "whale" as const,
-      pile: { x: 0.3, y: 0.7 },
-    };
-    const completing = {
-      ...source,
-      id: "completing",
-      kind: "koi" as const,
-      pile: { x: 0.8, y: 0.2 },
-    };
-    controller.game.value = {
-      ...controller.game.value,
-      pieces: [unmatched, oneMatch, completing],
-      tray: [
-        { id: "tray-koi-1", kind: "koi" },
-        { id: "tray-koi-2", kind: "koi" },
-        { id: "tray-whale", kind: "whale" },
-      ],
-    };
-
-    controller.requestCatSearch();
-
-    expect(controller.guardedPiece.value?.id).toBe("completing");
-    expect(controller.catMotion.value).toBe("searching");
-    controller.dispose();
-  });
-
-  it("returns home when the guarded fish is collected", () => {
+  it("plays with the yarn without changing or persisting progress", () => {
+    const setItem = vi.fn();
     const harness = controlledTimers();
     const controller = createAmbientController({
       random: createSeededRandom(92),
+      reactionRandom: () => 0,
+      storage: { getItem: () => null, setItem },
+      timers: harness.timers,
+    });
+    const gameBefore = controller.game.value;
+
+    controller.playWithCat();
+
+    expect(controller.catPlayVariant.value).toBe("pounce");
+    expect(controller.catPose.value).toBe("idle");
+    expect(controller.catMotion.value).toBe("playing");
+    expect(controller.catReaction.value?.text).toBe("抓到啦");
+
+    harness.runDelay(CAT_PLAY_DURATION);
+    controller.playWithCat();
+    expect(controller.catPlayVariant.value).toBe("bat");
+    expect(controller.catPose.value).toBe("excited");
+    expect(controller.catReaction.value?.text).toBe("飞起来啦");
+
+    harness.runDelay(CAT_PLAY_DURATION);
+    controller.playWithCat();
+    expect(controller.catPlayVariant.value).toBe("cuddle");
+    expect(controller.catPose.value).toBe("cuddling");
+    expect(controller.catReaction.value?.text).toBe("抱住了");
+    expect(controller.game.value).toBe(gameBefore);
+    expect(controller.fishFedCount.value).toBe(0);
+    expect(setItem).not.toHaveBeenCalled();
+    harness.runDelay(CAT_PLAY_DURATION);
+    expect(controller.catMotion.value).toBe("idle");
+    controller.dispose();
+  });
+
+  it("adds a bounded curious pose to low-frequency idle reactions", () => {
+    const harness = controlledTimers();
+    const controller = createAmbientController({
+      random: createSeededRandom(96),
+      reactionRandom: () => 0,
       storage: null,
       timers: harness.timers,
-      isSearchCandidate: () => true,
     });
 
-    controller.requestCatSearch();
-    const target = controller.guardedPiece.value;
-    expect(target).toBeDefined();
-    if (!target) return;
-    harness.runDelay(320);
-    harness.runDelay(520);
-    expect(controller.catTravelPhase.value).toBe("guarding");
+    controller.startReactions();
+    harness.runDelay(45_000);
 
-    controller.activate(target.id);
-
-    expect(controller.guardedPiece.value).toBeNull();
-    expect(controller.catTravelPhase.value).toBe("home");
+    expect(controller.catPose.value).toBe("sitting");
+    expect(controller.catMotion.value).toBe("curious");
+    expect(controller.catReaction.value?.text).toBe("喵～");
+    harness.runDelay(CAT_CURIOUS_DURATION);
+    expect(controller.catPose.value).toBe("idle");
+    expect(controller.catMotion.value).toBe("idle");
     controller.dispose();
   });
 

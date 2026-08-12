@@ -25,7 +25,15 @@ import plantStagePomegranateUrl from "./assets/ambient/plant-stage-pomegranate.w
 
 export type FocusDirection = "up" | "right" | "down" | "left";
 export type PlantStage = "growing" | "flowering" | "fruiting" | "mature";
-export type CatPose = "idle" | "eating" | "full" | "lying" | "sleeping";
+export type CatPose =
+  | "idle"
+  | "eating"
+  | "full"
+  | "lying"
+  | "sleeping"
+  | "excited"
+  | "sitting"
+  | "cuddling";
 export type IntroPhase = "idle" | "scan" | "targets" | "tray";
 export type TrayPressure = "calm" | "caution" | "critical" | "lost";
 export type GameFeedback =
@@ -40,6 +48,9 @@ export type GameFeedback =
 export const FISH_CATCH_FLIGHT_DURATION = 500;
 export const FISH_MERGE_CONTACT_DURATION = 620;
 export const FISH_FEED_SETTLE_DURATION = 380;
+export const CAT_PET_DURATION = 680;
+export const CAT_PLAY_DURATION = 1_040;
+export const CAT_CURIOUS_DURATION = 820;
 
 export interface GameFeedbackProjection {
   readonly locksInput: boolean;
@@ -93,6 +104,9 @@ const CAT_PRESENTATIONS: Readonly<Record<CatPose, CatPresentation>> = {
   full: { label: "橘色毛毡猫吃饱了，双爪捧着肚子", assetUrl: catFullUrl },
   lying: { label: "橘色毛毡猫清醒地趴着休息", assetUrl: catLyingUrl },
   sleeping: { label: "橘色毛毡猫正趴着睡觉", assetUrl: catSleepingUrl },
+  excited: { label: "橘色毛毡猫开心地举起双爪", assetUrl: catEatingUrl },
+  sitting: { label: "橘色毛毡猫坐着等你互动", assetUrl: catFullUrl },
+  cuddling: { label: "橘色毛毡猫趴着抱住毛线球", assetUrl: catLyingUrl },
 };
 
 export function getFishPresentation(kind: FishKind): FishPresentation {

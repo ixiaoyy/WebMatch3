@@ -48,3 +48,54 @@
 - [x] Updated frontend visual contract.
 - [x] Added engine/controller/storage/browser regressions.
 - [x] Recorded exact desktop and compact comparison evidence outside the repo.
+
+## Bug Analysis: Selected Fish Disappeared, Reappeared, Then Moved
+
+### 1. Root Cause Category
+
+- **Category**: A/D/E — missing spec, browser coverage gap, and implicit
+  assumption.
+- **Specific Cause**: One canonical selection created two independently animated
+  visual actors. Vue retained the selected `FishPiece` for its 220ms leave
+  transition while `FishCatchFlight` mounted a fixed 70px proxy. The rendered
+  source measured about 94–108px on desktop, so the overlap and size mismatch
+  read as disappear, pop back, then move instead of one continuous catch.
+
+### 2. Why Fixes Failed
+
+1. No speculative surface fix was applied. Source, retained-leave, and proxy
+   geometry were measured first, which separated timing duplication from image
+   loading, controller state, and reduced-motion hypotheses.
+2. Changing only the proxy size would still have left two visible actors at the
+   source for 220ms; changing only the leave transition would still have caused
+   a large fixed-size pop. Both ownership and geometry had to change together.
+
+### 3. Prevention Mechanisms
+
+| Priority | Mechanism | Specific Action | Status |
+|---|---|---|---|
+| P0 | Visual ownership | Hide the retained selected source in the same render that mounts its proxy | DONE |
+| P0 | Rendered geometry | Start the proxy from the measured source center, size, and rotation; scale toward the measured tray slot | DONE |
+| P0 | Browser regression | Assert zero visible source ghosts and exact start-size parity after selection | DONE |
+| P1 | Responsive regression | Repeat geometry parity at `430x560` and assert no horizontal overflow | DONE |
+| P1 | Documentation | Record single-actor handoff in the frontend visual contract | DONE |
+
+### 4. Systematic Expansion
+
+- **Similar Issues**: Tray-to-cat delivery and wave refresh also cross component
+  boundaries. They must define which actor owns each phase instead of layering
+  unrelated leave and proxy animations.
+- **Design Improvement**: Keep canonical selection immediate, but treat visual
+  ownership and rendered geometry as one UI transaction. A proxy must replace,
+  not accompany, the source actor.
+- **Process Improvement**: For motion handoffs, inspect live rectangles and
+  visible actor counts at desktop and compact sizes; unit state timing alone
+  cannot detect a discontinuous image handoff.
+
+### 5. Knowledge Capture
+
+- [x] Updated the frontend visual contract with the single-actor handoff rule.
+- [x] Added desktop, rapid-click, and compact browser evidence for the fix.
+- [x] Kept wave-refresh leave motion separate because it begins only after feed
+  contact and does not compete with the selected-fish catch proxy.
+- [x] Confirmed this project has no spec template mirror to synchronize.

@@ -3,7 +3,6 @@ import { computed, ref, shallowRef } from "vue";
 import {
   createLevelState,
   getLevelGoal,
-  getSelectablePieces,
   selectPiece,
   type AmbientGameState,
   type FishKind,
@@ -21,6 +20,9 @@ import {
   type StorageLike,
 } from "../session/ambient-storage";
 import {
+  CAT_CURIOUS_DURATION,
+  CAT_PET_DURATION,
+  CAT_PLAY_DURATION,
   getFishPresentation,
   getIntroTargetIds,
   FISH_CATCH_FLIGHT_DURATION,
@@ -36,9 +38,10 @@ import {
   chooseCatReaction,
   type CatBondStage,
   type CatMotion,
+  type CatPetZone,
+  type CatPlayVariant,
   type CatReaction,
   type CatReactionContext,
-  type CatTravelPhase,
 } from "./cat-reactions";
 
 export interface TimerApi {
@@ -53,7 +56,6 @@ export interface AmbientControllerOptions {
   readonly timers?: TimerApi;
   readonly onClear?: () => void;
   readonly now?: () => number;
-  readonly isSearchCandidate?: (pieceId: string) => boolean;
 }
 
 export interface CompletedFishEvent {
@@ -64,7 +66,6 @@ export interface CompletedFishEvent {
   readonly phase: "catching" | "merging" | "feeding";
 }
 
-const CAT_ACTIVATION_THROTTLE = 800;
 const CAT_BUBBLE_DURATION = 2_400;
 const CAT_AUTO_REACTION_MIN_DELAY = 45_000;
 const CAT_AUTO_REACTION_JITTER = 30_000;
@@ -106,12 +107,9 @@ export function createAmbientController(
   const currentTime = ref(now());
   const loaded = loadAmbientSnapshotResult(storage, random, currentTime.value);
   const stored = loaded.snapshot;
-  const introEligible = shouldStartIntro(
-    stored.game,
-    stored.pet.guardedPieceId,
-  );
+  const introEligible = shouldStartIntro(stored.game, null);
   // A controller owns one active play session. Durable pet, plant, and sound
-  // progress survive while the transient board and guard start clean.
+  // progress survive while the transient board starts clean.
   const initial: AmbientSnapshotV4 = loaded.loadedFromStorage
     ? {
       ...stored,
@@ -129,34 +127,29 @@ export function createAmbientController(
   const introTargetIds = shallowRef(getIntroTargetIds(initial.game.pieces));
   const catPose = ref<CatPose>("idle");
   const catMotion = ref<CatMotion>("idle");
+  const catPetZone = ref<CatPetZone>("head");
+  const catPlayVariant = ref<CatPlayVariant>("pounce");
   const trayPreview = shallowRef<readonly TrayPiece[] | null>(null);
   const fieldPreview = shallowRef<readonly PilePiece[] | null>(null);
   const clearingPieceIds = shallowRef<readonly string[]>([]);
   const completedFish = shallowRef<CompletedFishEvent | null>(null);
   const lossPending = ref(false);
   const catReaction = shallowRef<CatReaction | null>(null);
-  const guardedPieceId = ref<string | null>(initial.pet.guardedPieceId);
-  const catTravelPhase = ref<CatTravelPhase>(
-    initial.pet.guardedPieceId ? "guarding" : "home",
-  );
   const isAway = ref(false);
   let feedbackHandle: unknown = null;
   let catPoseHandle: unknown = null;
   let catReactionHandle: unknown = null;
-  let catSearchHandle: unknown = null;
   let catAutoReactionHandle: unknown = null;
   let catReactionRemaining = 0;
   let catReactionStartedAt = 0;
   let lastCatReactionId: string | null = null;
-  let petReactionSequence = 0;
-  let lastCatActivationAt = Number.NEGATIVE_INFINITY;
+  let playInteractionSequence = 0;
   let reactionsStarted = false;
   let pendingRestAfterFeed = false;
   let completedFishSequence = 0;
   let generation = 0;
   let feedbackSequence = 0;
 
-  const selectablePieces = computed(() => getSelectablePieces(game.value.pieces));
   const plantAgeDays = computed(() => Math.max(
     0,
     Math.floor((currentTime.value - initial.plant.plantedAt) / 86_400_000),
@@ -168,9 +161,6 @@ export function createAmbientController(
     !lossPending.value &&
     completedFish.value === null &&
     !feedbackProjection.value.locksInput
-  );
-  const guardedPiece = computed(() =>
-    game.value.pieces.find((piece) => piece.id === guardedPieceId.value) ?? null
   );
   const catIsResting = computed(() =>
     catPose.value === "full" ||
@@ -185,7 +175,7 @@ export function createAmbientController(
       preferences: { soundEnabled: soundEnabled.value },
       plant: initial.plant,
       pet: {
-        guardedPieceId: guardedPieceId.value,
+        guardedPieceId: null,
         fishFedCount: fishFedCount.value,
       },
     };
@@ -275,13 +265,6 @@ export function createAmbientController(
     }
   }
 
-  function clearCatSearchTimer(): void {
-    if (catSearchHandle !== null) {
-      timers.cancel(catSearchHandle);
-      catSearchHandle = null;
-    }
-  }
-
   function clearCatAutoReactionTimer(): void {
     if (catAutoReactionHandle !== null) {
       timers.cancel(catAutoReactionHandle);
@@ -327,8 +310,11 @@ export function createAmbientController(
     catAutoReactionHandle = timers.schedule(() => {
       catAutoReactionHandle = null;
       if (token !== generation || isAway.value) return;
-      if (catTravelPhase.value === "home") {
+      if (catMotion.value === "idle") {
+        catPose.value = "sitting";
+        catMotion.value = "curious";
         showCatReaction(fishFedCount.value > 0 ? "fed" : "idle");
+        scheduleCatPose("idle", CAT_CURIOUS_DURATION);
       }
       scheduleCatAutoReaction();
     }, delay);
@@ -338,24 +324,6 @@ export function createAmbientController(
     if (reactionsStarted) return;
     reactionsStarted = true;
     scheduleCatAutoReaction();
-  }
-
-  /**
-   * Synchronizes the main motion channel after a transient pose returns idle.
-   * @returns Nothing; the motion ref is updated from the current travel phase.
-   */
-  function syncCatMotionWithTravel(): void {
-    if (catPose.value !== "idle") return;
-    if (
-      catTravelPhase.value === "looking" ||
-      catTravelPhase.value === "travelling"
-    ) {
-      catMotion.value = "searching";
-    } else if (catTravelPhase.value === "guarding") {
-      catMotion.value = "guarding";
-    } else {
-      catMotion.value = "idle";
-    }
   }
 
   function scheduleCatPose(nextPose: CatPose, delay: number): void {
@@ -377,7 +345,7 @@ export function createAmbientController(
         scheduleCatPose("idle", 720);
       } else if (nextPose === "idle") {
         pendingRestAfterFeed = false;
-        syncCatMotionWithTravel();
+        catMotion.value = "idle";
       }
     }, delay);
   }
@@ -400,128 +368,9 @@ export function createAmbientController(
     } else if (catPose.value === "sleeping") {
       scheduleCatPose("idle", 720);
     } else {
-      syncCatMotionWithTravel();
+      catPose.value = "idle";
+      catMotion.value = "idle";
     }
-  }
-
-  function returnCatHome(): void {
-    clearCatSearchTimer();
-    guardedPieceId.value = null;
-    catTravelPhase.value = "home";
-    syncCatMotionWithTravel();
-  }
-
-  function resolveGuardedPiece(pieceId: string): void {
-    if (guardedPieceId.value !== pieceId) return;
-    returnCatHome();
-    showCatReaction(fishFedCount.value > 0 ? "fed" : "idle");
-  }
-
-  function scheduleCatGuarding(delay: number): void {
-    clearCatSearchTimer();
-    const token = generation;
-    catSearchHandle = timers.schedule(() => {
-      catSearchHandle = null;
-      if (token !== generation || isAway.value) return;
-      if (!guardedPiece.value) {
-        returnCatHome();
-        showCatReaction("unavailable");
-        return;
-      }
-      catTravelPhase.value = "guarding";
-      catMotion.value = "guarding";
-      status.value = "小猫找到了，正用光照着需要的小鱼。";
-      showCatReaction("guarding");
-    }, delay);
-  }
-
-  function scheduleCatTravelling(delay: number): void {
-    clearCatSearchTimer();
-    const token = generation;
-    catSearchHandle = timers.schedule(() => {
-      catSearchHandle = null;
-      if (token !== generation || isAway.value || !guardedPiece.value) return;
-      catTravelPhase.value = "travelling";
-      catMotion.value = "searching";
-      scheduleCatGuarding(520);
-    }, delay);
-  }
-
-  function resumeCatSearchSequence(): void {
-    if (!guardedPiece.value) {
-      if (catTravelPhase.value !== "home") returnCatHome();
-      return;
-    }
-    if (catTravelPhase.value === "looking") {
-      scheduleCatTravelling(320);
-    } else if (catTravelPhase.value === "travelling") {
-      scheduleCatGuarding(520);
-    } else if (catTravelPhase.value === "guarding") {
-      catMotion.value = "guarding";
-    }
-  }
-
-  /**
-   * Scores a visible fish by selected matches first, then total wave count.
-   * @param candidate Candidate pile fish considered for cat search.
-   * @returns A larger priority for a completing or uniquely tripled species.
-   */
-  function getSearchPriority(candidate: PilePiece): number {
-    const selectedCount = game.value.tray.filter((piece) =>
-      piece.kind === candidate.kind
-    ).length;
-    const fieldCount = game.value.pieces.filter((piece) =>
-      piece.kind === candidate.kind
-    ).length;
-    return selectedCount * 10 + fieldCount;
-  }
-
-  function requestCatSearch(): void {
-    takeOverIntro();
-    if (isAway.value || feedback.value === "loss") return;
-    const activatedAt = now();
-    if (activatedAt - lastCatActivationAt < CAT_ACTIVATION_THROTTLE) return;
-    lastCatActivationAt = activatedAt;
-
-    if (guardedPiece.value) {
-      status.value = "小猫还守着刚找到的小鱼。";
-      showCatReaction("guarding");
-      return;
-    }
-    if (!canSelect.value) {
-      status.value = "完整鱼正在送给小猫，请稍等一下。";
-      showCatReaction("unavailable");
-      return;
-    }
-
-    clearCatPoseTimer();
-    pendingRestAfterFeed = false;
-    catPose.value = "idle";
-    const candidates = selectablePieces.value.filter((piece) =>
-      options.isSearchCandidate?.(piece.id) ?? true
-    );
-    const target = candidates.sort((first, second) => {
-      const matchPriority = getSearchPriority(second) - getSearchPriority(first);
-      if (matchPriority !== 0) return matchPriority;
-      const distancePriority =
-        Math.hypot(first.pile.x - 0.12, first.pile.y - 0.74) -
-        Math.hypot(second.pile.x - 0.12, second.pile.y - 0.74);
-      return distancePriority || first.id.localeCompare(second.id);
-    })[0];
-    if (!target) {
-      status.value = "小猫暂时找不到可以提示的小鱼。";
-      showCatReaction("unavailable");
-      syncCatMotionWithTravel();
-      return;
-    }
-
-    guardedPieceId.value = target.id;
-    catTravelPhase.value = "looking";
-    catMotion.value = "searching";
-    status.value = "小猫正在寻找最接近凑齐三条的同种小鱼。";
-    showCatReaction("searching");
-    persist();
-    scheduleCatTravelling(320);
   }
 
   /**
@@ -534,32 +383,72 @@ export function createAmbientController(
     status.value = "这里没有小鱼，沿着鱼群的流线继续找。";
   }
 
-  function petCat(): void {
+  /**
+   * Projects a tactile response for the selected part of the cat.
+   * @param zone Semantic body zone resolved by the component; keyboard uses head.
+   * @returns Nothing; the interaction changes only transient pose and copy.
+   */
+  function petCat(zone: CatPetZone = "head"): void {
     takeOverIntro();
     if (
       isAway.value ||
       feedback.value === "loss" ||
-      catTravelPhase.value !== "home"
-    ) {
-      return;
-    }
+      catMotion.value === "feeding"
+    ) return;
     clearCatPoseTimer();
     pendingRestAfterFeed = false;
-    catPose.value = "idle";
+    catPetZone.value = zone;
     catMotion.value = "petting";
-    petReactionSequence += 1;
-    const familiar = bondStage.value !== "newcomer";
-    const next: CatReaction = {
-      id: `pet-${familiar ? "purr" : "hello"}-${petReactionSequence}`,
-      text: familiar ? "呼噜～" : "喵～",
-    };
-    lastCatReactionId = next.id;
-    catReaction.value = next;
-    status.value = familiar
-      ? "小猫主动贴近你的手，发出轻轻的呼噜声。"
-      : "小猫试探着靠近你的手。";
-    scheduleCatPose("idle", 560);
-    scheduleCatReactionDismiss(CAT_BUBBLE_DURATION);
+    if (zone === "head") {
+      catPose.value = "idle";
+      status.value = bondStage.value === "newcomer"
+        ? "小猫试探着把额头靠近你的手。"
+        : "小猫眯着眼贴近你的手，轻轻呼噜。";
+      showCatReaction("pet-head");
+    } else if (zone === "belly") {
+      catPose.value = "sitting";
+      status.value = "挠到软软的肚子，小猫忍不住晃了起来。";
+      showCatReaction("pet-belly");
+    } else {
+      catPose.value = "excited";
+      status.value = "你碰了碰小猫的爪子，它开心地举起双爪回应。";
+      showCatReaction("pet-paws");
+    }
+    scheduleCatPose("idle", CAT_PET_DURATION);
+  }
+
+  /**
+   * Plays one bounded yarn interaction without changing canonical progress.
+   * @returns Nothing; only transient cat motion, reaction, and status are updated.
+   */
+  function playWithCat(): void {
+    takeOverIntro();
+    if (
+      isAway.value ||
+      feedback.value === "loss" ||
+      catMotion.value === "feeding"
+    ) return;
+    clearCatPoseTimer();
+    pendingRestAfterFeed = false;
+    const variants: readonly CatPlayVariant[] = ["pounce", "bat", "cuddle"];
+    const variant = variants[playInteractionSequence % variants.length] ?? "pounce";
+    playInteractionSequence += 1;
+    catPlayVariant.value = variant;
+    catMotion.value = "playing";
+    if (variant === "pounce") {
+      catPose.value = "idle";
+      status.value = "毛线球滚了出去，小猫先蓄力，再轻轻扑了过去。";
+      showCatReaction("play-pounce");
+    } else if (variant === "bat") {
+      catPose.value = "excited";
+      status.value = "小猫把毛线球拍到半空，举起双爪等它落下。";
+      showCatReaction("play-bat");
+    } else {
+      catPose.value = "cuddling";
+      status.value = "小猫趴了下来，把软软的毛线球抱在爪边。";
+      showCatReaction("play-cuddle");
+    }
+    scheduleCatPose("idle", CAT_PLAY_DURATION);
   }
 
   function clearTrayFeedback(): void {
@@ -718,7 +607,6 @@ export function createAmbientController(
       trayPreview.value = [...game.value.tray, result.selected];
       clearingPieceIds.value = result.combined.map((piece) => piece.id);
       game.value = result.state;
-      resolveGuardedPiece(pieceId);
       fishFedCount.value = Math.min(
         Number.MAX_SAFE_INTEGER,
         fishFedCount.value + 1,
@@ -731,7 +619,6 @@ export function createAmbientController(
         feedCount: fishFedCount.value,
         phase: "catching",
       };
-      if (result.levelAdvanced) returnCatHome();
       const nextStage = bondStage.value;
       const fishLabel = getFishPresentation(result.fishKind).label;
       persist();
@@ -747,12 +634,10 @@ export function createAmbientController(
     }
 
     game.value = result.state;
-    resolveGuardedPiece(pieceId);
     if (result.kind === "lost") {
       trayPreview.value = result.tray;
       clearingPieceIds.value = [];
       completedFish.value = null;
-      returnCatHome();
       clearCatPoseTimer();
       clearCatAutoReactionTimer();
       dismissCatReaction();
@@ -799,7 +684,6 @@ export function createAmbientController(
     generation += 1;
     clearFeedbackTimer();
     clearCatPoseTimer();
-    clearCatSearchTimer();
     clearCatAutoReactionTimer();
     if (away) {
       if (catReaction.value && catReactionHandle !== null) {
@@ -810,7 +694,12 @@ export function createAmbientController(
       feedback.value = "idle";
       clearTrayFeedback();
       presentedClearCount.value = game.value.clearCount;
-      if (lossInterrupted) {
+      if (
+        lossInterrupted ||
+        catMotion.value === "petting" ||
+        catMotion.value === "playing" ||
+        catMotion.value === "curious"
+      ) {
         catPose.value = "idle";
         catMotion.value = "idle";
       }
@@ -822,7 +711,6 @@ export function createAmbientController(
       scheduleCatReactionDismiss(catReactionRemaining);
     }
     resumeCatPoseSequence();
-    resumeCatSearchSequence();
     scheduleCatAutoReaction();
   }
 
@@ -831,7 +719,6 @@ export function createAmbientController(
     generation += 1;
     clearFeedbackTimer();
     clearCatPoseTimer();
-    clearCatSearchTimer();
     clearCatAutoReactionTimer();
     dismissCatReaction();
     clearTrayFeedback();
@@ -853,22 +740,21 @@ export function createAmbientController(
     introTargetIds,
     catPose,
     catMotion,
+    catPetZone,
+    catPlayVariant,
     catReaction,
-    guardedPiece,
-    catTravelPhase,
     catIsResting,
     trayPreview,
     fieldPreview,
     clearingPieceIds,
     completedFish,
     isAway,
-    selectablePieces,
     plantAgeDays,
     canSelect,
     activate,
     rejectDirectFeed,
     petCat,
-    requestCatSearch,
+    playWithCat,
     announceSearchMiss,
     takeOverIntro,
     startReactions,

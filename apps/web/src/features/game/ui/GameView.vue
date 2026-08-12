@@ -24,7 +24,6 @@ import {
   FULL_FIELD_PROJECTION,
   createFieldProjectionScheduler,
   getFieldProjection,
-  projectFieldPoint,
   type FieldProjectionScheduler,
   type FieldSurfaceSize,
 } from "./spotlight";
@@ -42,6 +41,9 @@ const catchFlights = ref<readonly {
   readonly startY: number;
   readonly endX: number;
   readonly endY: number;
+  readonly startSize: number;
+  readonly endSize: number;
+  readonly startRotation: number;
 }[]>([]);
 const deliveryGeometry = ref<{
   readonly eventId: number;
@@ -96,31 +98,6 @@ const showFishDelivery = computed(() => Boolean(
   mergeReady.value &&
   deliveryGeometry.value,
 ));
-const catGuardStyle = computed(() => {
-  const target = game.guardedPiece.value;
-  if (!target) return {};
-  const projectedTarget = projectFieldPoint(target.pile, fieldProjection.value);
-  return {
-    "--cat-guard-left": `${projectedTarget.x * 100}%`,
-    "--cat-guard-bottom": `${(1 - projectedTarget.y) * 100}%`,
-  };
-});
-const catGuardSide = computed(() => {
-  const target = game.guardedPiece.value;
-  if (!target) return "left";
-  return projectFieldPoint(target.pile, fieldProjection.value).x < 0.5
-    ? "right"
-    : "left";
-});
-const catAwayFromHome = computed(() =>
-  game.catTravelPhase.value === "travelling" ||
-  game.catTravelPhase.value === "guarding",
-);
-const catGuidedPieceId = computed(() =>
-  game.catTravelPhase.value === "guarding"
-    ? game.guardedPiece.value?.id ?? null
-    : null,
-);
 const showPlayHint = computed(() =>
   !playHintDismissed.value &&
   game.game.value.level === 1 &&
@@ -159,7 +136,8 @@ function activateFish(pieceId: string): void {
  * Measures a selected fish center and its pre-selection tray destination.
  * @param pieceId Canonical fish ID whose rendered source is still mounted.
  * @param slotIndex Zero-based tray slot that will receive the selected fish.
- * @returns Surface-local flight endpoints, or null when geometry is unavailable.
+ * @returns Surface-local endpoints and rendered handoff metrics, or null when
+ * geometry is unavailable.
  */
 function measureCatchGeometry(
   pieceId: string,
@@ -169,6 +147,9 @@ function measureCatchGeometry(
   readonly startY: number;
   readonly endX: number;
   readonly endY: number;
+  readonly startSize: number;
+  readonly endSize: number;
+  readonly startRotation: number;
 } | null {
   const surfaceBounds = surface.value?.getBoundingClientRect();
   const source = [...(surface.value?.querySelectorAll<HTMLElement>(
@@ -177,14 +158,27 @@ function measureCatchGeometry(
   const target = fishTray.value?.$el.querySelectorAll<HTMLElement>(
     ".fish-tray__slot",
   )[slotIndex];
-  const sourceBounds = source?.getBoundingClientRect();
+  const sourceVisual = source?.querySelector<HTMLElement>(
+    ".fish-piece__visual",
+  );
+  const sourceBounds = sourceVisual?.getBoundingClientRect();
   const targetBounds = target?.getBoundingClientRect();
-  if (!surfaceBounds || !sourceBounds || !targetBounds) return null;
+  if (!surfaceBounds || !sourceVisual || !sourceBounds || !targetBounds) {
+    return null;
+  }
+  const transformValue = getComputedStyle(sourceVisual).transform;
+  const transform = transformValue === "none"
+    ? new DOMMatrixReadOnly()
+    : new DOMMatrixReadOnly(transformValue);
+  const renderedScale = Math.hypot(transform.a, transform.b);
   return {
     startX: sourceBounds.left + sourceBounds.width / 2 - surfaceBounds.left,
     startY: sourceBounds.top + sourceBounds.height / 2 - surfaceBounds.top,
     endX: targetBounds.left + targetBounds.width / 2 - surfaceBounds.left,
     endY: targetBounds.top + targetBounds.height / 2 - surfaceBounds.top,
+    startSize: sourceVisual.offsetWidth * renderedScale,
+    endSize: Math.min(targetBounds.width, targetBounds.height) * 0.82,
+    startRotation: Math.atan2(transform.b, transform.a) * (180 / Math.PI),
   };
 }
 
@@ -434,19 +428,17 @@ onBeforeUnmount(() => {
         <div
           ref="catDropTarget"
           class="cat-companion-slot"
-          :data-away-from-home="catAwayFromHome"
-          :data-guard-side="catGuardSide"
-          :style="catGuardStyle"
         >
           <CatCompanion
             :pose="game.catPose.value"
             :motion="game.catMotion.value"
             :bond-stage="game.bondStage.value"
+            :pet-zone="game.catPetZone.value"
+            :play-variant="game.catPlayVariant.value"
             :reaction="game.catReaction.value"
-            :travel-phase="game.catTravelPhase.value"
             :loss="game.feedbackProjection.value.loss"
             @pet="game.petCat"
-            @search="game.requestCatSearch"
+            @play="game.playWithCat"
           />
         </div>
 
@@ -460,7 +452,7 @@ onBeforeUnmount(() => {
           :away="game.isAway.value"
           :projection="fieldProjection"
           :surface-size="surfaceSize"
-          :guided-piece-id="catGuidedPieceId"
+          :guided-piece-id="null"
           :feedback="game.feedback.value"
           :intro-phase="game.introPhase.value"
           :intro-target-ids="game.introTargetIds.value"
@@ -487,6 +479,9 @@ onBeforeUnmount(() => {
           :start-y="flight.startY"
           :end-x="flight.endX"
           :end-y="flight.endY"
+          :start-size="flight.startSize"
+          :end-size="flight.endSize"
+          :start-rotation="flight.startRotation"
           @complete="completeCatchFlight(flight.id)"
         />
 
@@ -637,20 +632,6 @@ onBeforeUnmount(() => {
   );
   bottom: var(--scene-companion-base);
   pointer-events: none;
-  transition:
-    left 520ms var(--ease-out),
-    bottom 520ms var(--ease-out),
-    transform 520ms var(--ease-out);
-
-  &[data-away-from-home="true"] {
-    left: clamp(24px, var(--cat-guard-left), calc(100% - 24px));
-    bottom: var(--cat-guard-bottom);
-    transform: translate(calc(-100% - 64px), 45%);
-  }
-
-  &[data-away-from-home="true"][data-guard-side="right"] {
-    transform: translate(64px, 45%);
-  }
 }
 
 @media (max-width: 620px) {
@@ -675,17 +656,7 @@ onBeforeUnmount(() => {
       100% - var(--plant-right) - var(--plant-width) -
         var(--cat-companion-width) + var(--cat-plant-overlap)
     );
-    bottom: var(--scene-companion-base);
-
-    &[data-away-from-home="true"] {
-      left: clamp(16px, var(--cat-guard-left), calc(100% - 16px));
-      bottom: var(--cat-guard-bottom);
-      transform: translate(calc(-100% - 64px), 48%);
-    }
-
-    &[data-away-from-home="true"][data-guard-side="right"] {
-      transform: translate(64px, 48%);
-    }
+    bottom: calc(var(--scene-companion-base) + 28px);
   }
 
   .play-hint {
@@ -739,25 +710,10 @@ onBeforeUnmount(() => {
       100% - var(--plant-right) - var(--plant-width) -
         var(--cat-companion-width) + var(--cat-plant-overlap)
     );
-
-    &[data-away-from-home="true"] {
-      right: auto;
-      left: clamp(16px, var(--cat-guard-left), calc(100% - 16px));
-      bottom: var(--cat-guard-bottom);
-      transform: translate(calc(-100% - 12px), 45%);
-    }
-
-    &[data-away-from-home="true"][data-guard-side="right"] {
-      transform: translate(12px, 45%);
-    }
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .cat-companion-slot {
-    transition: none;
-  }
-
   .play-hint-enter-active,
   .play-hint-leave-active,
   .level-cue-enter-active,

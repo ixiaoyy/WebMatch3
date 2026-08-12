@@ -732,12 +732,18 @@ onBeforeUnmount(() => {
   }
 }
 
-.fish-field[data-feedback="select"] :deep(.fish-field-piece-leave-active),
 .fish-field[data-feedback="clear"] :deep(.fish-field-piece-leave-active),
 .fish-field[data-feedback="refresh"] :deep(.fish-field-piece-leave-active),
 .fish-field[data-feedback="level"] :deep(.fish-field-piece-leave-active) {
   pointer-events: none;
   animation: fish-origin-tuck 220ms var(--ease-out) both;
+}
+
+.fish-field[data-feedback="select"] :deep(.fish-field-piece-leave-active) {
+  visibility: hidden;
+  pointer-events: none;
+  animation: none;
+  transition: none;
 }
 
 .fish-field :deep(.fish-field-piece-leave-active:focus-visible) {

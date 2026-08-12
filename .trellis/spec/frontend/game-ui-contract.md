@@ -14,6 +14,9 @@ type GameFeedback =
   | "idle" | "intro" | "select" | "clear"
   | "refresh" | "level" | "loss";
 
+type CatPetZone = "head" | "belly" | "paws";
+type CatPlayVariant = "pounce" | "bat" | "cuddle";
+
 interface CompletedFishEvent {
   readonly id: number;
   readonly kind: FishKind;
@@ -28,11 +31,16 @@ interface AmbientController {
   readonly trayPreview: Ref<readonly TrayPiece[] | null>;
   readonly completedFish: Ref<CompletedFishEvent | null>;
   readonly canSelect: ComputedRef<boolean>;
+  readonly catPetZone: Ref<CatPetZone>;
+  readonly catPlayVariant: Ref<CatPlayVariant>;
   activate(pieceId: string): SelectionResult | null;
-  petCat(): void;
-  requestCatSearch(): void;
+  petCat(zone?: CatPetZone): void;
+  playWithCat(): void;
 }
 
+const CAT_PET_DURATION = 680;
+const CAT_PLAY_DURATION = 1_040;
+const CAT_CURIOUS_DURATION = 820;
 const FISH_CATCH_FLIGHT_DURATION = 500;
 const FISH_MERGE_CONTACT_DURATION = 620;
 const FISH_FEED_SETTLE_DURATION = 380;
@@ -55,8 +63,8 @@ interface AmbientSnapshotV4 {
 
 - The root page is immediately playable with no lobby, board, level picker,
   score, timer, modal, or persistent numeric progress HUD.
-- Every current fish is visible and directly selectable. Spotlight and cat
-  guide effects are decorative guidance; neither controls reveal eligibility.
+- Every current fish is visible and directly selectable. The spotlight is a
+  decorative pointer effect and never controls reveal eligibility.
 - `FishPiece` uses native button click as the non-drag activation boundary.
   Pointer-up ends or commits drag state; it must not also remove a tapped node
   before its native click. A real drag suppresses the following click.
@@ -74,8 +82,21 @@ interface AmbientSnapshotV4 {
   new wave. Level-one groups one and two never create a whole-field preview.
 - `refresh`, `level`, and `clear` are distinct feedback projections. A refresh
   may animate new fish but does not imply level advancement.
-- Cat search chooses a useful visible fish, prioritizing species with two tray
-  matches, then one, then none. Search never selects or mutates a fish.
+- The cat body and yarn are separate native buttons; there is no intermediate
+  action menu. Pointer position is normalized inside the rendered cat target
+  and mapped to `head / belly / paws`; keyboard activation always requests
+  `head`. The controller accepts only the semantic zone, never pixel geometry.
+- `playWithCat()` deterministically rotates `pounce / bat / cuddle` within the
+  current page controller. Pet, play, and low-frequency `curious` projections
+  are interruptible UI-only states that return to idle after their shared
+  duration. They must not select, illuminate, guard, or travel to any fish,
+  mutate canonical game state, increment feed progress, or write a snapshot.
+- Cat target geometry must follow the visible bitmap, not its transparent asset
+  canvas. At compact widths the cat and 44px yarn target sit above the hint and
+  tray; the reaction bubble stays within the viewport.
+- Snapshot v4 keeps `pet.guardedPieceId` only as a legacy parsing field. New
+  writes always store it as `null`; no active UI state may be reconstructed
+  from a legacy guarded id.
 - Click/touch targets, cat art, plant art, controls, and tray must not intercept
   one another. Transparent cat and plant canvas remains pointer-transparent
   outside explicit native controls.
@@ -108,6 +129,11 @@ interface AmbientSnapshotV4 {
 | Legacy v4 snapshot lacks `levelProgress` | parse as legacy progress zero if all legacy invariants pass |
 | Current later snapshot has zero or two triple species | reject and fall back safely |
 | Storage read/write throws | continue in memory; rendering must not block |
+| Pointer pets visible cat head/belly/paws | resolve the matching semantic zone and distinct pose/copy; reset after 680ms |
+| Keyboard activates the cat body | resolve stable `head` feedback regardless of focus geometry |
+| Player repeatedly chooses yarn play | rotate pounce, bat, cuddle for 1040ms each; restart the active timer; game and storage remain unchanged |
+| Auto reaction fires while cat is idle | show one 820ms curious pose; skip takeover while another motion owns the cat |
+| Feeding or loss owns the cat | direct pet/play controls are disabled and controller calls do not replace feeding/loss motion |
 | Reduced motion | preserve phase order and state/copy without travel animation |
 | `<=620px` viewport | 44px non-overlapping targets and no viewport overflow |
 | PiP request fails | retain the same surface and state; show quiet failure copy |
@@ -120,12 +146,21 @@ interface AmbientSnapshotV4 {
   next wave arrives only at contact.
 - Good: storage validates unknown data once and the controller receives typed
   state without local casts.
+- Good: clicking the rendered face, belly, and paws resolves three distinct
+  zones; repeated yarn clicks rotate through three bounded presentations.
+- Good: direct cat controls restart their own transient timer without changing
+  the fish field, tray, feed count, or saved snapshot.
 - Bad: emitting activation from pointer-up and removing the button before the
   browser dispatches its native click.
 - Bad: a visual fish extends far outside a 44px semantic target with no magnetic
   or enlarged hit area.
 - Bad: rendering the engine's replacement wave immediately after the third tap.
 - Bad: restoring stored level/tray state into a newly created page controller.
+- Bad: using the cat interaction to choose, highlight, guard, or move toward a
+  fish, even if the engine state itself is not mutated.
+- Bad: sizing the cat button from the full transparent bitmap canvas so a click
+  on the visible face resolves as belly, or placing the compact yarn under the
+  persistent hint/tray.
 - Bad: component-local goal calculations or snapshot parsing.
 
 ## 6. Tests Required
@@ -137,8 +172,10 @@ interface AmbientSnapshotV4 {
 5. loss restart preserving level, level progress, lifetime counts, and bond;
 6. v4 round-trip with `levelProgress`, legacy-v4 defaulting, v1-v3 migration,
    malformed geometry/count/counter rejection, and storage exceptions;
-7. species-only accessible labels, direct keyboard actions, cat-search priority,
-   and feedback projections including `refresh`;
+7. species-only accessible labels, direct keyboard actions, head/belly/paws
+   boundaries, 680ms pet reset, three 1040ms yarn variants, 820ms curious reset,
+   feeding/loss guards, no companion persistence, and feedback projections
+   including `refresh`;
 8. browser rapid-click regression, exact wave counts, no target overlap, no
    console warnings, and the full first-level plus five-group second-level path;
 9. desktop/reference, compact, reduced-motion, and PiP responsive checks.
@@ -173,3 +210,8 @@ function onClick(event: MouseEvent) {
 
 Native click owns taps; pointer state owns only dragging. Canonical state and
 presentation still meet at the controller boundary exactly once.
+
+For cat zoning, the same rule applies to transparent art: normalize against a
+tight target around the rendered body, not a tall empty canvas. A target that
+starts near the visible ears lets stable thresholds map face, belly, and paws;
+keyboard click events (`detail === 0`) bypass pointer geometry and use `head`.

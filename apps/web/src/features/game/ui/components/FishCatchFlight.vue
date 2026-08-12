@@ -15,6 +15,9 @@ const props = defineProps<{
   startY: number;
   endX: number;
   endY: number;
+  startSize: number;
+  endSize: number;
+  startRotation: number;
 }>();
 
 const emit = defineEmits<{ complete: [] }>();
@@ -30,6 +33,10 @@ const flightStyle = computed(() => ({
   "--catch-start-y": `${props.startY}px`,
   "--catch-dx": `${props.endX - props.startX}px`,
   "--catch-dy": `${props.endY - props.startY}px`,
+  "--catch-size": `${props.startSize}px`,
+  "--catch-offset": `${props.startSize / -2}px`,
+  "--catch-end-scale": `${props.endSize / props.startSize}`,
+  "--catch-start-rotation": `${props.startRotation}deg`,
   "--catch-duration": `${duration}ms`,
 }));
 let completionHandle: ReturnType<typeof setTimeout> | null = null;
@@ -81,10 +88,10 @@ onBeforeUnmount(() => {
   }
 
   &__fish {
-    top: -35px;
-    left: -35px;
-    width: 70px;
-    height: 70px;
+    top: var(--catch-offset);
+    left: var(--catch-offset);
+    width: var(--catch-size);
+    height: var(--catch-size);
     object-fit: contain;
     filter:
       drop-shadow(0 9px 10px rgb(57 70 112 / 22%))
@@ -131,7 +138,10 @@ onBeforeUnmount(() => {
 @keyframes fish-catch-flight {
   0% {
     opacity: 1;
-    transform: translate(0, 0) rotate(-4deg) scale(0.92);
+    transform:
+      translate(0, 0)
+      rotate(var(--catch-start-rotation))
+      scale(1);
   }
 
   18% {
@@ -139,7 +149,7 @@ onBeforeUnmount(() => {
     transform: translate(
       calc(var(--catch-dx) * 0.08),
       calc(var(--catch-dy) * 0.08 - 15px)
-    ) rotate(3deg) scale(1.08);
+    ) rotate(calc(var(--catch-start-rotation) + 3deg)) scale(1.04);
   }
 
   68% {
@@ -147,12 +157,15 @@ onBeforeUnmount(() => {
     transform: translate(
       calc(var(--catch-dx) * 0.66),
       calc(var(--catch-dy) * 0.66 - 34px)
-    ) rotate(-2deg) scale(0.91);
+    ) rotate(calc(var(--catch-start-rotation) - 2deg)) scale(0.88);
   }
 
   100% {
     opacity: 0.72;
-    transform: translate(var(--catch-dx), var(--catch-dy)) scale(0.64);
+    transform:
+      translate(var(--catch-dx), var(--catch-dy))
+      rotate(0deg)
+      scale(var(--catch-end-scale));
   }
 }
 
@@ -174,15 +187,6 @@ onBeforeUnmount(() => {
   }
 }
 
-@media (max-width: 620px) {
-  .fish-catch-flight__fish {
-    top: -31px;
-    left: -31px;
-    width: 62px;
-    height: 62px;
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .fish-catch-flight__source-ring,
   .fish-catch-flight__trail {
@@ -195,10 +199,18 @@ onBeforeUnmount(() => {
 }
 
 @keyframes fish-catch-reduced {
-  0% { opacity: 1; transform: translate(0, 0) scale(0.94); }
-  42% { opacity: 0; transform: translate(0, 0) scale(0.9); }
-  43% { opacity: 0; transform: translate(var(--catch-dx), var(--catch-dy)) scale(0.64); }
-  78% { opacity: 0.82; }
-  100% { opacity: 0; transform: translate(var(--catch-dx), var(--catch-dy)) scale(0.64); }
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) rotate(var(--catch-start-rotation)) scale(1);
+  }
+
+  55% { opacity: 0; transform: translate(0, 0) scale(0.94); }
+
+  56%, 100% {
+    opacity: 0;
+    transform:
+      translate(var(--catch-dx), var(--catch-dy))
+      scale(var(--catch-end-scale));
+  }
 }
 </style>
