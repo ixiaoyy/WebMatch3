@@ -66,7 +66,6 @@ const pointerRipple = ref<{
   readonly id: number;
   readonly x: number;
   readonly y: number;
-  readonly hit: boolean;
 } | null>(null);
 let searchPointerId: number | null = null;
 let searchPointerStart: Point | null = null;
@@ -285,9 +284,9 @@ function onPointerDown(event: PointerEvent): void {
   if (event.button !== 0) return;
   const directPiece = findPieceElement(event.target);
   const magneticTarget = findMagneticPiece(event.clientX, event.clientY);
-  showPointerRipple(event.clientX, event.clientY, Boolean(
-    directPiece?.dataset.pieceId ?? magneticTarget,
-  ));
+  if (!directPiece && !magneticTarget) {
+    showPointerRipple(event.clientX, event.clientY);
+  }
   if (directPiece || event.target !== cluster.value) return;
   searchPointerId = event.pointerId;
   searchPointerStart = { x: event.clientX, y: event.clientY };
@@ -337,13 +336,11 @@ function findMagneticPiece(clientX: number, clientY: number): string | null {
  * Restarts the decorative pointer ripple at a surface-local position.
  * @param clientX Pointer x coordinate in the active document viewport.
  * @param clientY Pointer y coordinate in the active document viewport.
- * @param hit Whether this press already acquired a fish target.
  * @returns Nothing; only transient decorative state changes.
  */
 function showPointerRipple(
   clientX: number,
   clientY: number,
-  hit: boolean,
 ): void {
   const bounds = cluster.value?.getBoundingClientRect();
   if (!bounds) return;
@@ -352,7 +349,6 @@ function showPointerRipple(
     id: pointerRippleSequence,
     x: clientX - bounds.left,
     y: clientY - bounds.top,
-    hit,
   };
 }
 
@@ -517,7 +513,6 @@ onBeforeUnmount(() => {
       v-if="pointerRipple"
       :key="pointerRipple.id"
       class="fish-field__pointer-ripple"
-      :data-hit="pointerRipple.hit"
       :style="{
         '--ripple-x': `${pointerRipple.x}px`,
         '--ripple-y': `${pointerRipple.y}px`,
@@ -722,13 +717,6 @@ onBeforeUnmount(() => {
     pointer-events: none;
     transform: translate(-50%, -50%);
     animation: fish-pointer-ripple 420ms var(--ease-out) both;
-
-    &[data-hit="true"] {
-      border-color: rgb(255 244 190 / 72%);
-      box-shadow:
-        0 0 0 3px rgb(255 244 190 / 10%),
-        0 5px 13px rgb(94 100 145 / 12%);
-    }
   }
 }
 
